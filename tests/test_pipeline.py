@@ -167,6 +167,9 @@ class FakeSettingsApi:
         return str(p)
 
     def dataset_metadata_update(self, ref, path):
+        if self.fail == "flaky":
+            self.fail = False
+            raise requests.exceptions.JSONDecodeError("Expecting value", "", 0)
         if self.fail:
             raise SystemExit(1)
         self.sent = json.loads((Path(path) / "dataset-metadata.json").read_text())
@@ -219,3 +222,10 @@ def test_download_retries_while_kaggle_still_processing(tmp_path):
                                  dataset_download_files=lambda ref, **kw: (_ for _ in ()).throw(http_error(404)))
     with pytest.raises(requests.exceptions.HTTPError):
         kaggle_sync.download_current(always_404, REF, tmp_path, attempts=2, pause_s=0)
+
+
+def test_update_settings_retries_transient_errors(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"isPrivate": True}, fail="flaky")
+    kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
+    assert api.sent is not None

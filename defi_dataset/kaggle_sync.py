@@ -90,7 +90,7 @@ def wait_until_ready(api, ref, timeout_s=600, poll_s=15):
         time.sleep(poll_s)
 
 
-def update_settings(api, folder, ref):
+def update_settings(api, folder, ref, attempts=3, pause_s=60):
     """Apply what a version upload doesn't: file and column descriptions, sources,
     update frequency and cover image (all read from the folder's dataset-metadata.json).
 
@@ -112,8 +112,16 @@ def update_settings(api, folder, ref):
         meta["collaborators"] = current["collaborators"]
     meta_path.write_text(json.dumps(meta, indent=2))
 
-    try:
-        api.dataset_metadata_update(ref, str(folder))
-    except SystemExit as exc:  # the client prints the errors and calls exit(1)
-        raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
+    for attempt in range(1, attempts + 1):
+        try:
+            api.dataset_metadata_update(ref, str(folder))
+            break
+        except SystemExit as exc:  # the client prints the errors and calls exit(1)
+            raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
+        except requests.exceptions.RequestException as exc:
+            # Kaggle occasionally answers with an empty body; a retry goes through.
+            if attempt == attempts:
+                raise
+            log.warning("Kaggle settings update failed (%s), retrying", exc)
+            time.sleep(pause_s)
     log.info("Kaggle settings updated (private=%s)", meta["isPrivate"])

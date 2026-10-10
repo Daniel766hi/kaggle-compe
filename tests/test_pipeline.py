@@ -201,3 +201,21 @@ def test_wait_until_ready_polls_then_fails_on_error():
     kaggle_sync.wait_until_ready(api, REF, poll_s=0)
     with pytest.raises(RuntimeError, match="'error'"):
         kaggle_sync.wait_until_ready(SimpleNamespace(dataset_status=lambda ref: "error"), REF, poll_s=0)
+
+
+def test_download_retries_while_kaggle_still_processing(tmp_path):
+    calls = []
+
+    def download(ref, **kw):
+        calls.append(ref)
+        if len(calls) < 3:
+            raise http_error(404)
+
+    api = SimpleNamespace(dataset_status=lambda ref: "ready", dataset_download_files=download)
+    kaggle_sync.download_current(api, REF, tmp_path, pause_s=0)
+    assert len(calls) == 3
+
+    always_404 = SimpleNamespace(dataset_status=lambda ref: "ready",
+                                 dataset_download_files=lambda ref, **kw: (_ for _ in ()).throw(http_error(404)))
+    with pytest.raises(requests.exceptions.HTTPError):
+        kaggle_sync.download_current(always_404, REF, tmp_path, attempts=2, pause_s=0)

@@ -39,11 +39,23 @@ def dataset_exists(api, ref):
         raise
 
 
-def download_current(api, ref, dest):
+def download_current(api, ref, dest, attempts=4, pause_s=30):
     """Fetch every file of the current version. Any failure aborts the run, so we never
-    publish a version built without the previous panels (that would erase history)."""
-    log.info("Downloading current version of %s", ref)
-    api.dataset_download_files(ref, path=str(dest), force=True, quiet=True, unzip=True)
+    publish a version built without the previous panels (that would erase history).
+
+    Right after a new version, Kaggle can answer 404 until it has finished processing,
+    so wait for "ready" and retry a few times.
+    """
+    wait_until_ready(api, ref)
+    for attempt in range(1, attempts + 1):
+        log.info("Downloading current version of %s (attempt %d)", ref, attempt)
+        try:
+            api.dataset_download_files(ref, path=str(dest), force=True, quiet=True, unzip=True)
+            return
+        except requests.exceptions.HTTPError as exc:
+            if getattr(exc.response, "status_code", None) != 404 or attempt == attempts:
+                raise
+            time.sleep(pause_s)
 
 
 def _check(resp, action):

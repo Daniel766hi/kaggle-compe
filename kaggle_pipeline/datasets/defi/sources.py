@@ -3,33 +3,16 @@
 import time
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
-from . import config
+from ...http import get_json
+
+REQUEST_PAUSE_S = 1.0  # between per-chain requests, to be polite to the API
 
 API = "https://api.llama.fi"
 STABLECOINS_API = "https://stablecoins.llama.fi"
 YIELDS_API = "https://yields.llama.fi"
 
 
-def make_session():
-    session = requests.Session()
-    retry = Retry(
-        total=5,
-        backoff_factor=2,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=("GET",),
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retry))
-    session.headers["User-Agent"] = config.USER_AGENT
-    return session
-
-
-def get_json(session, url, params=None):
-    resp = session.get(url, params=params, timeout=config.REQUEST_TIMEOUT_S)
-    resp.raise_for_status()
-    return resp.json()
 
 
 def fetch_protocols(session):
@@ -49,7 +32,7 @@ def fetch_chain_tvl_histories(session, chain_names):
     out = {}
     for name in chain_names:
         out[name] = get_json(session, f"{API}/v2/historicalChainTvl/{requests.utils.quote(name)}")
-        time.sleep(config.REQUEST_PAUSE_S)
+        time.sleep(REQUEST_PAUSE_S)
     return out
 
 

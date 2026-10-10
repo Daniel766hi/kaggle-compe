@@ -6,33 +6,35 @@ import pandas as pd
 import pytest
 import requests
 
-from defi_dataset import config, kaggle_sync, pipeline, transform
+from kaggle_pipeline import kaggle_sync, pipeline
+from kaggle_pipeline.datasets import DATASETS
+from kaggle_pipeline.datasets.defi import SPEC, transform
 
-from . import fakes
+from . import defi_fakes as fakes
 
 REF = "someone/defi-daily-tvl-stablecoins-dex-yields"
 DAY1, DAY2 = pd.Timestamp("2026-10-09"), pd.Timestamp("2026-10-10")
 
 
 def fetchers(snapshot_date, broken=()):
-    def fail():
+    def fail(prev=None):
         raise requests.exceptions.ConnectionError("boom")
 
     f = {
-        "defi_tvl_history": lambda: transform.defi_tvl_history(fakes.tvl_series()),
-        "chain_tvl_history": lambda: transform.chain_tvl_history({"A": fakes.tvl_series()}),
-        "stablecoin_supply_history": lambda: transform.stablecoin_supply_history(fakes.stablecoin_chart()),
-        "dex_fees_history": lambda: transform.dex_fees_history(fakes.overview(), fakes.overview()),
-        "protocols_snapshots": lambda: transform.protocols_snapshot(fakes.protocols(), snapshot_date),
-        "chains_snapshots": lambda: transform.chains_snapshot(fakes.chains(), snapshot_date),
-        "stablecoins_snapshots": lambda: transform.stablecoins_snapshot(fakes.stablecoins(), snapshot_date),
-        "yield_pools_snapshots": lambda: transform.yield_pools_snapshot(fakes.yield_pools(), snapshot_date),
+        "defi_tvl_history": lambda prev: transform.defi_tvl_history(fakes.tvl_series()),
+        "chain_tvl_history": lambda prev: transform.chain_tvl_history({"A": fakes.tvl_series()}),
+        "stablecoin_supply_history": lambda prev: transform.stablecoin_supply_history(fakes.stablecoin_chart()),
+        "dex_fees_history": lambda prev: transform.dex_fees_history(fakes.overview(), fakes.overview()),
+        "protocols_snapshots": lambda prev: transform.protocols_snapshot(fakes.protocols(), snapshot_date),
+        "chains_snapshots": lambda prev: transform.chains_snapshot(fakes.chains(), snapshot_date),
+        "stablecoins_snapshots": lambda prev: transform.stablecoins_snapshot(fakes.stablecoins(), snapshot_date),
+        "yield_pools_snapshots": lambda prev: transform.yield_pools_snapshot(fakes.yield_pools(), snapshot_date),
     }
     return {name: (fail if name in broken else fn) for name, fn in f.items()}
 
 
 def run(out, previous, day, broken=()):
-    return pipeline.build(out, previous, day, REF, fetchers=fetchers(day, broken))
+    return pipeline.build(SPEC, out, previous, day, REF, fetchers=fetchers(day, broken))
 
 
 def test_first_run_writes_files_and_valid_metadata(tmp_path):
@@ -77,8 +79,8 @@ def test_failed_source_carries_previous_file_forward(tmp_path):
 
 def test_suspiciously_small_response_is_rejected(tmp_path):
     f = fetchers(DAY1)
-    f["protocols_snapshots"] = lambda: transform.protocols_snapshot(fakes.protocols(3), DAY1)
-    report = pipeline.build(tmp_path / "v1", None, DAY1, REF, fetchers=f)
+    f["protocols_snapshots"] = lambda prev: transform.protocols_snapshot(fakes.protocols(3), DAY1)
+    report = pipeline.build(SPEC, tmp_path / "v1", None, DAY1, REF, fetchers=f)
     assert "only 3 rows" in report.failed["protocols_snapshots"]
     assert not (tmp_path / "v1" / "protocols_snapshots.parquet").exists()
 
@@ -86,8 +88,8 @@ def test_suspiciously_small_response_is_rejected(tmp_path):
 def test_shorter_history_than_before_is_rejected(tmp_path):
     run(tmp_path / "v1", None, DAY1)
     f = fetchers(DAY2)
-    f["defi_tvl_history"] = lambda: transform.defi_tvl_history(fakes.tvl_series(1100))
-    report = pipeline.build(tmp_path / "v2", tmp_path / "v1", DAY2, REF, fetchers=f)
+    f["defi_tvl_history"] = lambda prev: transform.defi_tvl_history(fakes.tvl_series(1100))
+    report = pipeline.build(SPEC, tmp_path / "v2", tmp_path / "v1", DAY2, REF, fetchers=f)
     assert "would shrink" in report.failed["defi_tvl_history"]
     assert len(pd.read_csv(tmp_path / "v2" / "defi_tvl_history.csv")) == 1200
 
@@ -97,10 +99,14 @@ def test_everything_failing_aborts(tmp_path):
         run(tmp_path / "v1", None, DAY1, broken=set(fetchers(DAY1)))
 
 
-def test_config_lengths_fit_kaggle_limits():
-    assert 6 <= len(config.DATASET_TITLE) <= 50
-    assert 20 <= len(config.DATASET_SUBTITLE) <= 80
-    assert 6 <= len(config.DATASET_SLUG) <= 50
+@pytest.mark.parametrize("spec", DATASETS.values(), ids=list(DATASETS))
+def test_every_dataset_fits_kaggle_limits(spec):
+    assert 6 <= len(spec.title) <= 50
+    assert 20 <= len(spec.subtitle) <= 80
+    assert 6 <= len(spec.slug) <= 50
+    assert spec.cover is not None and spec.cover.exists(), f"missing cover image {spec.cover}"
+    names = [t.name for t in spec.tables]
+    assert len(names) == len(set(names))
 
 
 class FakeApi:

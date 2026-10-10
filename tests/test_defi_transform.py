@@ -1,9 +1,9 @@
 import pandas as pd
 
-from defi_dataset import transform
-from defi_dataset.schema import TABLES_BY_NAME
+from kaggle_pipeline.datasets.defi import transform
+from kaggle_pipeline.datasets.defi.tables import TABLES_BY_NAME
 
-from . import fakes
+from . import defi_fakes as fakes
 
 SNAP = pd.Timestamp("2026-10-10")
 

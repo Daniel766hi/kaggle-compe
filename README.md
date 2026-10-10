@@ -1,91 +1,94 @@
-# DeFi Daily → Kaggle
+# Kaggle datasets, updated automatically
 
-An automated pipeline that scrapes the free [DefiLlama API](https://defillama.com/docs/api) every day
-and publishes a new version of a Kaggle dataset: **DeFi Daily: TVL, Stablecoins, DEX & Yields**.
+Automated pipelines that pull free public data every day and publish a new version of each
+Kaggle dataset. One GitHub Actions workflow runs them all.
 
-## What it publishes
-
-| File | Type | Content |
-|---|---|---|
-| `defi_tvl_history.csv` | full history | Total DeFi TVL per day |
-| `chain_tvl_history.csv` | full history | TVL per day for the 25 largest chains |
-| `stablecoin_supply_history.csv` | full history | Total stablecoin supply per day |
-| `dex_fees_history.csv` | full history | DEX volume and protocol fees per day |
-| `protocols_snapshots.parquet` (+ `protocols_latest.csv`) | daily panel | Every protocol's TVL, category, chains |
-| `chains_snapshots.parquet` (+ `chains_latest.csv`) | daily panel | Every chain's TVL |
-| `stablecoins_snapshots.parquet` (+ `stablecoins_latest.csv`) | daily panel | Every stablecoin's supply and price |
-| `yield_pools_snapshots.parquet` (+ `yield_pools_latest.csv`) | daily panel | Yield pools with ≥ $1M TVL |
-
-The **daily panels** are the dataset's unique value: the API only returns the current state, so
-each run appends today's snapshot to the panel stored on Kaggle. The longer it runs, the more
-valuable the dataset gets.
+| Dataset | Command name | Source | Updates |
+|---|---|---|---|
+| [DeFi Daily: TVL, Stablecoins, DEX & Yields](https://www.kaggle.com/datasets/danielaijdkx/defi-daily-tvl-stablecoins-dex-yields) | `defi` | DefiLlama API | daily |
+| Indonesia Air Quality: Hourly PM2.5, 31 Cities | `idn-air-quality` | Open-Meteo (CAMS), CC BY 4.0 | daily |
+| Indonesia Daily Weather: 31 Cities since 2000 | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
+| Rupiah (IDR) Daily Exchange Rates | `idr-fx` | ECB reference rates via Frankfurter | daily |
 
 ## How it works
 
 ```
-GitHub Actions (daily 01:23 UTC)
-  └─ python -m defi_dataset
-       1. download the current Kaggle version (previous panels)
-       2. fetch each DefiLlama endpoint
-       3. append today's snapshot / replace full histories
-       4. write dataset-metadata.json (description, file/column docs, sources, update frequency)
-       5. upload a new Kaggle version
-       6. update the dataset settings (adds the cover image and column docs; keeps public/private as you set it)
+GitHub Actions (daily 01:23 UTC = 08:23 WIB), one job per dataset
+  └─ python -m kaggle_pipeline <dataset>
+       1. download the dataset's current Kaggle version
+       2. fetch each source table
+       3. merge: replace full histories, append daily snapshots, or upsert new date ranges
+       4. compute derived tables (daily/monthly summaries)
+       5. write dataset-metadata.json (description, file/column docs, sources, update frequency)
+       6. upload a new Kaggle version, then update the dataset settings (cover image, docs)
 ```
 
-The cover image is `assets/dataset-cover-image.png`, drawn from the real TVL history by
-`scripts/make_cover.py` (needs `pip install matplotlib`).
+Table kinds (see `kaggle_pipeline/schema.py`):
+- **history**: the source returns the full series, so the file is rebuilt every run (DeFi, FX).
+- **snapshot**: the source only returns today's state, so each run appends a dated snapshot (DeFi panels).
+- **incremental**: the source has history but too much to refetch daily, so each run fetches the
+  recent window plus older ranges until a request budget is spent (Open-Meteo). History back to
+  2000 (weather) or 2022 (air quality) fills in over the first few runs within the free API limits.
+- **derived**: computed from the other tables (daily air quality summary, monthly weather, IDR cross rates).
 
 Safety rules:
-- Each source is independent. If one endpoint fails, that file is carried forward unchanged and the
-  run is marked red so you get an email from GitHub.
-- A response with suspiciously few rows, or a history shorter than before, is rejected.
-- If the previous version can't be downloaded, nothing is uploaded (so history is never erased).
-- Re-running on the same day replaces that day's snapshot instead of duplicating it.
+- Each source is independent. If one fails, its previous file is carried forward unchanged and the
+  run is marked red so GitHub emails you. One dataset failing never stops the others.
+- A response with suspiciously few rows, or a table smaller than before, is rejected.
+- If the previous version can't be downloaded, nothing is uploaded, so history is never erased.
+- Re-running on the same day replaces that day's data instead of duplicating it.
+- Public/private visibility is kept as you set it on kaggle.com.
 
-## Setup (one time, about 10 minutes)
+## Setup (one time)
 
-1. **Kaggle token**: on kaggle.com → *Settings* → *API* → *Generate New Token*. Copy the token.
-2. **GitHub secrets**: in this repo → *Settings* → *Secrets and variables* → *Actions*:
-   - Secret `KAGGLE_API_TOKEN` = the token from step 1
-     (or, with a legacy `kaggle.json` key: secret `KAGGLE_KEY` = its `key` value)
+1. **Kaggle token**: kaggle.com → *Settings* → *API* → *Generate New Token*.
+2. **GitHub**: this repo → *Settings* → *Secrets and variables* → *Actions*:
+   - Secret `KAGGLE_API_TOKEN` = the token (or, with a legacy `kaggle.json` key: secret `KAGGLE_KEY`)
    - Variable `KAGGLE_USERNAME` = your Kaggle username
-   - Optional variable `KAGGLE_DATASET_SLUG` (default `defi-daily-tvl-stablecoins-dex-yields`)
-3. **First run**: *Actions* tab → *Update Kaggle dataset* → *Run workflow*.
-   The dataset is created **private** so you can review it first.
-4. **Review and publish**: open the dataset on Kaggle, add a cover image, check the usability score,
-   then set it to **Public** in the dataset settings. Daily runs then add new versions automatically.
-   (Or set the variable `KAGGLE_DATASET_PUBLIC=true` before the first run to create it public.)
+3. **Run**: *Actions* → *Update Kaggle datasets* → *Run workflow*. New datasets are created
+   **private**; review them on Kaggle and make them public in the dataset settings.
 
-Note: GitHub pauses scheduled workflows in **public** repos after 60 days without commits. If that
+GitHub pauses scheduled workflows in **public** repos after 60 days without commits. If that
 happens, re-enable the workflow in the Actions tab.
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                   # offline tests
-python -m defi_dataset --dry-run            # scrape into ./build, no upload
+pytest -q                                          # offline tests
+python -m kaggle_pipeline idr-fx --dry-run         # fetch into ./build/idr-fx, no upload
 export KAGGLE_USERNAME=... KAGGLE_API_TOKEN=...
-python -m defi_dataset                      # scrape and publish
+python -m kaggle_pipeline idr-fx                   # fetch and publish
 ```
 
-## Licence and attribution
+## Adding a dataset
 
-Data is from DefiLlama's free public API, credited in the dataset description. The dataset uses
-Kaggle's "Other" licence; check DefiLlama's terms of use on their website before making it
-public, and update `DATASET_LICENSE` in `defi_dataset/config.py` if needed.
+Create `kaggle_pipeline/datasets/<name>.py` with a `SPEC = DatasetSpec(...)` (tables, fetchers,
+description, cover image), register it in `kaggle_pipeline/datasets/__init__.py`, and add its name
+to the workflow's `matrix.dataset` list. Cover images are drawn from real data with
+`scripts/make_cover.py` (needs `pip install matplotlib`).
+
+## Licences and attribution
+
+Each dataset's description credits its source. DeFi data is from DefiLlama's free API (licence
+"Other"); Open-Meteo data is CC BY 4.0 (with Copernicus/ECMWF attribution); ECB reference rates
+may be reused with the source acknowledged.
 
 ## Code layout
 
 ```
-defi_dataset/
-  config.py       dataset title, slug, thresholds
-  schema.py       every table: file name, columns, types, descriptions
-  sources.py      HTTP calls to DefiLlama (with retries)
-  transform.py    raw JSON → tidy DataFrames (pure, tested)
-  storage.py      merge with previous version, write files + metadata
-  pipeline.py     builds one version; per-source failure handling
-  kaggle_sync.py  download current version, create/version on Kaggle
-tests/            offline tests with synthetic API payloads
+kaggle_pipeline/
+  schema.py        Column, Table, DatasetSpec
+  frames.py        type conversion and de-duplication shared by all tables
+  storage.py       merge with the previous version, write files + metadata
+  pipeline.py      builds one version; per-source failure handling; derived tables
+  kaggle_sync.py   download current version, create/version on Kaggle, settings update
+  http.py          HTTP session with retries
+  datasets/
+    defi/              DefiLlama (tables, sources, transforms)
+    open_meteo.py      cities, request planning and rate-limit budget for Open-Meteo
+    idn_air_quality.py
+    idn_weather.py
+    idr_fx.py
+tests/             offline tests with synthetic API payloads
 ```

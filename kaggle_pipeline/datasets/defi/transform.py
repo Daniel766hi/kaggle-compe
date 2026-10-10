@@ -6,18 +6,17 @@ The API has no formal schema, so all field access is defensive.
 
 import pandas as pd
 
-from . import config
-from .schema import PANDAS_DTYPES, TABLES_BY_NAME
+from ...frames import conform
+from ...frames import unix_to_date as _unix_to_date
+from ...frames import unix_to_datetime as _unix_to_datetime
+from .tables import TABLES_BY_NAME
+
+TOP_CHAINS_FOR_HISTORY = 25
+MIN_POOL_TVL_USD = 1_000_000
 
 
-def _unix_to_date(values):
-    secs = pd.to_numeric(pd.Series(values), errors="coerce")
-    return pd.to_datetime(secs, unit="s", utc=True).dt.tz_localize(None).dt.normalize()
 
 
-def _unix_to_datetime(values):
-    secs = pd.to_numeric(pd.Series(values), errors="coerce")
-    return pd.to_datetime(secs, unit="s", utc=True).dt.tz_localize(None)
 
 
 def _join(items):
@@ -28,27 +27,6 @@ def _str_or_none(value):
     return None if value is None else str(value)
 
 
-def conform(df, table):
-    """Return df with exactly the table's columns, in order, with the declared dtypes."""
-    df = df.copy()
-    for col in table.columns:
-        if col.name not in df.columns:
-            df[col.name] = pd.NA
-        series = df[col.name]
-        if col.type == "datetime":
-            df[col.name] = pd.to_datetime(series, errors="coerce")
-        elif col.type in ("number", "integer"):
-            df[col.name] = pd.to_numeric(series, errors="coerce")
-            if col.type == "integer":
-                df[col.name] = df[col.name].round()
-        elif col.type == "boolean":
-            df[col.name] = series.map(lambda v: v if isinstance(v, bool) else pd.NA)
-        df[col.name] = df[col.name].astype(PANDAS_DTYPES[col.type])
-    df = df[table.column_names]
-    if table.key:
-        df = df.dropna(subset=list(table.key)).drop_duplicates(subset=list(table.key), keep="last")
-        df = df.sort_values(list(table.key)).reset_index(drop=True)
-    return df
 
 
 # ---------- history tables ----------
@@ -169,7 +147,7 @@ def stablecoins_snapshot(raw, snapshot_date):
     return conform(df, TABLES_BY_NAME["stablecoins_snapshots"])
 
 
-def yield_pools_snapshot(raw, snapshot_date, min_tvl_usd=config.MIN_POOL_TVL_USD):
+def yield_pools_snapshot(raw, snapshot_date, min_tvl_usd=MIN_POOL_TVL_USD):
     rows = []
     for p in (raw or {}).get("data") or []:
         tvl = p.get("tvlUsd")
@@ -196,5 +174,5 @@ def yield_pools_snapshot(raw, snapshot_date, min_tvl_usd=config.MIN_POOL_TVL_USD
     return conform(df, TABLES_BY_NAME["yield_pools_snapshots"])
 
 
-def top_chains(chains_df, n=config.TOP_CHAINS_FOR_HISTORY):
+def top_chains(chains_df, n=TOP_CHAINS_FOR_HISTORY):
     return chains_df.nlargest(n, "tvl_usd")["chain"].tolist()

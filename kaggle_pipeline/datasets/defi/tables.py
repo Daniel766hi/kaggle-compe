@@ -1,4 +1,4 @@
-"""Table definitions: one source of truth for files, dtypes and column docs.
+"""DeFi dataset tables: one source of truth for files, dtypes and column docs.
 
 Two kinds of table:
 - "history": the API returns the full time series, so the file is rebuilt every run.
@@ -7,48 +7,7 @@ Two kinds of table:
   dataset worth more than calling the API directly.
 """
 
-from dataclasses import dataclass, field
-
-# Kaggle column types: string, integer, number, boolean, datetime
-PANDAS_DTYPES = {
-    "string": "string",
-    "integer": "Int64",
-    "number": "float64",
-    "boolean": "boolean",
-    "datetime": "datetime64[ns]",
-}
-
-
-@dataclass(frozen=True)
-class Column:
-    name: str
-    type: str
-    description: str
-
-
-@dataclass(frozen=True)
-class Table:
-    name: str
-    kind: str  # "history" or "snapshot"
-    description: str
-    columns: list = field(default_factory=list)
-    # A fetch that returns fewer rows than this is treated as an API failure.
-    min_rows: int = 1
-    # Columns that identify one row (used for de-duplication).
-    key: tuple = ()
-
-    @property
-    def file_name(self):
-        return f"{self.name}.csv" if self.kind == "history" else f"{self.name}.parquet"
-
-    @property
-    def latest_file_name(self):
-        return f"{self.name.removesuffix('_snapshots')}_latest.csv"
-
-    @property
-    def column_names(self):
-        return [c.name for c in self.columns]
-
+from ...schema import Column, Table
 
 SNAPSHOT_DATE = Column("snapshot_date", "datetime", "UTC date the snapshot was taken")
 

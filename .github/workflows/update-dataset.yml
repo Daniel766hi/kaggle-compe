@@ -1,0 +1,42 @@
+name: Update Kaggle dataset
+
+on:
+  schedule:
+    - cron: "23 1 * * *" # daily at 01:23 UTC (08:23 WIB)
+  workflow_dispatch: # allows a manual run from the Actions tab
+
+concurrency:
+  group: update-dataset
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  update:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Scrape DefiLlama and publish to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ vars.KAGGLE_USERNAME }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          KAGGLE_DATASET_SLUG: ${{ vars.KAGGLE_DATASET_SLUG }}
+          KAGGLE_DATASET_PUBLIC: ${{ vars.KAGGLE_DATASET_PUBLIC }}
+        run: python -m defi_dataset

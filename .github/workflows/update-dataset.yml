@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false # one dataset failing must not stop the others
       matrix:
-        dataset: [defi, idn-air-quality, idn-weather, idr-fx]
+        # Add a dataset here once it has been checked against real data.
+        dataset: [defi]
     concurrency:
       group: update-${{ matrix.dataset }}
       cancel-in-progress: false

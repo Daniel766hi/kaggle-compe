@@ -99,12 +99,23 @@ def test_everything_failing_aborts(tmp_path):
         run(tmp_path / "v1", None, DAY1, broken=set(fetchers(DAY1)))
 
 
+def scheduled_datasets():
+    workflow = (Path(__file__).parent.parent / ".github" / "workflows" / "update-dataset.yml").read_text()
+    line = next(l for l in workflow.splitlines() if l.strip().startswith("dataset: ["))
+    return [d.strip() for d in line.split("[", 1)[1].rstrip("]").split(",")]
+
+
+def test_scheduled_datasets_exist():
+    assert set(scheduled_datasets()) <= set(DATASETS)
+
+
 @pytest.mark.parametrize("spec", DATASETS.values(), ids=list(DATASETS))
 def test_every_dataset_fits_kaggle_limits(spec):
     assert 6 <= len(spec.title) <= 50
     assert 20 <= len(spec.subtitle) <= 80
     assert 6 <= len(spec.slug) <= 50
-    assert spec.cover is not None and spec.cover.exists(), f"missing cover image {spec.cover}"
+    if spec.name in scheduled_datasets():
+        assert spec.cover is not None and spec.cover.exists(), f"missing cover image {spec.cover}"
     names = [t.name for t in spec.tables]
     assert len(names) == len(set(names))
 

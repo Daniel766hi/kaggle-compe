@@ -129,6 +129,7 @@ def http_error(code):
 def test_dataset_exists():
     assert kaggle_sync.dataset_exists(FakeApi(), REF)
     assert not kaggle_sync.dataset_exists(FakeApi(http_error(404)), REF)
+    assert not kaggle_sync.dataset_exists(FakeApi(http_error(403)), REF)
     with pytest.raises(requests.exceptions.HTTPError):
         kaggle_sync.dataset_exists(FakeApi(http_error(401)), REF)
 

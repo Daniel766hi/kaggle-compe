@@ -28,7 +28,9 @@ def dataset_exists(api, ref):
         api.dataset_status(ref)
         return True
     except requests.exceptions.HTTPError as exc:
-        if getattr(exc.response, "status_code", None) == 404:
+        # Kaggle answers 403 PERMISSION_DENIED (not 404) for a dataset that doesn't exist yet.
+        # If it does exist and we lack access, the create call fails loudly, so nothing is lost.
+        if getattr(exc.response, "status_code", None) in (403, 404):
             return False
         raise
 

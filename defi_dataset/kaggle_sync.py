@@ -84,6 +84,9 @@ def update_settings(api, folder, ref):
 
     Kaggle's settings call overwrites visibility and collaborators, so both are copied
     from the dataset's current settings: making it public on kaggle.com stays public.
+
+    Kaggle's usability score counts sources, update frequency and descriptions when it
+    processes a version, so they show up from the version after the first settings update.
     """
     with tempfile.TemporaryDirectory() as tmp:
         current = json.loads(Path(api.dataset_metadata(ref, tmp)).read_text())

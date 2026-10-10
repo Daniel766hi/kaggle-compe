@@ -28,9 +28,13 @@ GitHub Actions (daily 01:23 UTC)
        1. download the current Kaggle version (previous panels)
        2. fetch each DefiLlama endpoint
        3. append today's snapshot / replace full histories
-       4. write dataset-metadata.json (description + column docs → high usability score)
+       4. write dataset-metadata.json (description, file/column docs, sources, update frequency)
        5. upload a new Kaggle version
+       6. update the dataset settings (adds the cover image and column docs; keeps public/private as you set it)
 ```
+
+The cover image is `assets/dataset-cover-image.png`, drawn from the real TVL history by
+`scripts/make_cover.py` (needs `pip install matplotlib`).
 
 Safety rules:
 - Each source is independent. If one endpoint fails, that file is carried forward unchanged and the

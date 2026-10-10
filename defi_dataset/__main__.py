@@ -53,6 +53,8 @@ def main(argv=None):
         report = pipeline.build(args.out_dir, previous_dir, snapshot_date, ref)
     _summarize(report, snapshot_date)
     kaggle_sync.publish(api, args.out_dir, exists, report.version_notes(snapshot_date), args.public)
+    kaggle_sync.wait_until_ready(api, ref)
+    kaggle_sync.update_settings(api, args.out_dir, ref)
     # Published, but exit non-zero so a failing source shows up as a red run (and an email).
     return 1 if report.failed else 0
 

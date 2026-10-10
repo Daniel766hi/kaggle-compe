@@ -147,3 +147,50 @@ def test_publish_raises_on_kaggle_error(tmp_path):
     api.dataset_create_version = lambda *a, **k: SimpleNamespace(error="bad", url="")
     with pytest.raises(RuntimeError, match="bad"):
         kaggle_sync.publish(api, Path(tmp_path), exists=True, notes="n", public=False)
+
+
+def test_metadata_has_sources_frequency_and_cover(tmp_path):
+    run(tmp_path / "v1", None, DAY1)
+    meta = json.loads((tmp_path / "v1" / "dataset-metadata.json").read_text())
+    assert meta["expectedUpdateFrequency"] == "daily"
+    assert "DefiLlama" in meta["userSpecifiedSources"]
+    assert (tmp_path / "v1" / "dataset-cover-image.png").is_file()
+
+
+class FakeSettingsApi:
+    def __init__(self, current, fail=False):
+        self.current, self.fail, self.sent = current, fail, None
+
+    def dataset_metadata(self, ref, path):
+        p = Path(path) / "dataset-metadata.json"
+        p.write_text(json.dumps({"info": self.current}))
+        return str(p)
+
+    def dataset_metadata_update(self, ref, path):
+        if self.fail:
+            raise SystemExit(1)
+        self.sent = json.loads((Path(path) / "dataset-metadata.json").read_text())
+
+
+@pytest.mark.parametrize("is_private", [True, False])
+def test_update_settings_keeps_visibility_and_collaborators(tmp_path, is_private):
+    (tmp_path / "dataset-metadata.json").write_text(json.dumps({"title": "t", "resources": []}))
+    collaborators = [{"username": "friend", "role": "writer"}]
+    api = FakeSettingsApi({"isPrivate": is_private, "collaborators": collaborators})
+    kaggle_sync.update_settings(api, tmp_path, REF)
+    assert api.sent["isPrivate"] is is_private
+    assert api.sent["collaborators"] == collaborators
+
+
+def test_update_settings_failure_raises(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    with pytest.raises(RuntimeError, match="settings update failed"):
+        kaggle_sync.update_settings(FakeSettingsApi({"isPrivate": True}, fail=True), tmp_path, REF)
+
+
+def test_wait_until_ready_polls_then_fails_on_error():
+    statuses = iter(["pending", "ready"])
+    api = SimpleNamespace(dataset_status=lambda ref: next(statuses))
+    kaggle_sync.wait_until_ready(api, REF, poll_s=0)
+    with pytest.raises(RuntimeError, match="'error'"):
+        kaggle_sync.wait_until_ready(SimpleNamespace(dataset_status=lambda ref: "error"), REF, poll_s=0)

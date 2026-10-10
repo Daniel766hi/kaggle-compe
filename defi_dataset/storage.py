@@ -1,6 +1,7 @@
 """Read previous files, merge in today's data, write the upload folder."""
 
 import json
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -115,6 +116,21 @@ def build_description(tables_written, snapshot_date):
     return "\n".join(lines)
 
 
+SOURCES = (
+    "DefiLlama public API (https://defillama.com/docs/api): "
+    "api.llama.fi (/protocols, /v2/chains, /v2/historicalChainTvl, /overview/dexs, /overview/fees), "
+    "stablecoins.llama.fi (/stablecoins, /stablecoincharts/all), yields.llama.fi (/pools). "
+    "Collected daily by https://github.com/daniel766hi/kaggle-compe"
+)
+COVER_IMAGE = Path(__file__).resolve().parent.parent / "assets" / "dataset-cover-image.png"
+
+
+def copy_cover_image(out_dir):
+    """Kaggle picks up dataset-cover-image.png next to dataset-metadata.json."""
+    if COVER_IMAGE.exists():
+        shutil.copyfile(COVER_IMAGE, Path(out_dir) / COVER_IMAGE.name)
+
+
 def write_metadata(out_dir, tables_written, snapshot_date, dataset_ref):
     resources = []
     for table in tables_written:
@@ -130,6 +146,8 @@ def write_metadata(out_dir, tables_written, snapshot_date, dataset_ref):
         "licenses": [{"name": config.DATASET_LICENSE}],
         "keywords": config.DATASET_KEYWORDS,
         "description": build_description(tables_written, snapshot_date),
+        "expectedUpdateFrequency": "daily",
+        "userSpecifiedSources": SOURCES,
         "resources": resources,
     }
     with open(Path(out_dir) / "dataset-metadata.json", "w") as f:

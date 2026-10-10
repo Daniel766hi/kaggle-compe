@@ -101,4 +101,5 @@ def build(out_dir, previous_dir, snapshot_date, dataset_ref, fetchers=None):
 
     report.tables_written = storage.ordered(report.tables_written)
     storage.write_metadata(out_dir, report.tables_written, snapshot_date, dataset_ref)
+    storage.copy_cover_image(out_dir)
     return report

@@ -94,7 +94,8 @@ def update_settings(api, folder, ref):
 
     meta_path = Path(folder) / "dataset-metadata.json"
     meta = json.loads(meta_path.read_text())
-    meta["isPrivate"] = bool(current.get("isPrivate", True))
+    # Kaggle omits false booleans from this response, so a missing flag means public.
+    meta["isPrivate"] = bool(current.get("isPrivate", False))
     if current.get("collaborators"):
         meta["collaborators"] = current["collaborators"]
     meta_path.write_text(json.dumps(meta, indent=2))

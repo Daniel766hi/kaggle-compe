@@ -182,6 +182,13 @@ def test_update_settings_keeps_visibility_and_collaborators(tmp_path, is_private
     assert api.sent["collaborators"] == collaborators
 
 
+def test_update_settings_missing_private_flag_means_public(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"title": "t"})  # what Kaggle returns for a public dataset
+    kaggle_sync.update_settings(api, tmp_path, REF)
+    assert api.sent["isPrivate"] is False
+
+
 def test_update_settings_failure_raises(tmp_path):
     (tmp_path / "dataset-metadata.json").write_text("{}")
     with pytest.raises(RuntimeError, match="settings update failed"):

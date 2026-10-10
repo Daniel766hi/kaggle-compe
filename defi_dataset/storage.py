@@ -61,12 +61,19 @@ def write_table(df, table, out_dir):
     return [table.file_name, table.latest_file_name]
 
 
+# Kaggle's own names for column types (it calls floats "numeric").
+KAGGLE_COLUMN_TYPES = {"number": "numeric"}
+
+
 def _resource(path, description, table):
     return {
         "path": path,
         "description": description,
         "schema": {
-            "fields": [{"name": c.name, "description": c.description, "type": c.type} for c in table.columns]
+            "fields": [
+                {"name": c.name, "description": c.description, "type": KAGGLE_COLUMN_TYPES.get(c.type, c.type)}
+                for c in table.columns
+            ]
         },
     }
 

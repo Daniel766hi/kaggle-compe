@@ -54,20 +54,52 @@ def http_error(code, text=""):
     return requests.exceptions.HTTPError(response=SimpleNamespace(status_code=code, text=text))
 
 
+def no_wait():
+    return om.Pacer(clock=lambda: 0.0, sleep=lambda s: None)
+
+
+def test_pacer_waits_when_minute_budget_is_full():
+    now = [0.0]
+    slept = []
+    pacer = om.Pacer(per_minute=100, clock=lambda: now[0], sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)))
+    pacer.wait_for(60)
+    pacer.wait_for(30)
+    assert slept == []
+    pacer.wait_for(30)  # 120 > 100: must wait until the first request leaves the window
+    assert len(slept) == 1 and now[0] >= 60
+
+
+def test_minutely_limit_is_waited_out_but_daily_limit_stops():
+    jobs = [om.Job("A", D("2026-03-25"), D("2026-03-31"), False), om.Job("B", D("2026-03-25"), D("2026-03-31"), False)]
+    calls = []
+
+    def minutely_once(job):
+        calls.append(job.city)
+        if len(calls) == 1:
+            raise om.RateLimited('{"reason": "Minutely API request limit exceeded. Please try again in one minute."}')
+        return pd.DataFrame({"x": [1]})
+    assert len(om.run_jobs(jobs, minutely_once, n_vars=5, pacer=no_wait())) == 2
+    assert calls == ["A", "A", "B"]
+
+    def daily(job):
+        raise om.RateLimited('{"reason": "Daily API request limit exceeded. Please try again tomorrow."}')
+    assert om.run_jobs(jobs, daily, n_vars=5, pacer=no_wait()).empty
+
+
 def test_run_jobs_respects_budget_and_stops_on_rate_limit():
     jobs = [om.Job("A", D("2026-03-25"), D("2026-03-31"), False)] + [
         om.Job("A", D("2026-01-01") + timedelta(days=14 * i), D("2026-01-14") + timedelta(days=14 * i), True)
         for i in range(5)
     ]
     calls = []
-    df = om.run_jobs(jobs, lambda j: calls.append(j) or pd.DataFrame({"x": [1]}), n_vars=5, budget=3)
+    df = om.run_jobs(jobs, lambda j: calls.append(j) or pd.DataFrame({"x": [1]}), n_vars=5, budget=3, pacer=no_wait())
     assert len(calls) == 3 and len(df) == 3  # recent (1 unit) + 2 backfill units
 
     def limited(job):
         if job.backfill:
             raise http_error(429)
         return pd.DataFrame({"x": [1]})
-    assert len(om.run_jobs(jobs, limited, n_vars=5, budget=100)) == 1
+    assert len(om.run_jobs(jobs, limited, n_vars=5, budget=100, pacer=no_wait())) == 1
 
 
 def test_request_clamps_to_available_range():

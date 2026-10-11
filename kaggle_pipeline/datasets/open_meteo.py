@@ -13,6 +13,8 @@ The history therefore fills up over a few runs, and later runs only fetch the re
 import logging
 import math
 import re
+import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -60,6 +62,7 @@ CITIES = [
 CITY_INFO = {c[0]: {"province": c[1], "island": c[2], "latitude": c[3], "longitude": c[4]} for c in CITIES}
 
 BUDGET_UNITS = 4000  # per run; stays under the hourly limit (5,000) and leaves daily headroom
+PER_MINUTE_UNITS = 500  # Open-Meteo allows 600 per minute
 RANGE_ERROR = re.compile(r"from (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})")
 
 
@@ -152,34 +155,61 @@ def request(session, url, params):
         return get_json(session, url, {**params, "start_date": lo.isoformat(), "end_date": hi.isoformat()})
 
 
-def run_jobs(jobs, fetch_one, n_vars, budget=BUDGET_UNITS):
-    """Execute jobs until the budget is spent or Open-Meteo says the limit is reached.
+class Pacer:
+    """Keeps request "units" under Open-Meteo's per-minute limit (600) by waiting when needed."""
+
+    def __init__(self, per_minute=PER_MINUTE_UNITS, clock=time.monotonic, sleep=time.sleep):
+        self.per_minute, self.clock, self.sleep = per_minute, clock, sleep
+        self.window = deque()  # (timestamp, units)
+
+    def wait_for(self, units):
+        while True:
+            now = self.clock()
+            while self.window and now - self.window[0][0] >= 60:
+                self.window.popleft()
+            if sum(u for _, u in self.window) + units <= self.per_minute or not self.window:
+                self.window.append((now, units))
+                return
+            self.sleep(60 - (now - self.window[0][0]) + 0.5)
+
+
+def run_jobs(jobs, fetch_one, n_vars, budget=BUDGET_UNITS, pacer=None):
+    """Execute jobs until the run's budget is spent or Open-Meteo's daily/hourly limit is hit.
 
     fetch_one(job) -> DataFrame or None. Recent-window jobs always run; a failing one is
     logged and skipped (the minimum-row check catches a source that is fully down).
+    A per-minute limit is waited out; any other limit stops the run, keeping what was fetched.
     """
+    pacer = pacer or Pacer()
     frames, spent, skipped = [], 0, 0
     for i, job in enumerate(jobs):
         cost = job.units(n_vars)
         if job.backfill and spent + cost > budget:
             skipped += 1
             continue
-        try:
-            df = fetch_one(job)
-        except RateLimited:
-            log.warning("Open-Meteo rate limit reached; continuing next run")
+        df, stop = None, False
+        for attempt in range(2):
+            pacer.wait_for(cost)
+            try:
+                df = fetch_one(job)
+                break
+            except (RateLimited, requests.exceptions.RequestException) as exc:
+                reason = str(exc) if isinstance(exc, RateLimited) else getattr(exc.response, "text", "") or str(exc)
+                limited = isinstance(exc, RateLimited) or _is_rate_limit(exc)
+                if limited and "minutely" in reason.lower() and attempt == 0:
+                    log.info("Open-Meteo per-minute limit; waiting a minute")
+                    pacer.sleep(61)
+                    continue
+                if limited:
+                    log.warning("Open-Meteo limit reached (%s); continuing next run", reason.strip()[:120])
+                    stop = True
+                else:
+                    log.warning("%s %s..%s failed: %s", job.city, job.start, job.end, exc)
+                    stop = job.backfill  # keep what we have; the next run picks up from here
+                break
+        if stop:
             skipped += len(jobs) - i
             break
-        except requests.exceptions.RequestException as exc:
-            if _is_rate_limit(exc):
-                log.warning("Open-Meteo rate limit reached; continuing next run")
-                skipped += len(jobs) - i
-                break
-            log.warning("%s %s..%s failed: %s", job.city, job.start, job.end, exc)
-            if job.backfill:
-                skipped += len(jobs) - i
-                break  # keep what we have; the next run picks up from here
-            continue
         spent += cost
         if df is not None and not df.empty:
             frames.append(df)

@@ -6,9 +6,9 @@ Kaggle dataset. One GitHub Actions workflow runs them all.
 | Dataset | Command name | Source | Updates |
 |---|---|---|---|
 | [DeFi Daily: TVL, Stablecoins, DEX & Yields](https://www.kaggle.com/datasets/danielaijdkx/defi-daily-tvl-stablecoins-dex-yields) | `defi` | DefiLlama API | daily |
-| Indonesia Air Quality: Hourly PM2.5, 31 Cities | `idn-air-quality` | Open-Meteo (CAMS), CC BY 4.0 | daily |
-| Indonesia Daily Weather: 31 Cities since 2000 | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
-| Rupiah (IDR) Daily Exchange Rates | `idr-fx` | ECB reference rates via Frankfurter | daily |
+| [Indonesia Air Quality: Hourly PM2.5, 31 Cities](https://www.kaggle.com/datasets/danielaijdkx/indonesia-air-quality-hourly-pm25) | `idn-air-quality` | Open-Meteo (CAMS), CC BY 4.0 | daily |
+| [Indonesia Daily Weather: 31 Cities since 2000](https://www.kaggle.com/datasets/danielaijdkx/indonesia-daily-weather-31-cities) | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
+| [Rupiah (IDR) Daily Exchange Rates](https://www.kaggle.com/datasets/danielaijdkx/rupiah-idr-daily-exchange-rates) | `idr-fx` | ECB reference rates via Frankfurter | daily |
 
 ## How it works
 
@@ -47,6 +47,8 @@ Safety rules:
    - Variable `KAGGLE_USERNAME` = your Kaggle username
 3. **Run**: *Actions* → *Update Kaggle datasets* → *Run workflow*. New datasets are created
    **private**; review them on Kaggle and make them public in the dataset settings.
+   A manual run can target one dataset (e.g. `idn-weather`) and can be a **dry run**, which
+   builds and logs the files without uploading anything.
 
 GitHub pauses scheduled workflows in **public** repos after 60 days without commits. If that
 happens, re-enable the workflow in the Actions tab.
@@ -64,8 +66,9 @@ python -m kaggle_pipeline idr-fx                   # fetch and publish
 ## Adding a dataset
 
 Create `kaggle_pipeline/datasets/<name>.py` with a `SPEC = DatasetSpec(...)` (tables, fetchers,
-description, cover image), register it in `kaggle_pipeline/datasets/__init__.py`, and add its name
-to the workflow's `matrix.dataset` list. Cover images are drawn from real data with
+description, cover image), register it in `kaggle_pipeline/datasets/__init__.py`, test it with a
+manual dry run, then add its name to the scheduled list in the workflow's `matrix.dataset`.
+Tags must be Kaggle tags (see `KNOWN_KAGGLE_TAGS`, at most 5). Cover images are drawn from real data with
 `scripts/make_cover.py` (needs `pip install matplotlib`).
 
 ## Licences and attribution

@@ -110,7 +110,9 @@ ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 month_end = usd.resample("ME").last()
 moves = (month_end.pct_change() * 100).nlargest(3)
 for when, pct in moves.items():
-    note(ax, when, usd.loc[:when].iloc[-1], f"{when:%b %Y}\n+{pct:.1f}% in a month", dy=32)
+    near_left_edge = when < usd.index[0] + pd.Timedelta(days=1000)
+    note(ax, when, usd.loc[:when].iloc[-1], f"{when:%b %Y}\n+{pct:.1f}% in a month", dy=32,
+         ha="left" if near_left_edge else "center")
 plt.tight_layout()
 plt.show()
 

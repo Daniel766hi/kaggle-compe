@@ -63,6 +63,13 @@ export KAGGLE_USERNAME=... KAGGLE_API_TOKEN=...
 python -m kaggle_pipeline idr-fx                   # fetch and publish
 ```
 
+## Example notebooks
+
+`notebooks/` holds one example notebook per dataset, written as readable `.py` files
+(jupytext percent format). `scripts/push_notebooks.py` converts them and publishes them to Kaggle,
+where they run against the current data. They are pushed private by default; add `--public` once
+the dataset they use is public.
+
 ## Adding a dataset
 
 Create `kaggle_pipeline/datasets/<name>.py` with a `SPEC = DatasetSpec(...)` (tables, fetchers,

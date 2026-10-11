@@ -248,3 +248,14 @@ def test_update_settings_retries_transient_errors(tmp_path):
     api = FakeSettingsApi({"isPrivate": True}, fail="flaky")
     kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
     assert api.sent is not None
+
+
+def test_wait_until_ready_tolerates_just_created_dataset():
+    answers = iter([http_error(403), http_error(404), "ready"])
+
+    def status(ref):
+        a = next(answers)
+        if isinstance(a, Exception):
+            raise a
+        return a
+    kaggle_sync.wait_until_ready(SimpleNamespace(dataset_status=status), REF, poll_s=0)

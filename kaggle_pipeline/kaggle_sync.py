@@ -82,7 +82,13 @@ def wait_until_ready(api, ref, timeout_s=600, poll_s=15):
     """A new version is processed asynchronously; settings can only be updated afterwards."""
     deadline = time.monotonic() + timeout_s
     while True:
-        status = api.dataset_status(ref)
+        try:
+            status = api.dataset_status(ref)
+        except requests.exceptions.HTTPError as exc:
+            # A just-created dataset answers 403/404 for a short while.
+            if getattr(exc.response, "status_code", None) not in (403, 404):
+                raise
+            status = "not visible yet"
         if status == "ready":
             return
         if status == "error" or time.monotonic() > deadline:

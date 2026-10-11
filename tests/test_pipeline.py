@@ -136,6 +136,7 @@ class FakeApi:
         return "ready"
 
     def dataset_create_version(self, folder, notes, **kw):
+        self.sent_meta = json.loads((Path(folder) / "dataset-metadata.json").read_text())
         self.calls.append(("version", notes, kw))
         return SimpleNamespace(error="", url="u")
 
@@ -157,14 +158,18 @@ def test_dataset_exists():
 
 
 def test_publish_keeps_parquet_and_picks_create_or_version(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text(json.dumps({"keywords": ["finance"], "title": "t"}))
     api = FakeApi()
     kaggle_sync.publish(api, tmp_path, exists=True, notes="n", public=False)
     kaggle_sync.publish(api, tmp_path, exists=False, notes="n", public=False)
     assert [c[0] for c in api.calls] == ["version", "create"]
+    assert "keywords" not in api.sent_meta  # tags are set by update_settings, never added by a version
+    assert json.loads((tmp_path / "dataset-metadata.json").read_text())["keywords"] == ["finance"]
     assert all(c[2]["convert_to_csv"] is False for c in api.calls)
 
 
 def test_publish_raises_on_kaggle_error(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
     api = FakeApi()
     api.dataset_create_version = lambda *a, **k: SimpleNamespace(error="bad", url="")
     with pytest.raises(RuntimeError, match="bad"):
@@ -300,3 +305,11 @@ def test_wait_until_ready_tolerates_just_created_dataset():
             raise a
         return a
     kaggle_sync.wait_until_ready(SimpleNamespace(dataset_status=status), REF, poll_s=0)
+
+
+def test_update_settings_reuses_kaggles_license_name(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text(json.dumps({"licenses": [{"name": "CC-BY-4.0"}]}))
+    stored = [{"name": "Attribution 4.0 International (CC BY 4.0)"}]
+    api = FakeSettingsApi({"isPrivate": True, "licenses": stored})
+    kaggle_sync.update_settings(api, tmp_path, REF)
+    assert api.sent["licenses"] == stored

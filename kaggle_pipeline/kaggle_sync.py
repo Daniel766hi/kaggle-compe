@@ -94,9 +94,17 @@ def _check(resp, action):
 
 def publish(api, folder, exists, notes, public):
     if exists:
-        resp = api.dataset_create_version(
-            str(folder), notes, quiet=True, convert_to_csv=False, dir_mode="skip"
-        )
+        # A new version *adds* its tags to the dataset's existing ones (max 5 in total), so
+        # upload it without tags; update_settings sets the exact list afterwards.
+        meta_path = Path(folder) / "dataset-metadata.json"
+        original = meta_path.read_text()
+        meta_path.write_text(json.dumps({k: v for k, v in json.loads(original).items() if k != "keywords"}))
+        try:
+            resp = api.dataset_create_version(
+                str(folder), notes, quiet=True, convert_to_csv=False, dir_mode="skip"
+            )
+        finally:
+            meta_path.write_text(original)
         _check(resp, "new version")
     else:
         resp = api.dataset_create_new(
@@ -127,8 +135,8 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
     """Apply what a version upload doesn't: file and column descriptions, sources,
     update frequency and cover image (all read from the folder's dataset-metadata.json).
 
-    Kaggle's settings call overwrites visibility and collaborators, so both are copied
-    from the dataset's current settings: making it public on kaggle.com stays public.
+    Kaggle's settings call overwrites visibility, collaborators and license, so these are
+    copied from the dataset's current settings: making it public on kaggle.com stays public.
 
     Kaggle's usability score counts sources, update frequency and descriptions when it
     processes a version, so they show up from the version after the first settings update.
@@ -141,6 +149,10 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
     meta = json.loads(meta_path.read_text())
     # Kaggle omits false booleans from this response, so a missing flag means public.
     meta["isPrivate"] = bool(current.get("isPrivate", False))
+    # The settings call only accepts the license under the name Kaggle stored it as
+    # (e.g. "Attribution 4.0 International (CC BY 4.0)", not "CC-BY-4.0"); reuse it.
+    if current.get("licenses"):
+        meta["licenses"] = current["licenses"]
     if current.get("collaborators"):
         meta["collaborators"] = current["collaborators"]
     meta_path.write_text(json.dumps(meta, indent=2))

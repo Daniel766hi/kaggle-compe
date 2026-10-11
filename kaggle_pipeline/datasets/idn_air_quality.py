@@ -10,7 +10,7 @@ from . import open_meteo as om
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets"
 URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-FIRST_DAY = date(2022, 8, 1)  # global CAMS history on Open-Meteo starts mid-2022
+FIRST_DAY = date(2022, 8, 4)  # first day with values in Open-Meteo's global CAMS history
 RECENT_DAYS = 7
 CHUNK_DAYS = 92
 WHO_PM25_24H = 15  # WHO 2021 air quality guideline, 24-hour mean, µg/m³
@@ -84,7 +84,9 @@ def parse(raw, city):
     df = pd.DataFrame({"time_local": local, "time_utc": local - offset})
     for name in HOURLY:
         df[name] = hourly.get(name)
-    return om.with_city_columns(df, city)
+    # The API answers with empty values for hours it has no data for; don't store those.
+    df = df.dropna(subset=list(HOURLY), how="all")
+    return om.with_city_columns(df, city) if not df.empty else None
 
 
 def make_fetchers(_, snapshot_date):
@@ -165,7 +167,8 @@ def describe(snapshot_date, tables_written):
         "",
         "- `time_local` uses each city's own time zone (WIB, WITA or WIT); `time_utc` is the same moment in UTC.",
         f"- `exceeds_who_pm25` compares the daily mean with the WHO 2021 24-hour guideline of {WHO_PM25_24H} µg/m³.",
-        "- Empty values mean the source had no data for that hour.",
+        "- Empty values mean the source had no value for that pollutant and hour (for example, the "
+        "US AQI needs 24 hours of data, so it starts one day after the other columns).",
     ])
 
 

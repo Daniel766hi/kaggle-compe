@@ -45,7 +45,8 @@ def main(argv=None):
         ref = f"{owner or 'your-kaggle-username'}/{spec.slug}"
         report = pipeline.build(spec, out_dir, args.previous_dir, snapshot_date, ref)
         _summarize(report, snapshot_date)
-        return 0
+        _describe_files(report, out_dir)
+        return 1 if report.failed else 0
 
     if not owner:
         raise SystemExit("Set KAGGLE_USERNAME to your Kaggle username.")
@@ -64,6 +65,16 @@ def main(argv=None):
     kaggle_sync.update_settings(api, out_dir, ref)
     # Published, but exit non-zero so a failing source shows up as a red run (and an email).
     return 1 if report.failed else 0
+
+
+def _describe_files(report, out_dir):
+    """Log size and date range of every file, to check a dry run at a glance."""
+    for table in report.tables_written:
+        path = Path(out_dir) / table.file_name
+        df = pd.read_csv(path) if table.file_format == "csv" else pd.read_parquet(path)
+        dates = [c.name for c in table.columns if c.type == "datetime"][:1]
+        span = f"{pd.to_datetime(df[dates[0]]).min()} -> {pd.to_datetime(df[dates[0]]).max()}" if dates else ""
+        logging.info("%-32s %9d rows  %s", table.file_name, len(df), span)
 
 
 def _summarize(report, snapshot_date):

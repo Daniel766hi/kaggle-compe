@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -101,8 +102,9 @@ def test_everything_failing_aborts(tmp_path):
 
 def scheduled_datasets():
     workflow = (Path(__file__).parent.parent / ".github" / "workflows" / "update-dataset.yml").read_text()
-    line = next(l for l in workflow.splitlines() if l.strip().startswith("dataset: ["))
-    return [d.strip() for d in line.split("[", 1)[1].rstrip("]").split(",")]
+    # matrix: dataset: ${{ fromJSON(inputs.dataset && ... || '["defi", ...]') }}
+    scheduled = re.search(r"\|\| '(\[.*?\])'", workflow).group(1)
+    return json.loads(scheduled)
 
 
 def test_scheduled_datasets_exist():

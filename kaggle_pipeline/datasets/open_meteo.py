@@ -63,6 +63,15 @@ BUDGET_UNITS = 4000  # per run; stays under the hourly limit (5,000) and leaves 
 RANGE_ERROR = re.compile(r"from (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})")
 
 
+class RateLimited(Exception):
+    """Open-Meteo's daily/hourly limit is used up; stop and continue on the next run."""
+
+
+def _is_rate_limit(exc):
+    resp = getattr(exc, "response", None)
+    return getattr(resp, "status_code", None) == 429 or "limit exceeded" in (getattr(resp, "text", "") or "").lower()
+
+
 @dataclass(frozen=True)
 class Job:
     city: str
@@ -128,6 +137,8 @@ def request(session, url, params):
     try:
         return get_json(session, url, params)
     except requests.exceptions.HTTPError as exc:
+        if _is_rate_limit(exc):
+            raise RateLimited(exc.response.text) from exc
         if getattr(exc.response, "status_code", None) != 400:
             raise
         match = RANGE_ERROR.search(exc.response.text or "")
@@ -148,25 +159,31 @@ def run_jobs(jobs, fetch_one, n_vars, budget=BUDGET_UNITS):
     logged and skipped (the minimum-row check catches a source that is fully down).
     """
     frames, spent, skipped = [], 0, 0
-    for job in jobs:
+    for i, job in enumerate(jobs):
         cost = job.units(n_vars)
         if job.backfill and spent + cost > budget:
             skipped += 1
             continue
         try:
             df = fetch_one(job)
-        except requests.exceptions.HTTPError as exc:
-            if getattr(exc.response, "status_code", None) == 429:
+        except RateLimited:
+            log.warning("Open-Meteo rate limit reached; continuing next run")
+            skipped += len(jobs) - i
+            break
+        except requests.exceptions.RequestException as exc:
+            if _is_rate_limit(exc):
                 log.warning("Open-Meteo rate limit reached; continuing next run")
+                skipped += len(jobs) - i
                 break
-            if job.backfill:
-                raise
             log.warning("%s %s..%s failed: %s", job.city, job.start, job.end, exc)
+            if job.backfill:
+                skipped += len(jobs) - i
+                break  # keep what we have; the next run picks up from here
             continue
         spent += cost
         if df is not None and not df.empty:
             frames.append(df)
-    log.info("Open-Meteo: spent ~%d units, %d backfill requests left for later runs", spent, skipped)
+    log.info("Open-Meteo: spent ~%d units, %d requests left for later runs", spent, skipped)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 

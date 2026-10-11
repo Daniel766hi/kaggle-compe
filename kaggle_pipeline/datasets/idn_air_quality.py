@@ -178,7 +178,7 @@ SPEC = DatasetSpec(
     title="Indonesia Air Quality: Hourly PM2.5, 31 Cities",
     subtitle="Hourly PM2.5, PM10, gases and AQI for 31 Indonesian cities, updated daily",
     license="CC-BY-4.0",
-    keywords=["environment", "pollution", "time series analysis", "indonesia"],
+    keywords=["pollution", "environment", "public health", "cities and urban areas", "asia", "time series analysis"],
     tables=TABLES,
     sources=(
         "Open-Meteo Air Quality API (https://open-meteo.com/en/docs/air-quality-api), CC BY 4.0; "

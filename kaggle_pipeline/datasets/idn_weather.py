@@ -170,7 +170,7 @@ SPEC = DatasetSpec(
     title="Indonesia Daily Weather: 31 Cities since 2000",
     subtitle="Daily temperature, rain, wind and sun for 31 Indonesian cities since 2000",
     license="CC-BY-4.0",
-    keywords=["weather and climate", "environment", "time series analysis", "indonesia"],
+    keywords=["weather and climate", "earth and nature", "environment", "cities and urban areas", "asia", "time series analysis"],
     tables=TABLES,
     sources=(
         "Open-Meteo Historical Weather API (https://open-meteo.com/en/docs/historical-weather-api), CC BY 4.0; "

@@ -24,6 +24,15 @@ PANDAS_DTYPES = {
 
 KINDS = ("history", "snapshot", "incremental", "derived")
 
+# Kaggle only accepts its own tag names and rejects the whole settings update otherwise.
+# These were checked against Kaggle's API ("indonesia", "climate change", "forecasting" are not tags).
+KNOWN_KAGGLE_TAGS = {
+    "asia", "atmospheric science", "banking", "beginner", "cities and urban areas",
+    "currencies and foreign exchange", "data visualization", "earth and nature", "economics",
+    "environment", "exploratory data analysis", "finance", "geography", "international relations",
+    "investing", "pollution", "public health", "tabular", "time series analysis", "weather and climate",
+}
+
 
 @dataclass(frozen=True)
 class Column:

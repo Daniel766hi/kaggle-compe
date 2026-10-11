@@ -173,7 +173,7 @@ SPEC = DatasetSpec(
     title="Rupiah (IDR) Daily Exchange Rates",
     subtitle="Daily rupiah rates vs USD, EUR, SGD, JPY, CNY and 25 more, from ECB data",
     license="other",
-    keywords=["finance", "economics", "time series analysis", "indonesia"],
+    keywords=["currencies and foreign exchange", "finance", "economics", "banking", "asia", "time series analysis"],
     tables=TABLES,
     sources=(
         "European Central Bank euro foreign exchange reference rates "

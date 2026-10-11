@@ -9,6 +9,7 @@ import requests
 
 from kaggle_pipeline import kaggle_sync, pipeline
 from kaggle_pipeline.datasets import DATASETS
+from kaggle_pipeline.schema import KNOWN_KAGGLE_TAGS
 from kaggle_pipeline.datasets.defi import SPEC, transform
 
 from . import defi_fakes as fakes
@@ -120,6 +121,7 @@ def test_every_dataset_fits_kaggle_limits(spec):
         assert spec.cover is not None and spec.cover.exists(), f"missing cover image {spec.cover}"
     names = [t.name for t in spec.tables]
     assert len(names) == len(set(names))
+    assert set(spec.keywords) <= KNOWN_KAGGLE_TAGS, set(spec.keywords) - KNOWN_KAGGLE_TAGS
 
 
 class FakeApi:

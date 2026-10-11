@@ -44,9 +44,15 @@ def check_not_shrinking(previous, new, table):
     """Refuse to publish a table that lost history compared with the previous version."""
     if previous is None or previous.empty or table.kind == "derived":
         return
+    dates = [c for c in table.key if any(col.name == c and col.type == "datetime" for col in table.columns)]
     if table.kind == "snapshot":
         before, after = previous["snapshot_date"].nunique(), new["snapshot_date"].nunique()
         what = "snapshot days"
+    elif table.kind == "history" and dates:
+        # Full histories are compared by days covered, not rows: a member can legitimately
+        # leave (e.g. a chain dropping out of the top 25) without any history being lost.
+        before, after = previous[dates[0]].nunique(), new[dates[0]].nunique()
+        what = "days"
     else:
         before, after = len(previous), len(new)
         what = "rows"

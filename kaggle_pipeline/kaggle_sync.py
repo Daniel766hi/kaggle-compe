@@ -8,6 +8,7 @@ import logging
 import os
 import tempfile
 import time
+import zipfile
 from pathlib import Path
 
 import requests
@@ -41,21 +42,47 @@ def dataset_exists(api, ref):
 
 def download_current(api, ref, dest, attempts=4, pause_s=30):
     """Fetch every file of the current version. Any failure aborts the run, so we never
-    publish a version built without the previous panels (that would erase history).
+    publish a version built without the previous files (that would erase history).
 
-    Right after a new version, Kaggle can answer 404 until it has finished processing,
-    so wait for "ready" and retry a few times.
+    Files are downloaded one by one: the all-files zip of a new dataset can stay
+    unavailable (404) for a while, single files can't. Right after a new version Kaggle
+    can also answer 404 until processing is done, so wait for "ready" and retry.
     """
     wait_until_ready(api, ref)
-    for attempt in range(1, attempts + 1):
-        log.info("Downloading current version of %s (attempt %d)", ref, attempt)
-        try:
-            api.dataset_download_files(ref, path=str(dest), force=True, quiet=True, unzip=True)
-            return
-        except requests.exceptions.HTTPError as exc:
-            if getattr(exc.response, "status_code", None) != 404 or attempt == attempts:
-                raise
-            time.sleep(pause_s)
+    files = _list_files(api, ref)
+    log.info("Downloading %d files of %s", len(files), ref)
+    for name, size in files:
+        for attempt in range(1, attempts + 1):
+            try:
+                api.dataset_download_file(ref, name, path=str(dest), force=True, quiet=True)
+                break
+            except requests.exceptions.HTTPError as exc:
+                if getattr(exc.response, "status_code", None) != 404 or attempt == attempts:
+                    raise
+                time.sleep(pause_s)
+        _unzip_if_needed(Path(dest), name)
+        got = (Path(dest) / name).stat().st_size if (Path(dest) / name).exists() else -1
+        if size and got != size:
+            raise RuntimeError(f"Downloaded {name} is {got} bytes, Kaggle lists {size}; not publishing")
+
+
+def _list_files(api, ref):
+    files, token = [], None
+    while True:
+        resp = api.dataset_list_files(ref, page_token=token) if token else api.dataset_list_files(ref)
+        files += [(f.name, int(f.total_bytes or 0)) for f in (resp.files or [])]
+        token = getattr(resp, "nextPageToken", None) or getattr(resp, "next_page_token", None)
+        if not token:
+            return files
+
+
+def _unzip_if_needed(dest, name):
+    """Kaggle may deliver a large single file as <name>.zip."""
+    zipped = dest / f"{name}.zip"
+    if zipped.exists() and not (dest / name).exists():
+        with zipfile.ZipFile(zipped) as z:
+            z.extractall(dest)
+        zipped.unlink()
 
 
 def _check(resp, action):

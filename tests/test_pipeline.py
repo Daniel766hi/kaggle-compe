@@ -228,22 +228,60 @@ def test_wait_until_ready_polls_then_fails_on_error():
         kaggle_sync.wait_until_ready(SimpleNamespace(dataset_status=lambda ref: "error"), REF, poll_s=0)
 
 
-def test_download_retries_while_kaggle_still_processing(tmp_path):
-    calls = []
+class FakeFilesApi:
+    """Lists two files and serves them, failing the first `fail_first` downloads with 404."""
 
-    def download(ref, **kw):
-        calls.append(ref)
-        if len(calls) < 3:
+    def __init__(self, fail_first=0, wrong_size=False):
+        self.fail_first, self.wrong_size, self.calls = fail_first, wrong_size, []
+
+    def dataset_status(self, ref):
+        return "ready"
+
+    def dataset_list_files(self, ref, page_token=None):
+        files = [SimpleNamespace(name="a.csv", total_bytes=3), SimpleNamespace(name="b.parquet", total_bytes=4)]
+        return SimpleNamespace(files=files, nextPageToken="")
+
+    def dataset_download_file(self, ref, name, path, **kw):
+        self.calls.append(name)
+        if len(self.calls) <= self.fail_first:
             raise http_error(404)
+        content = b"xyz" if name == "a.csv" else (b"x" if self.wrong_size else b"wxyz")
+        (Path(path) / name).write_bytes(content)
 
-    api = SimpleNamespace(dataset_status=lambda ref: "ready", dataset_download_files=download)
+
+def test_download_fetches_each_file_and_retries_while_processing(tmp_path):
+    api = FakeFilesApi(fail_first=2)
     kaggle_sync.download_current(api, REF, tmp_path, pause_s=0)
-    assert len(calls) == 3
+    assert api.calls == ["a.csv", "a.csv", "a.csv", "b.parquet"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.csv", "b.parquet"]
 
-    always_404 = SimpleNamespace(dataset_status=lambda ref: "ready",
-                                 dataset_download_files=lambda ref, **kw: (_ for _ in ()).throw(http_error(404)))
     with pytest.raises(requests.exceptions.HTTPError):
-        kaggle_sync.download_current(always_404, REF, tmp_path, attempts=2, pause_s=0)
+        kaggle_sync.download_current(FakeFilesApi(fail_first=10), REF, tmp_path, attempts=2, pause_s=0)
+
+
+def test_download_refuses_a_truncated_file(tmp_path):
+    with pytest.raises(RuntimeError, match="not publishing"):
+        kaggle_sync.download_current(FakeFilesApi(wrong_size=True), REF, tmp_path, pause_s=0)
+
+
+def test_history_may_lose_a_member_but_not_days(tmp_path):
+    def chains(series_by_chain):
+        f = fetchers(DAY1)
+        f["chain_tvl_history"] = lambda prev: transform.chain_tvl_history(series_by_chain)
+        return f
+
+    # Day 1: chains A (1200 days) and X (50 days). Day 2: X left the top list.
+    pipeline.build(SPEC, tmp_path / "v1", None, DAY1, REF,
+                   fetchers=chains({"A": fakes.tvl_series(), "X": fakes.tvl_series(50)}))
+    report = pipeline.build(SPEC, tmp_path / "v2", tmp_path / "v1", DAY2, REF,
+                            fetchers=chains({"A": fakes.tvl_series()}))
+    assert "chain_tvl_history" not in report.failed
+    assert len(pd.read_csv(tmp_path / "v2" / "chain_tvl_history.csv")) == 1200
+
+    # Losing days of history is still refused.
+    report = pipeline.build(SPEC, tmp_path / "v3", tmp_path / "v2", DAY2, REF,
+                            fetchers=chains({"A": fakes.tvl_series(1100)}))
+    assert "would shrink from 1200 to 1100 days" in report.failed["chain_tvl_history"]
 
 
 def test_update_settings_retries_transient_errors(tmp_path):

@@ -122,6 +122,7 @@ def test_every_dataset_fits_kaggle_limits(spec):
     names = [t.name for t in spec.tables]
     assert len(names) == len(set(names))
     assert set(spec.keywords) <= KNOWN_KAGGLE_TAGS, set(spec.keywords) - KNOWN_KAGGLE_TAGS
+    assert len(spec.keywords) <= 5  # Kaggle: "You have exceeded the max category limit" at 6
 
 
 class FakeApi:

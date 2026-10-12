@@ -118,11 +118,25 @@ for name in ("ANTHROPIC_API_KEY", "HF_TOKEN", "MODAL_TOKEN_ID", "MODAL_TOKEN_SEC
         secrets[name] = value.strip()
     except Exception as exc:  # the reason only; never the value
         missing[name] = f"{type(exc).__name__}: {str(exc)[:200]}"
+# Catch pasted-in-the-wrong-box mistakes now, not after minutes of setup. Only prefixes are
+# compared; values are never printed.
+EXPECTED_PREFIX = {
+    "ANTHROPIC_API_KEY": "sk-ant-",
+    "HF_TOKEN": "hf_",
+    "MODAL_TOKEN_ID": "ak-",
+    "MODAL_TOKEN_SECRET": "as-",
+}
+for name, value in secrets.items():
+    if not value.startswith(EXPECTED_PREFIX[name]) or any(c.isspace() for c in value):
+        owner = next((n for n, p in EXPECTED_PREFIX.items() if value.startswith(p)), None)
+        hint = f"; it looks like the value for {owner}" if owner and owner != name else ""
+        missing[name] = (f"should be one value starting with '{EXPECTED_PREFIX[name]}', "
+                         f"without spaces or labels{hint}")
 READY = not missing
 if READY:
     print("secrets attached:", ", ".join(secrets))
 else:
-    print("NOT RUNNING. These Kaggle secrets could not be read:")
+    print("NOT RUNNING. These Kaggle secrets are missing or malformed:")
     for name, reason in missing.items():
         print(f"  - {name}  ({reason})")
     print("Check Add-ons → Secrets: each name must match exactly and be ticked for this notebook.")

@@ -49,11 +49,23 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    # Runs the χ-Bench agent; needs internet and the Kaggle secrets listed in the notebook. It
+    # downloads the gated handbook, so it must stay private.
+    "chi-pilot": {
+        "source": "notebooks/chi_pilot_run.py",
+        "title": "chi-pilot: run the chi-Bench agent",
+        "datasets": ["chi-pilot-agent"],
+        "tags": ["healthcare", "nlp"],
+        "internet": True,
+        "private_only": True,
+    },
 }
 
 
 def build_folder(name, owner, public, folder):
     cfg = NOTEBOOKS[name]
+    if public and cfg.get("private_only"):
+        sys.exit(f"{name}: this notebook must stay private")
     nb = jupytext.read(ROOT / cfg["source"])
     nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
     code_file = f"{slugify(cfg['title'])}.ipynb"
@@ -66,7 +78,7 @@ def build_folder(name, owner, public, folder):
         "kernel_type": "notebook",
         "is_private": not public,
         "enable_gpu": False,
-        "enable_internet": False,
+        "enable_internet": cfg.get("internet", False),
         "dataset_sources": [f"{owner}/{d}" for d in cfg["datasets"]],
         "keywords": cfg["tags"],
     }

@@ -117,6 +117,23 @@ PYTHONPATH=../kaggle-compe python -m chi_pilot.kaggle_csv \
 Upload `submission.csv` to the Kaggle competition (up to 5 submissions a day; select one as
 final). Tasks without a verified trial are written as 0 and listed as a warning.
 
+## Running from a Kaggle notebook
+
+`notebooks/chi_pilot_run.py` does the setup, the run and the Kaggle file in one private Kaggle
+notebook. Kaggle cannot run Docker, so trials run on Modal (you pay Modal and Anthropic).
+
+```bash
+python scripts/push_notebooks.py chi-pilot     # pushes it private, with internet on
+```
+
+On Kaggle: attach the secrets `ANTHROPIC_API_KEY`, `HF_TOKEN`, `MODAL_TOKEN_ID` and
+`MODAL_TOKEN_SECRET` (Add-ons → Secrets) and the `chi-pilot-agent` dataset, set `TEAM`,
+`CONTACT` and `MODE` in the settings cell, then run `MODE = "smoke"` first. For `MODE = "full"`
+use *Save Version* → *Save & Run All*. The handbook and task data only go to a temporary
+directory. The evidence packet goes to the private Modal volume `chi-pilot-packets`, not to the
+notebook outputs, because trajectories can quote the handbook. The notebook must stay private;
+the push script refuses `--public` for it.
+
 ## Private-final package (due November 15, 2026)
 
 Email `research@actava.ai` with `[Kaggle]` in the subject and your team details, containing:

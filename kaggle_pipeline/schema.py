@@ -97,7 +97,7 @@ class DatasetSpec:
     sources: str  # shown as "Source/Provenance" on Kaggle
     # (session, snapshot_date) -> {table name: fetch(previous_df_or_None) -> DataFrame}
     make_fetchers: Callable
-    # (snapshot_date, tables_written) -> markdown description
+    # (snapshot_date, tables_written, frames) -> markdown description; frames = {table name: DataFrame}
     describe: Callable
     # {table name: DataFrame} of built tables -> {derived table name: DataFrame}
     derive: Optional[Callable] = None

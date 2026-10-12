@@ -23,8 +23,10 @@ class BuildReport:
     failed: dict = field(default_factory=dict)  # table name -> error message
     tables_written: list = field(default_factory=list)
 
+    frequency: str = "daily"
+
     def version_notes(self, snapshot_date):
-        parts = [f"Daily update {snapshot_date:%Y-%m-%d} UTC"]
+        parts = [f"{self.frequency.capitalize()} update {snapshot_date:%Y-%m-%d} UTC"]
         if self.carried_forward:
             parts.append("unchanged (source error): " + ", ".join(sorted(self.carried_forward)))
         return "; ".join(parts)
@@ -44,7 +46,7 @@ def build(spec, out_dir, previous_dir, snapshot_date, dataset_ref, fetchers=None
     if fetchers is None:
         fetchers = spec.make_fetchers(make_session(), snapshot_date)
 
-    report = BuildReport()
+    report = BuildReport(frequency=spec.update_frequency)
     frames = {}
     for table in spec.base_tables:
         previous = storage.read_table(table, previous_dir)
@@ -91,6 +93,6 @@ def build(spec, out_dir, previous_dir, snapshot_date, dataset_ref, fetchers=None
 
     order = {t.name: i for i, t in enumerate(spec.tables)}
     report.tables_written.sort(key=lambda t: order[t.name])
-    storage.write_metadata(spec, out_dir, report.tables_written, snapshot_date, dataset_ref)
+    storage.write_metadata(spec, out_dir, report.tables_written, snapshot_date, dataset_ref, frames)
     storage.copy_cover_image(spec, out_dir)
     return report

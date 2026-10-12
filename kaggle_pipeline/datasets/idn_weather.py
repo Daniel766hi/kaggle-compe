@@ -122,7 +122,7 @@ def derive(frames):
     return {"idn_weather_monthly": monthly(frames["idn_weather_daily"]), "cities": om.cities_frame()}
 
 
-def describe(snapshot_date, tables_written):
+def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
         "Daily **weather for 31 Indonesian cities since 2000**, from Banda Aceh to Jayapura: "
         "temperature, rainfall, wind, solar radiation and evapotranspiration.",

@@ -127,7 +127,7 @@ def derive(frames):
     return {"idr_exchange_rates": wide, "idr_monthly_average": idr_monthly(wide)}
 
 
-def describe(snapshot_date, tables_written):
+def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
         "Daily exchange rates of the **Indonesian rupiah (IDR)** against 30 major currencies "
         "(USD, EUR, SGD, JPY, CNY, MYR and more), plus the full set of ECB euro reference rates.",

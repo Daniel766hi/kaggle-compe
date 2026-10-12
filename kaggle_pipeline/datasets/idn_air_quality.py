@@ -127,7 +127,7 @@ def derive(frames):
     return {"idn_air_quality_daily": daily(frames["idn_air_quality_hourly"]), "cities": om.cities_frame()}
 
 
-def describe(snapshot_date, tables_written):
+def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
         "Hourly **air quality for 31 Indonesian cities**, from Banda Aceh to Jayapura: PM2.5, PM10, "
         "carbon monoxide, nitrogen dioxide, sulphur dioxide, ozone, dust, UV index and the US AQI.",

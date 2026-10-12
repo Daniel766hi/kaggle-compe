@@ -41,7 +41,7 @@ def make_fetchers(session, snapshot_date):
     }
 
 
-def describe(snapshot_date, tables_written):
+def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
         "Daily-updated data on decentralized finance (DeFi): total value locked (TVL), "
         "blockchains, stablecoins, DEX trading volume, protocol fees and yield pools.",

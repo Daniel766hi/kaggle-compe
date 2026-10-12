@@ -135,7 +135,8 @@ TABLES = [
         columns=[FILM_ID,
                  Column("person_id", "string", "Wikidata ID of the actor"),
                  Column("person", "string", "Actor's name"),
-                 Column("cast_order", "integer", "Billing order (1 = first billed), when recorded")],
+                 Column("cast_order", "integer", "Billing order (1 = first billed); rarely recorded in Wikidata, "
+                                                  "mostly empty")],
         min_rows=10000,
         key=("film_id", "person_id"),
         max_shrink=0.03,
@@ -374,7 +375,17 @@ def make_fetchers(_, snapshot_date):
     return {t.name: table(t.name) for t in TABLES}
 
 
-def describe(snapshot_date, tables_written):
+def completeness_markdown(movies):
+    if movies is None or movies.empty:
+        return "(computed when the dataset is built)"
+    filled = (movies.notna().mean() * 100).drop(["film_id", "wikipedia_languages", "oscar_wins",
+                                                 "oscar_nominations", "n_cast"], errors="ignore")
+    lines = ["| Column | Filled |", "|---|---|"]
+    lines += [f"| `{col}` | {pct:.0f}% |" for col, pct in filled.sort_values(ascending=False).items()]
+    return "\n".join(lines)
+
+
+def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
         "Metadata for **notable feature films**, from the early days of cinema to this year's releases: "
         "genres, directors, writers, cast, cinematographers, composers, color vs black-and-white, aspect "
@@ -401,11 +412,11 @@ def describe(snapshot_date, tables_written):
         "",
         "## Completeness",
         "",
-        "Wikidata is edited by volunteers, so not every field is filled for every film. Genres, directors, "
-        "release dates and countries are almost always present; runtime, color, aspect ratio, budget and "
-        "box office are less complete, and best for well-known and English-language films. Empty means "
+        "Wikidata is edited by volunteers, so not every field is filled for every film. Empty means "
         "\"not recorded\", not zero. Money columns only use values recorded in US dollars (not adjusted for "
-        "inflation).",
+        "inflation). Share of films with a value, as of this version:",
+        "",
+        completeness_markdown(frames.get("movies") if frames else None),
         "",
         "## Updates",
         "",

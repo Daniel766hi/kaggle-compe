@@ -84,7 +84,7 @@ def _resource(path, description, table):
     }
 
 
-def write_metadata(spec, out_dir, tables_written, snapshot_date, dataset_ref):
+def write_metadata(spec, out_dir, tables_written, snapshot_date, dataset_ref, frames=None):
     resources = []
     for table in tables_written:
         resources.append(_resource(table.file_name, table.description, table))
@@ -96,7 +96,7 @@ def write_metadata(spec, out_dir, tables_written, snapshot_date, dataset_ref):
         "id": dataset_ref,
         "licenses": [{"name": spec.license}],
         "keywords": spec.keywords,
-        "description": spec.describe(snapshot_date, tables_written),
+        "description": spec.describe(snapshot_date, tables_written, frames or {}),
         "expectedUpdateFrequency": spec.update_frequency,
         "userSpecifiedSources": spec.sources,
         "resources": resources,

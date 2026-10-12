@@ -118,6 +118,8 @@ def test_full_build_writes_every_file_with_column_descriptions(tmp_path):
     assert not report.failed, report.failed
     meta = json.loads((tmp_path / "v1" / "dataset-metadata.json").read_text())
     assert [r["path"] for r in meta["resources"]] == [t.file_name for t in mv.TABLES]
+    assert "| `title` | 100% |" in meta["description"]  # completeness table computed from the data
+    assert report.version_notes(pd.Timestamp("2026-10-12")).startswith("Weekly update")
     for resource in meta["resources"]:
         assert resource["description"]
         assert all(field["description"] for field in resource["schema"]["fields"]), resource["path"]

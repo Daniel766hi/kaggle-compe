@@ -71,6 +71,19 @@ TRACK_DATA = {
 }
 
 
+HANDBOOK_ACCESS_CHECK = """\
+import sys
+from huggingface_hub import auth_check, whoami
+try:
+    print("Hugging Face account:", whoami()["name"])
+    auth_check("actava/managed-care-operations-handbook", repo_type="dataset")
+except Exception as exc:
+    print("handbook access: NOT approved", f"({type(exc).__name__})")
+    sys.exit(1)
+print("handbook access: approved")
+"""
+
+
 def run(cmd, cwd=CB, env=None, echo=True, check=True):
     """Run a command, streaming its output. `echo=False` hides the command line (secrets)."""
     if echo:
@@ -130,6 +143,13 @@ def setup_chi_bench():
     run(UV + ["sync", "-q", "--extra", "dev"])
 
     hf_env = {"HF_TOKEN": secrets["HF_TOKEN"]}
+    # Check handbook access first: the task download takes minutes, the check a second.
+    if run(UV + ["run", "python", "-c", HANDBOOK_ACCESS_CHECK], env=hf_env, check=False):
+        raise RuntimeError(
+            "HF_TOKEN cannot read the handbook yet. Request access at "
+            "https://huggingface.co/datasets/actava/managed-care-operations-handbook with the "
+            "Hugging Face account printed above, wait for approval, then run again."
+        )
     run(UV + ["run", "hf", "download", "actava/chi-bench", "--repo-type", "dataset",
               "--revision", DATASET_REV, "--local-dir", "data/"], env=hf_env)
     (CB / "data" / ".chi-bench-version").write_text(DATASET_REV + "\n")

@@ -159,25 +159,33 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
 
     for attempt in range(1, attempts + 1):
         try:
-            api.dataset_metadata_update(ref, str(folder))
+            _send_settings(api, ref, folder)
             if cover_is_default(api, ref) and (Path(folder) / "dataset-cover-image.png").exists():
                 # Seen in practice: the upload succeeds but the dataset keeps Kaggle's default
                 # image (e.g. right after a new version). Applying the settings again fixes it.
                 log.warning("Cover image not applied yet; updating settings again")
                 time.sleep(30)
-                api.dataset_metadata_update(ref, str(folder))
+                _send_settings(api, ref, folder)
                 if cover_is_default(api, ref):
                     log.warning("Cover image still not applied; it will be retried on the next run")
             break
         except SystemExit as exc:  # the client prints the errors and calls exit(1)
             raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
         except requests.exceptions.RequestException as exc:
-            # Kaggle occasionally answers with an empty body; a retry goes through.
             if attempt == attempts:
                 raise
             log.warning("Kaggle settings update failed (%s), retrying", exc)
             time.sleep(pause_s)
     log.info("Kaggle settings updated (private=%s)", meta["isPrivate"])
+
+
+def _send_settings(api, ref, folder):
+    try:
+        api.dataset_metadata_update(ref, str(folder))
+    except requests.exceptions.JSONDecodeError:
+        # Kaggle often answers the settings call with HTTP 200 and an empty body, which the
+        # client fails to parse. The settings are applied in that case (checked on the cover).
+        log.warning("Kaggle settings call returned an empty reply; treating it as applied")
 
 
 def cover_is_default(api, ref):

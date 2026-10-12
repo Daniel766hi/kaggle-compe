@@ -206,6 +206,9 @@ class FakeSettingsApi:
         self.updates += 1
         if self.fail == "flaky":
             self.fail = False
+            raise requests.exceptions.ConnectionError("connection reset")
+        if self.fail == "empty reply":  # HTTP 200 with an empty body: applied, but unparseable
+            self.sent = json.loads((Path(path) / "dataset-metadata.json").read_text())
             raise requests.exceptions.JSONDecodeError("Expecting value", "", 0)
         if self.fail:
             raise SystemExit(1)
@@ -336,3 +339,10 @@ def test_update_settings_reapplies_when_cover_did_not_stick(tmp_path, monkeypatc
     ok = FakeSettingsApi({"isPrivate": False})
     kaggle_sync.update_settings(ok, tmp_path, REF)
     assert ok.updates == 1
+
+
+def test_update_settings_accepts_an_empty_reply(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"isPrivate": False}, fail="empty reply")
+    kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
+    assert api.updates == 1 and api.sent is not None

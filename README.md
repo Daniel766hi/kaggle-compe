@@ -10,6 +10,9 @@ Kaggle dataset. One GitHub Actions workflow runs them all.
 | [Indonesia Daily Weather: 31 Cities since 2000](https://www.kaggle.com/datasets/danielaijdkx/indonesia-daily-weather-31-cities) | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
 | [Rupiah (IDR) Daily Exchange Rates](https://www.kaggle.com/datasets/danielaijdkx/rupiah-idr-daily-exchange-rates) | `idr-fx` | ECB reference rates via Frankfurter | daily |
 
+This repo also holds **chi-pilot**, an agent for the χ-Bench healthcare-operations Kaggle
+competition (IEEE Big Data Cup 2026). See [docs/chi-bench.md](docs/chi-bench.md).
+
 ## How it works
 
 ```
@@ -101,4 +104,13 @@ kaggle_pipeline/
     idn_weather.py
     idr_fx.py
 tests/             offline tests with synthetic API payloads
+chi_pilot/         χ-Bench agent harness (see docs/chi-bench.md)
+  harness.py       Claude Code harness: track guide, handbook search, completion audit
+  playbooks.py     operating guides and completion audits per track
+  domains.py       track detection from the task instruction
+  hb_search.py     ranked handbook search, installed in each trial as `hb-search`
+  stop_hook.py     Claude Code Stop hook that runs the completion audit
+  kaggle_csv.py    task_id,reward submission file from trial results
+scripts/install_chi_pilot.py   copies chi_pilot/ into a χ-Bench checkout and registers it
+configs/chi_bench/chi-pilot.yaml   χ-Bench submission config
 ```

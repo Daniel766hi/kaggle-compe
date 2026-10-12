@@ -1,0 +1,31 @@
+# χ-Bench submission config for the chi-pilot agent.
+# Copy to <chi-bench>/configs/submissions/chi-pilot.yaml, fill in team/contact, then run the
+# validate / run / status / prepare commands in docs/chi-bench.md.
+schema: chi-bench/submission/v1
+
+submission:
+  # Slug-safe and stable across re-runs (used for output paths).
+  id: chi-pilot-opus-5-5
+  team: CHANGE-ME              # Kaggle team name
+  contact: CHANGE-ME@example.com
+  agent: chi-pilot
+  # Passed to Claude Code as ANTHROPIC_MODEL (the "anthropic/" prefix is stripped).
+  # Needs ANTHROPIC_API_KEY in .env, which also pays for the judge.
+  model: anthropic/claude-opus-5-5
+  notes: |
+    chi-pilot: Claude Code with track-specific operating guides appended to the system prompt,
+    ranked handbook search (hb-search), and one in-session completion audit via a Stop hook.
+
+run:
+  # 'modal' runs trials in parallel in the cloud (needs `uv run modal setup`);
+  # 'docker' runs locally after `uv run cb docker build`.
+  environment: modal
+  n_attempts: 1               # the public Kaggle score is pass@1: one run per task
+  concurrency: 5
+  max_retries: 2              # infrastructure retries only
+  timeout_multiplier: 2.0
+  env_file: .env
+
+dataset:
+  version: chi-bench-v1.0.0   # must match data/.chi-bench-version
+  domains: [pa_provider, pa_um, cm]

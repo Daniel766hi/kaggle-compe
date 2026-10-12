@@ -49,6 +49,12 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    "movies": {
+        "source": "notebooks/movies_oscars_and_recommender.py",
+        "title": "Predicting Best Picture + a Movie Recommender",
+        "datasets": ["movie-metadata-genre-crew-color-tech-specs"],
+        "tags": ["movies and tv shows", "recommender systems", "popular culture", "data visualization"],
+    },
 }
 
 

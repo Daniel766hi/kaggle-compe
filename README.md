@@ -71,6 +71,14 @@ python -m kaggle_pipeline idr-fx                   # fetch and publish
 where they run against the current data. They are pushed private by default; add `--public` once
 the dataset they use is public.
 
+| Notebook | What it shows |
+|---|---|
+| `defi_market_overview.py` | DeFi TVL, stablecoins, DEX volume and yields |
+| `rupiah_since_1999.py` | Rupiah crises, trends and volatility |
+| `indonesia_air_quality.py` | PM2.5 across 31 cities |
+| `indonesia_weather.py` | Rain seasons and warming |
+| `movies_oscars_and_recommender.py` | Best Picture nomination/winner prediction (time-based backtest, blind test on the 2026 ceremony, forecast for 2026 films) and an explainable content-based movie recommender |
+
 ## Adding a dataset
 
 Create `kaggle_pipeline/datasets/<name>.py` with a `SPEC = DatasetSpec(...)` (tables, fetchers,

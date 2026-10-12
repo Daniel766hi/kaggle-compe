@@ -56,7 +56,7 @@ def check_not_shrinking(previous, new, table):
     else:
         before, after = len(previous), len(new)
         what = "rows"
-    if after < before:
+    if after < before * (1 - table.max_shrink):
         raise ValueError(f"{table.name}: would shrink from {before} to {after} {what}")
 
 

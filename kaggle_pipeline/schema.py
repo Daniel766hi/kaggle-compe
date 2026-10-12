@@ -25,12 +25,15 @@ PANDAS_DTYPES = {
 KINDS = ("history", "snapshot", "incremental", "derived")
 
 # Kaggle only accepts its own tag names and rejects the whole settings update otherwise.
-# These were checked against Kaggle's API ("indonesia", "climate change", "forecasting" are not tags).
+# These were checked against Kaggle's API ("indonesia", "climate change", "forecasting", "movies",
+# "film" and "networks" are not tags).
 KNOWN_KAGGLE_TAGS = {
     "asia", "atmospheric science", "banking", "beginner", "cities and urban areas",
     "currencies and foreign exchange", "data visualization", "earth and nature", "economics",
     "environment", "exploratory data analysis", "finance", "geography", "international relations",
     "investing", "pollution", "public health", "tabular", "time series analysis", "weather and climate",
+    "movies and tv shows", "arts and entertainment", "popular culture", "recommender systems", "sql",
+    "social networks", "culture and humanities", "music",
 }
 
 
@@ -52,6 +55,9 @@ class Table:
     # Columns that identify one row (used for de-duplication and upserts).
     key: tuple = ()
     fmt: str = ""  # "csv" or "parquet"; default: parquet for snapshots, csv otherwise
+    # Fraction of rows a full rebuild may lose without being treated as data loss (entries can
+    # legitimately disappear from a source, e.g. deleted or no longer notable).
+    max_shrink: float = 0.0
 
     def __post_init__(self):
         assert self.kind in KINDS, self.kind
@@ -97,6 +103,8 @@ class DatasetSpec:
     derive: Optional[Callable] = None
     cover: Optional[Path] = None
     update_frequency: str = "daily"
+    # For a weekly dataset: the weekday (0 = Monday) its scheduled run happens; other days are skipped.
+    run_weekday: Optional[int] = None
 
     def table(self, name):
         return next(t for t in self.tables if t.name == name)

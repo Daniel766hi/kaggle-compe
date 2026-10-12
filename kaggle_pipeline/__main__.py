@@ -41,6 +41,11 @@ def main(argv=None):
     snapshot_date = pd.Timestamp(datetime.now(timezone.utc).date())
     owner = os.environ.get("KAGGLE_USERNAME") or ""
 
+    scheduled = os.environ.get("GITHUB_EVENT_NAME") == "schedule"
+    if scheduled and spec.run_weekday is not None and snapshot_date.weekday() != spec.run_weekday:
+        logging.info("%s updates weekly; skipping today's scheduled run", spec.name)
+        return 0
+
     if args.dry_run:
         ref = f"{owner or 'your-kaggle-username'}/{spec.slug}"
         report = pipeline.build(spec, out_dir, args.previous_dir, snapshot_date, ref)
@@ -75,6 +80,10 @@ def _describe_files(report, out_dir):
         dates = [c.name for c in table.columns if c.type == "datetime"][:1]
         span = f"{pd.to_datetime(df[dates[0]]).min()} -> {pd.to_datetime(df[dates[0]]).max()}" if dates else ""
         logging.info("%-32s %9d rows  %s", table.file_name, len(df), span)
+        filled = (df.notna().mean() * 100).round(1)
+        partial = {c: v for c, v in filled.items() if v < 100}
+        if partial:
+            logging.info("    columns not always filled (%% of rows): %s", partial)
 
 
 def _summarize(report, snapshot_date):

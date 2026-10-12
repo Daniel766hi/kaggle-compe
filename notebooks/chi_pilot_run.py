@@ -79,6 +79,8 @@ try:
     auth_check("actava/managed-care-operations-handbook", repo_type="dataset")
 except Exception as exc:
     print("handbook access: NOT approved", f"({type(exc).__name__})")
+    # Hugging Face says whether the request is missing, pending or rejected.
+    print("Hugging Face says:", " ".join(str(exc).split())[:400])
     sys.exit(1)
 print("handbook access: approved")
 """

@@ -162,3 +162,38 @@ def test_runtime_prefers_preferred_rank_else_shortest():
     q[3]["rank"] = "http://wikiba.se/ontology#PreferredRank"
     out = build(n=2, quantities=q)["movies"].set_index("film_id")["runtime_min"]
     assert out["Q1"] == 201 and out["Q2"] == 135
+
+
+def test_failed_download_runs_once_and_fails_every_table(monkeypatch):
+    calls = []
+
+    def boom(session):
+        calls.append(1)
+        raise RuntimeError("Wikidata down")
+    monkeypatch.setattr(mv, "fetch_all", boom)
+    fetchers = mv.make_fetchers(None, pd.Timestamp("2026-10-12"))
+    for fetch in fetchers.values():
+        with pytest.raises(RuntimeError, match="Wikidata down"):
+            fetch(None)
+    assert len(calls) == 1
+
+
+def test_sparql_retries_a_response_that_breaks_off(monkeypatch):
+    import requests
+    monkeypatch.setattr(mv.time, "sleep", lambda s: None)
+    answers = [requests.exceptions.ChunkedEncodingError("cut"), None]
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": {"bindings": [{"film": {"value": WD + "Q1"}}]}}
+
+    class Session:
+        def post(self, url, data, timeout):
+            a = answers.pop(0)
+            if a:
+                raise a
+            return Resp()
+    assert mv.sparql(Session(), "q") == [{"film": WD + "Q1"}]

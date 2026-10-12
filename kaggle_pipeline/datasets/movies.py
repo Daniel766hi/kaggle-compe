@@ -189,12 +189,24 @@ def make_session():
     return session
 
 
-def sparql(session, query):
-    """Run a query and return rows as dicts of plain strings."""
-    resp = session.post(SPARQL_URL, data={"query": query}, timeout=120)
-    resp.raise_for_status()
-    time.sleep(PAUSE_S)
-    return [{k: v["value"] for k, v in b.items()} for b in resp.json()["results"]["bindings"]]
+def sparql(session, query, attempts=4):
+    """Run a query and return rows as dicts of plain strings.
+
+    HTTP errors are retried by the session; this loop also retries responses that break off
+    midway (ChunkedEncodingError) or arrive truncated (invalid JSON), which the session can't see.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = session.post(SPARQL_URL, data={"query": query}, timeout=120)
+            resp.raise_for_status()
+            rows = resp.json()["results"]["bindings"]
+            time.sleep(PAUSE_S)
+            return [{k: v["value"] for k, v in b.items()} for b in rows]
+        except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError, ValueError) as exc:
+            if attempt == attempts:
+                raise
+            log.warning("Wikidata response broke off (%s); retrying", type(exc).__name__)
+            time.sleep(10 * attempt)
 
 
 def qid(uri):
@@ -424,12 +436,19 @@ def fetch_all(session):
 
 
 def make_fetchers(_, snapshot_date):
+    """All tables come from one download. It runs once; if it fails, every table fails with the
+    same error, so all files keep their previous version together and never mix two downloads."""
     cache = {}
 
     def table(name):
         def fetch(previous):
             if "all" not in cache:
-                cache["all"] = fetch_all(make_session())
+                try:
+                    cache["all"] = fetch_all(make_session())
+                except Exception as exc:  # noqa: BLE001 - remembered and re-raised for every table
+                    cache["all"] = exc
+            if isinstance(cache["all"], Exception):
+                raise cache["all"]
             return cache["all"][name]
         return fetch
 

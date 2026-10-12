@@ -99,9 +99,8 @@ print({k: sorted(str(p.relative_to(v)) for p in v.rglob('*') if p.is_file()) for
 
 SERVER = r'''
 import litellm, torch
-from adk_submission import VllmConfig, VllmServer, discover_adapters
+from adk_submission import VllmConfig, VllmServer, discover_adapters, discover_declared_models
 from swegemma.config import ALLOWED_ADAPTER_EXTENSIONS
-from swegemma.models.discovery import validate_single_declared_model
 litellm.drop_params = True
 
 DATA_DIR = Path('/kaggle/input/competitions/gemma-4-developer-agent')
@@ -112,8 +111,8 @@ cands = sorted(glob.glob('/kaggle/input/**/gemma-4-31b-it-qat-w4a16-ct/**/config
 MODEL_PATH = Path(cands[0]).parent
 print('model at', MODEL_PATH)
 
-declared = {n: validate_single_declared_model(d) for n, d in AGENTS.items()}
-assert set(declared.values()) == {TARGET_MODEL_NAME}, declared
+declared = {n: sorted(discover_declared_models(d)) for n, d in AGENTS.items()}
+assert all(v == [TARGET_MODEL_NAME] for v in declared.values()), declared
 adapters = discover_adapters(str(AGENTS['baseline']), adapter_extensions=ALLOWED_ADAPTER_EXTENSIONS)
 gpu_count = torch.cuda.device_count()
 tp_size = 4 if gpu_count >= 4 else (2 if gpu_count >= 2 else 1)

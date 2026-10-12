@@ -123,6 +123,8 @@ def test_every_dataset_fits_kaggle_limits(spec):
     assert len(names) == len(set(names))
     assert set(spec.keywords) <= KNOWN_KAGGLE_TAGS, set(spec.keywords) - KNOWN_KAGGLE_TAGS
     assert len(spec.keywords) <= 5  # Kaggle: "You have exceeded the max category limit" at 6
+    too_long = [c.name for t in spec.tables for c in t.columns if len(c.description) > 100]
+    assert not too_long, f"column descriptions over 100 characters: {too_long}"
 
 
 class FakeApi:
@@ -193,7 +195,15 @@ class FakeSettingsApi:
         p.write_text(json.dumps({"info": self.current}))
         return str(p)
 
+    def dataset_list(self, user=None, search=None):
+        thumb = "https://x/default-backdrop.png" if self.default_cover else "https://x/cover.png"
+        return [SimpleNamespace(ref=REF, thumbnail_image_url=thumb)]
+
+    default_cover = False
+    updates = 0
+
     def dataset_metadata_update(self, ref, path):
+        self.updates += 1
         if self.fail == "flaky":
             self.fail = False
             raise requests.exceptions.JSONDecodeError("Expecting value", "", 0)
@@ -313,3 +323,16 @@ def test_update_settings_reuses_kaggles_license_name(tmp_path):
     api = FakeSettingsApi({"isPrivate": True, "licenses": stored})
     kaggle_sync.update_settings(api, tmp_path, REF)
     assert api.sent["licenses"] == stored
+
+
+def test_update_settings_reapplies_when_cover_did_not_stick(tmp_path, monkeypatch):
+    monkeypatch.setattr(kaggle_sync.time, "sleep", lambda s: None)
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    (tmp_path / "dataset-cover-image.png").write_bytes(b"png")
+    api = FakeSettingsApi({"isPrivate": False})
+    api.default_cover = True
+    kaggle_sync.update_settings(api, tmp_path, REF)
+    assert api.updates == 2
+    ok = FakeSettingsApi({"isPrivate": False})
+    kaggle_sync.update_settings(ok, tmp_path, REF)
+    assert ok.updates == 1

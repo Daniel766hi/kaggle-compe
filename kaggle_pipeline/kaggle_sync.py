@@ -160,6 +160,14 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
     for attempt in range(1, attempts + 1):
         try:
             api.dataset_metadata_update(ref, str(folder))
+            if cover_is_default(api, ref) and (Path(folder) / "dataset-cover-image.png").exists():
+                # Seen in practice: the upload succeeds but the dataset keeps Kaggle's default
+                # image (e.g. right after a new version). Applying the settings again fixes it.
+                log.warning("Cover image not applied yet; updating settings again")
+                time.sleep(30)
+                api.dataset_metadata_update(ref, str(folder))
+                if cover_is_default(api, ref):
+                    log.warning("Cover image still not applied; it will be retried on the next run")
             break
         except SystemExit as exc:  # the client prints the errors and calls exit(1)
             raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
@@ -170,3 +178,13 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
             log.warning("Kaggle settings update failed (%s), retrying", exc)
             time.sleep(pause_s)
     log.info("Kaggle settings updated (private=%s)", meta["isPrivate"])
+
+
+def cover_is_default(api, ref):
+    """True if the dataset still shows Kaggle's placeholder image instead of our cover."""
+    owner, slug = ref.split("/")
+    try:
+        found = [d for d in api.dataset_list(user=owner, search=slug) if d.ref == ref]
+    except Exception:  # noqa: BLE001 - a failed check must not fail the run
+        return False
+    return bool(found) and "default" in (getattr(found[0], "thumbnail_image_url", "") or "")

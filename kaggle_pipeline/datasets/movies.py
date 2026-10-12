@@ -94,8 +94,7 @@ TABLES = [
             Column("release_date", "datetime", "Earliest recorded publication (release) date"),
             Column("release_year", "integer", "Year of release_date"),
             Column("runtime_min", "number", "Duration in minutes (the main/theatrical version when several are recorded)"),
-            Column("color", "string", "Color process as recorded, e.g. 'color', 'black-and-white', 'Technicolor' "
-                                      "(several separated by '|')"),
+            Column("color", "string", "Color process as recorded, e.g. 'color', 'black-and-white', 'Technicolor'"),
             Column("color_type", "string", "Simplified color: 'color', 'black-and-white' or 'mixed' (both)"),
             Column("aspect_ratio", "string", "Aspect ratio as recorded, e.g. '2.39:1', '4:3', 'Academy ratio' "
                                              "(several separated by '|')"),
@@ -114,8 +113,8 @@ TABLES = [
             Column("box_office_usd", "number", "Box office gross in US dollars, worldwide where recorded (only USD values)"),
             Column("rotten_tomatoes_pct", "number", "Rotten Tomatoes Tomatometer score, % of positive critic reviews"),
             Column("metacritic_score", "number", "Metacritic critic score, 0-100"),
-            Column("oscar_wins", "integer", "Academy Awards won, as recorded on the film. Acting awards are often "
-                                           "recorded on the actor instead, so this can be below the official total"),
+            Column("oscar_wins", "integer", "Academy Awards won as recorded on the film; acting awards often sit on "
+                                           "the actor, so may be low"),
             Column("oscar_nominations", "integer", "Academy Award nominations recorded on the film (same caveat as "
                                                    "oscar_wins)"),
             Column("n_cast", "integer", "Number of cast members recorded"),
@@ -142,8 +141,8 @@ TABLES = [
         kind="history",
         description="One row per film and crew credit: directors, writers, producers, cinematographers, composers, editors, designers.",
         columns=[FILM_ID,
-                 Column("role", "string", "director, screenwriter, producer, cinematographer, composer, editor, "
-                                          "production_designer or costume_designer"),
+                 Column("role", "string", "Credit type: director, screenwriter, producer, cinematographer, composer, "
+                                          "editor, ..."),
                  Column("person_id", "string", "Wikidata ID of the person (stable across films)"),
                  Column("person", "string", "Person's name")],
         min_rows=10000,

@@ -17,8 +17,9 @@ rank, sign test p = 4.3e-7). The precomputed signals add nothing on top of BM25 
 level. The embeddings are strongly anisotropic: two random nodes have mean cosine 0.86. Nearest
 neighbours mostly share a module (63.6% vs. 9.3% at random), and cosine tracks lexical overlap
 only weakly (Spearman 0.14). This points to structural rather than semantic embeddings.
-Personalized PageRank over the call graph does not improve function ranking. It raises file
-Hit@1 from 32.8% to 37.9%, but that gain is not significant. We ship the lexical bridge as a
+Personalized PageRank over the call graph does not improve function ranking. In a
+cross-validated exploratory analysis, a degree-preserving rewired graph does as well as the real
+one. We ship the lexical bridge as a
 standard-library ADK skill that runs in under a second, and report an end-to-end paired pilot
 with Gemma 4 31B on Kaggle L4×4 [PILOT RESULTS PENDING].
 
@@ -142,9 +143,9 @@ on Rich (45) and 81.8% on Requests (11); the tool's figures are 30.5%, 28.9% and
 Under the frozen weights, `bm25+emb` is identical to BM25 at every reported cutoff. The raw
 cosine term barely varies across candidates (Section 6), so it only reorders deep ranks (19 wins,
 6 losses, MRR change below 0.001). `bm25+graph` slightly lowers function MRR (−0.012, CI
-[−0.051, 0.030]). It raises file Hit@1 by 5.1 points, while the rewired control does not
-(32.1%), which suggests the call graph carries some file-level signal. We treat this as a
-hypothesis rather than a finding.
+[−0.051, 0.030]). It raises file Hit@1 by 5.1 points while the rewired control does not (32.1%), but the
+exploratory analysis in Section 6 finds no consistent benefit from the real edges, so we do not
+read this as evidence that the call graph helps.
 
 ## 6. What the embeddings encode
 
@@ -164,7 +165,31 @@ neighbour is usually in the same module. Cosine correlates only weakly with what
 This geometry explains Section 5: the embeddings separate *regions* of the repository, but a
 max-cosine term at a fixed scale barely moves the ranking. It also means that, even with a text
 encoder, similar vectors would mean "nearby code", not "code about the same thing".
-[EXPLORATORY ALL-EDGE COSINE AND CROSS-VALIDATED WEIGHTS PENDING]
+Measured over *all* call edges instead of sampled pairs, the mean neighbour cosine is 0.989, against
+0.865 for random pairs (127 snapshots).
+
+**Exploratory follow-up (post hoc).** The frozen `bm25+emb` gave the cosine term a raw scale. A
+fairer test z-scores both terms and picks the weight from {0.1, 0.25, 0.5, 1, 2} by
+cross-validation across repositories: the weight is chosen on Rich and applied to the other
+three, and vice versa. Every reported task is therefore scored with a weight chosen elsewhere.
+
+| Method (cross-validated weight) | Hit@1 | Hit@10 | MRR | ΔMRR vs. BM25 [95% CI] | W/L |
+|---|---|---|---|---|---|
+| BM25 | 16.4 | 55.2 | 0.300 | – | – |
+| + z(embedding) | 16.4 | 54.3 | 0.299 | −0.000 [−0.002, 0.001] | 31/17 |
+| + z(embedding), shuffled | 16.4 | 55.2 | 0.299 | −0.001 [−0.003, 0.001] | 29/25 |
+| + z(PageRank), real graph | 15.5 | 56.9 | 0.280 | −0.019 [−0.055, 0.017] | 36/50 |
+| + z(PageRank), rewired graph | 19.8 | 56.9 | 0.315 | +0.015 [−0.015, 0.046] | 41/34 |
+
+*Table 3. 116 tasks, exploratory.*
+
+Two observations. First, even a z-scored embedding term barely moves the top of the list: BM25's
+top-10 scores sit 3–7 standard deviations above the mean, so the term swaps at most one or two of
+the top 10, and those swaps do not help. Second, diffusion over a degree-preserving *rewired*
+graph does at least as well as diffusion over the real call graph; across the weight grid the
+rewired graph is never worse. Whatever PageRank adds is a degree (hub) prior, not information
+carried by the actual call edges. Neither difference is significant, and we do not claim
+either way that the call graph helps localization.
 
 ## 7. A lexical bridge as a skill, and an end-to-end pilot
 

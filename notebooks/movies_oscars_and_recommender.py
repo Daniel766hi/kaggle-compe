@@ -281,8 +281,9 @@ def rank_year(year, train_until):
     train = X[(X["year"] >= START) & (X["year"] <= train_until)]
     model = nomination_model().fit(train[FEATURES], train["y"])
     test = X[X["year"] == year].copy()
-    test["score"] = (100 * model.predict_proba(test[FEATURES])[:, 1]).round().astype(int)
-    test = test.sort_values("score", ascending=False, kind="stable")
+    p = model.predict_proba(test[FEATURES])[:, 1]
+    test = test.iloc[np.argsort(-p, kind="stable")]  # rank on the exact value, show it rounded
+    test["score"] = (100 * np.sort(p)[::-1]).round().astype(int)
     test["rank"] = range(1, len(test) + 1)
     test["why"] = explain(model, test)
     return test.join(m[["title", "directors"]])

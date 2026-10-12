@@ -1,0 +1,220 @@
+# The Query Gap: Why the Gemma 4 Harness's Semantic Code Search Rarely Finds the Bug, and a Lexical Bridge That Does
+
+*An audit of precomputed code-graph embeddings and call graphs for offline issue localization*
+
+## Abstract
+
+The Gemma 4 Developer Agent harness gives the agent three code-intelligence tools backed by a
+precomputed call graph and 256-dimensional node embeddings. The tool prompt says
+`search_similar_code` finds code "by keyword". We show this is not true offline. The harness has
+no text encoder, so a natural-language query cannot be embedded. The tool then falls back to a
+substring count over symbol names and source. On the 129 public development tasks, 116 have
+gold functions recoverable from the reference patch. Used as the prompt suggests, with keywords
+from the issue, the tool puts a gold function in its top 10 for 25.9% of those tasks. Given the
+whole issue text it reaches 33.6%. Plain BM25 over function source, using the same issue text
+and no model, reaches 55.2% (79 wins and 27 losses against the tool on per-task reciprocal
+rank, sign test p = 4.3e-7). The precomputed signals add nothing on top of BM25 at the function
+level. The embeddings are strongly anisotropic: two random nodes have mean cosine 0.86. Nearest
+neighbours mostly share a module (63.6% vs. 9.3% at random), and cosine tracks lexical overlap
+only weakly (Spearman 0.14). This points to structural rather than semantic embeddings.
+Personalized PageRank over the call graph does not improve function ranking. It raises file
+Hit@1 from 32.8% to 37.9%, but that gain is not significant. We ship the lexical bridge as a
+standard-library ADK skill that runs in under a second, and report an end-to-end paired pilot
+with Gemma 4 31B on Kaggle L4×4 [PILOT RESULTS PENDING].
+
+## 1. Introduction
+
+Small local models struggle most with *where* to edit, not *how*. In the Gemma 4 Developer Agent
+competition, the base model (`gemma-4-31b-it-qat-w4a16-ct`) works inside a sandbox with shell and
+file tools. When precomputed artifacts exist for a repository, the harness also exposes three
+graph tools: `get_code_neighbors`, `get_code_subgraph` and `search_similar_code`. The organizers
+encourage using these artifacts. Yet community reports say the strongest public agents disable
+the graph tools, and that semantic searches "usually return nothing".
+
+We explain why, using the harness source (`swegemma` 0.2.11) and the released data:
+
+1. **An interface mismatch.** The agent prompt describes `search_similar_code(query)` as finding
+   code "by keyword". The function itself resolves `query` against node names. Free text has no
+   embedding offline and falls through to an unweighted substring count (Section 3).
+2. **A measured localization gap.** On the 116 labelled development tasks, the tool used as
+   described trails a model-free BM25 baseline by 21–29 points of Hit@10 (Section 5).
+3. **What the precomputed signals encode.** The embeddings reflect where code sits (module, call
+   neighbourhood) more than what it says. Under a frozen protocol, neither the embeddings nor the
+   call graph improves BM25's function ranking (Sections 5–6).
+4. **A drop-in fix.** A 150-line standard-library skill packages the BM25 bridge in the
+   competition's skill format. We test it end to end in a paired pilot (Section 7).
+
+All numbers come from scripts in our public repository and were computed under a protocol
+written before any result was seen (Section 4). Exploratory analyses run afterwards are labelled
+as such.
+
+## 2. Related work
+
+Issue localization is the first stage of most repository-level repair systems. Agentless
+(Xia et al., 2024; arXiv:2407.01489) localizes hierarchically from files to functions to lines
+before repairing. AutoCodeRover (Zhang et al., 2024; arXiv:2404.05427) searches over class and
+method structure. SWE-agent (Yang et al., 2024; arXiv:2405.15793) shows that the design of the
+agent–computer interface strongly changes agent behaviour. Our finding is a concrete instance:
+a tool whose contract the agent cannot satisfy. Graph-based methods represent the repository
+explicitly. RepoGraph (Ouyang et al., ICLR 2025; arXiv:2410.14684) adds a line-level code graph
+as a plug-in. CodexGraph (Liu et al., NAACL 2025; arXiv:2408.03910) lets agents query a graph
+database. LocAgent (Chen et al., ACL 2025; arXiv:2503.09089) has agents traverse a heterogeneous
+code graph for localization. These systems pair the graph with a working entry point from text:
+LLM-written queries, BM25 or a text encoder. Our audit shows what happens when that entry point
+is missing. Training-data work such as SWE-Gym (Pan et al., ICML 2025; arXiv:2412.21139) and
+SWE-smith (Yang et al., 2025; arXiv:2504.21798) is complementary to ours. Benchmarks follow
+SWE-bench (Jimenez et al., 2024; arXiv:2310.06770). Embedding anisotropy, where vectors sit in a
+narrow cone, was characterized for contextual language models by Ethayarajh (2019;
+arXiv:1909.00512). We observe the same geometry in the competition's node embeddings and show
+its practical cost for retrieval.
+
+## 3. How the harness tools behave
+
+We read `swegemma/tools/graph.py` and `swegemma/graph/{retrieval,embedding}_utils.py`.
+
+- **`search_similar_code(query, k)`** calls `get_similar_nodes(node=query)`. If `query` resolves
+  to a node name, possibly by suffix, it returns the top-k nodes by cosine similarity to that
+  node's precomputed vector. Otherwise `embed(query)` is attempted. Offline, `embed` is a lookup
+  over the `.npz` keys and node texts, not an encoder. A sentence therefore gets no vector.
+- **The fallback** splits the lower-cased query into alphanumeric tokens of length 2 or more. It
+  scores each node +3 when a token is a substring of its name and +1 when a token is a substring
+  of its source, plus a small bonus for non-test nodes. Common words such as "the", "is" and
+  "in" count like rare identifiers, and partial matches count fully (`in` matches `print`).
+- **The prompt.** The harness appends: "`search_similar_code(query)`: Find semantically similar
+  functions/classes by keyword." The harness README itself says to "pass a class, function, or
+  module symbol name … rather than a free-form natural language sentence."
+
+The semantic path is therefore usable only once the agent already knows a relevant symbol, which
+is the hard part of localization. The keyword path is an unweighted substring count.
+
+## 4. Data and frozen protocol
+
+**Tasks.** The 129 public development tasks: 67 FastAPI, 48 Rich, 13 Requests and 1 HTTPX.
+Each task has a snapshot at `base_commit`, a graph, embeddings, the issue text and the reference
+patch.
+
+**Labels.** Gold files are the non-test Python files the reference patch modifies. Gold
+functions are the innermost graph nodes (function, method or class) whose source span in the
+base snapshot contains a changed pre-image line. Spans come from parsing the snapshot with
+Python's `ast`; qualified names are matched to graph ids. 116 tasks have at least one gold node.
+The other 13 only add files, only touch documentation or module-level code, or change code with
+no graph node. They are excluded from ranking metrics and listed in the repository.
+
+**Query and candidates.** The query is `problem_statement` only. Hints, tests and the patch are
+never used for ranking. Candidates are all non-test graph nodes, using the harness's own test
+rule (median 1,150 per task).
+
+**Methods** (all parameters fixed before results):
+- `tool_issue`: the shipped `get_similar_nodes` with the full issue text.
+- `tool_kw`: the shipped function called on up to 5 identifiers taken from code spans in the
+  issue, with results merged by best rank. This is the usage the prompt suggests.
+- `bm25`: BM25 (k1 = 1.2, b = 0.75) over node id plus source, with snake/camel-case splitting
+  and stopwords removed.
+- `bm25+emb`: z(BM25) + 0.5 × the maximum cosine to the top-5 BM25 seeds.
+- `bm25+graph`: z(BM25) + 0.5 × z(personalized PageRank) on the undirected call graph (restart
+  0.15, 30 iterations, seeded with the top-20 BM25 scores).
+- Controls: embeddings permuted across nodes, and degree-preserving edge swaps; 5 seeds each.
+
+**Metrics.** Function Hit@k, mean reciprocal rank (MRR), and file Hit@k (a file ranks at its best
+node). Paired comparisons with BM25 use a sign test on per-task reciprocal rank and a 10,000-sample
+paired bootstrap.
+
+## 5. Results: localization
+
+| Method | Hit@1 | Hit@5 | Hit@10 | MRR | File Hit@1 | File Hit@5 |
+|---|---|---|---|---|---|---|
+| `tool_kw` (prompt's usage) | 7.8 | 19.0 | 25.9 | 0.129 | 20.7 | 50.9 |
+| `tool_issue` | 13.8 | 27.6 | 33.6 | 0.211 | 24.1 | 61.2 |
+| **`bm25`** | **16.4** | **44.0** | **55.2** | **0.300** | 32.8 | 65.5 |
+| `bm25+emb` | 16.4 | 44.0 | 55.2 | 0.300 | 32.8 | 65.5 |
+| `bm25+graph` | 16.4 | 41.4 | 53.4 | 0.288 | **37.9** | **68.1** |
+| control: shuffled embeddings | 16.4 | 44.0 | 55.3 | 0.300 | 32.8 | 65.3 |
+| control: rewired graph | 16.4 | 41.9 | 53.1 | 0.287 | 32.1 | 66.7 |
+
+*Table 1. 116 labelled tasks; percentages except MRR; control rows are means over 5 seeds.*
+
+BM25 beats the tool in both usages. Against `tool_issue`, its MRR is 0.088 higher (95% CI
+[0.020, 0.157]); BM25 wins on 79 tasks and loses on 27 (p = 4.3e-7). Against `tool_kw` the gap is
+0.170 [0.097, 0.245] (93 vs. 19, p = 6.8e-13). Following the prompt's advice, keywords instead of
+the issue, makes the tool worse. Per repository, BM25 Hit@10 is 47.5% on FastAPI (n = 59), 57.8%
+on Rich (45) and 81.8% on Requests (11); the tool's figures are 30.5%, 28.9% and 63.6%.
+
+Under the frozen weights, `bm25+emb` is identical to BM25 at every reported cutoff. The raw
+cosine term barely varies across candidates (Section 6), so it only reorders deep ranks (19 wins,
+6 losses, MRR change below 0.001). `bm25+graph` slightly lowers function MRR (−0.012, CI
+[−0.051, 0.030]). It raises file Hit@1 by 5.1 points, while the rewired control does not
+(32.1%), which suggests the call graph carries some file-level signal. We treat this as a
+hypothesis rather than a finding.
+
+## 6. What the embeddings encode
+
+Across the 127 distinct snapshots (mean 1,108 non-test nodes), we compared embedding cosine with
+structure and text, using 20,000 random node pairs per snapshot:
+
+| Quantity | Value |
+|---|---|
+| Mean cosine, random pairs | 0.864 |
+| Mean cosine, call-graph neighbours | 0.989 |
+| Nearest neighbour is in the same module | 63.6% (random: 9.3%) |
+| Nearest neighbour is a call-graph neighbour | 9.0% (random: 0.2%) |
+| Spearman(cosine, token Jaccard of source) | 0.14 |
+
+The vectors sit in a narrow cone. Call neighbours are nearly collinear, and the nearest
+neighbour is usually in the same module. Cosine correlates only weakly with what the code says.
+This geometry explains Section 5: the embeddings separate *regions* of the repository, but a
+max-cosine term at a fixed scale barely moves the ranking. It also means that, even with a text
+encoder, similar vectors would mean "nearby code", not "code about the same thing".
+[EXPLORATORY ALL-EDGE COSINE AND CROSS-VALIDATED WEIGHTS PENDING]
+
+## 7. A lexical bridge as a skill, and an end-to-end pilot
+
+`locate-code` is a skill directory: `SKILL.md` plus `scripts/locate.py`, standard library only.
+The agent calls `run_skill_script` with the issue text. The script parses every non-test Python
+file under `/workspace` with `ast`, scores functions and classes with BM25, and prints the top
+12 as `path:line qualified.name` plus the top 5 files. It runs in at most 1.04 s per task. We ran
+it through the real ADK skill wrapper (`_SkillScriptCodeExecutor`) on materialized snapshots. On
+the 116 labelled tasks it reaches function Hit@10 = 52.6% and file Hit@5 = 67.2%. This is close
+to the graph-node BM25 of Section 5; the gap comes from slightly different candidate sets.
+
+**Pilot design** (fixed before running). A is the public Budget-Fit Single Agent bundle (0.18
+public leaderboard), unchanged. B is A plus the skill and one prompt line asking the agent to run
+it first. Both use 28 tool calls, 8 minutes and thinking budget 4,096. The 24 tasks come from the
+labelled set ordered by SHA-256 of the instance id, stratified 12/9/2/1 across FastAPI, Rich,
+Requests and HTTPX. Each task runs A then B on the same vLLM server (Kaggle L4×4).
+[PILOT RESULTS PENDING]
+
+## 8. Limitations
+
+The labels assume that the edited functions are the ones to localize. Some fixes legitimately
+touch other places. There are 129 tasks from four repositories, dominated by FastAPI and Rich.
+Hit@k on graph nodes is not resolve rate; only the pilot measures resolution, and with 24 pairs
+it can detect only large effects. The hidden test set is built by the same pipeline but is
+unseen. We did not tune BM25. A tuned retriever, or one that also uses hints, would likely do
+better, so our gap is a lower bound on what a working text entry point can add.
+
+## 9. Recommendations
+
+For agent builders: do not pass sentences to `search_similar_code`. Use a lexical shortlist
+first, then the graph tools on the resulting symbols. For the harness: either ship a small text
+encoder with the embeddings, or change the tool description to "pass an exact symbol name" and
+make the fallback IDF-weighted on whole tokens.
+
+## Reproducibility
+
+Code: `gemma4_paper/` in our repository (`run_study.py`, `probe_embeddings.py`,
+`explore_weights.py`, `agent/`, `build_pilot_notebook.py`), with `PROTOCOL.md` written before the
+first run. The study needs only CPU and the competition data. The pilot notebook needs Kaggle L4×4.
+
+## References
+
+- Jimenez et al. SWE-bench: Can Language Models Resolve Real-World GitHub Issues? arXiv:2310.06770.
+- Yang et al. SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering. NeurIPS 2024, arXiv:2405.15793.
+- Xia et al. Agentless: Demystifying LLM-based Software Engineering Agents. arXiv:2407.01489.
+- Zhang et al. AutoCodeRover: Autonomous Program Improvement. ISSTA 2024, arXiv:2404.05427.
+- Ouyang et al. RepoGraph: Enhancing AI Software Engineering with Repository-level Code Graph. ICLR 2025, arXiv:2410.14684.
+- Liu et al. CodexGraph: Bridging Large Language Models and Code Repositories via Code Graph Databases. NAACL 2025, arXiv:2408.03910.
+- Chen et al. LocAgent: Graph-Guided LLM Agents for Code Localization. ACL 2025, arXiv:2503.09089.
+- Pan et al. Training Software Engineering Agents and Verifiers with SWE-Gym. ICML 2025, arXiv:2412.21139.
+- Yang et al. SWE-smith: Scaling Data for Software Engineering Agents. arXiv:2504.21798.
+- Ethayarajh. How Contextual are Contextualized Word Representations? EMNLP 2019, arXiv:1909.00512.
+- Robertson and Zaragoza. The Probabilistic Relevance Framework: BM25 and Beyond. FnTIR 2009.

@@ -11,6 +11,7 @@ in batches (VALUES blocks), which keeps every query far below the endpoint's 60-
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pandas as pd
@@ -27,7 +28,8 @@ ASSETS = Path(__file__).resolve().parents[2] / "assets"
 SPARQL_URL = "https://query.wikidata.org/sparql"
 MIN_SITELINKS = 10
 BATCH = 200
-PAUSE_S = 1.0  # between queries; Wikidata asks bots to be gentle
+PAUSE_S = 1.0  # between queries of one worker; Wikidata asks bots to be gentle
+WORKERS = 4
 
 WD = "http://www.wikidata.org/entity/"
 USD = "Q4917"
@@ -346,19 +348,26 @@ def build_tables(films, basic_rows, relation_rows, quantity_rows, review_rows):
     return {"movies": movies, "movie_genres": genres, "movie_crew": crew, "movie_cast": cast, "movie_awards": awards}
 
 
+def fetch_batch(batch):
+    session = make_session()  # one session per worker thread
+    return basics(session, batch), relations(session, batch), quantities(session, batch), reviews(session, batch)
+
+
 def fetch_all(session):
     films = film_list(session)
     log.info("%d films with >= %d Wikipedia languages", len(films), MIN_SITELINKS)
     ids = films["film_id"].tolist()
+    batches = [ids[i:i + BATCH] for i in range(0, len(ids), BATCH)]
     parts = {"basic": [], "rel": [], "qty": [], "rev": []}
-    for start in range(0, len(ids), BATCH):
-        batch = ids[start:start + BATCH]
-        parts["basic"] += basics(session, batch)
-        parts["rel"] += relations(session, batch)
-        parts["qty"] += quantities(session, batch)
-        parts["rev"] += reviews(session, batch)
-        if start // BATCH % 20 == 0:
-            log.info("details: %d / %d films", min(start + BATCH, len(ids)), len(ids))
+    # Wikidata allows up to 5 parallel queries per client; 4 keeps a margin.
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        for done, (b, r, q, v) in enumerate(pool.map(fetch_batch, batches), start=1):
+            parts["basic"] += b
+            parts["rel"] += r
+            parts["qty"] += q
+            parts["rev"] += v
+            if done % 20 == 0 or done == len(batches):
+                log.info("details: %d / %d batches", done, len(batches))
     return build_tables(films, parts["basic"], parts["rel"], parts["qty"], parts["rev"])
 
 

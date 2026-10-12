@@ -184,17 +184,17 @@ def qid(uri):
 
 
 def film_list(session, min_sitelinks=MIN_SITELINKS):
+    """IDs of notable films. Kept to a single cheap pattern: aggregating dates here made the
+    query slow enough to time out when Wikidata is busy; dates come with the batched details."""
     rows = sparql(session, f"""
-        SELECT ?film ?links (MIN(?date) AS ?first) WHERE {{
+        SELECT ?film ?links WHERE {{
           ?film wdt:P31 wd:Q11424 ; wikibase:sitelinks ?links .
           FILTER(?links >= {min_sitelinks})
-          OPTIONAL {{ ?film wdt:P577 ?date }}
-        }} GROUP BY ?film ?links""")
+        }}""")
     return pd.DataFrame({
         "film_id": [qid(r["film"]) for r in rows],
         "wikipedia_languages": [int(r["links"]) for r in rows],
-        "release_date": [r.get("first", "")[:10] or None for r in rows],
-    })
+    }).drop_duplicates("film_id")
 
 
 def _values(ids):
@@ -204,8 +204,9 @@ def _values(ids):
 def basics(session, ids):
     return sparql(session, f"""
         SELECT ?film (SAMPLE(?label) AS ?title) (SAMPLE(?orig) AS ?original_title)
-               (SAMPLE(?imdb) AS ?imdb_id) (SAMPLE(?tmdb) AS ?tmdb_id) WHERE {{
+               (SAMPLE(?imdb) AS ?imdb_id) (SAMPLE(?tmdb) AS ?tmdb_id) (MIN(?date) AS ?first) WHERE {{
           VALUES ?film {{ {_values(ids)} }}
+          OPTIONAL {{ ?film wdt:P577 ?date }}
           OPTIONAL {{ ?film rdfs:label ?label FILTER(LANG(?label) = "en") }}
           OPTIONAL {{ ?film wdt:P1476 ?orig }}
           OPTIONAL {{ ?film wdt:P345 ?imdb }}
@@ -307,8 +308,10 @@ def build_tables(films, basic_rows, relation_rows, quantity_rows, review_rows):
     })
 
     movies = films.copy()
-    basic = pd.DataFrame(basic_rows, columns=["film", "title", "original_title", "imdb_id", "tmdb_id"])
+    basic = pd.DataFrame(basic_rows, columns=["film", "title", "original_title", "imdb_id", "tmdb_id", "first"])
     basic["film_id"] = basic["film"].map(qid)
+    basic["release_date"] = basic["first"].astype("string").str[:10]
+    basic = basic.drop(columns="first")
     movies = movies.merge(basic.drop(columns="film"), on="film_id", how="left")
     for col, name in [("color", "color"), ("aspect_ratio", "aspect_ratio"), ("genres", "genre"),
                       ("directors", "director"), ("countries", "country"), ("original_languages", "original_language"),

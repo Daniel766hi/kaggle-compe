@@ -15,7 +15,6 @@ def films(n=1):
     return pd.DataFrame({
         "film_id": [f"Q{i}" for i in range(1, n + 1)],
         "wikipedia_languages": [50] * n,
-        "release_date": ["2010-07-08"] * n,
     })
 
 
@@ -38,7 +37,8 @@ def qty(film, prop, amount, unit, place=None):
 
 
 def build(n=1, relations=(), quantities=(), reviews=(), basics=None):
-    basics = basics if basics is not None else [{"film": WD + "Q1", "title": "Inception", "imdb_id": "tt1375666"}]
+    basics = basics if basics is not None else [
+        {"film": WD + "Q1", "title": "Inception", "imdb_id": "tt1375666", "first": "2010-07-08T00:00:00Z"}]
     return mv.build_tables(films(n), basics, list(relations), list(quantities), list(reviews))
 
 
@@ -134,3 +134,8 @@ def test_movies_may_lose_a_few_films_but_not_many(tmp_path):
     storage.check_not_shrinking(prev, prev.iloc[:980], table)  # 2% fewer: fine
     with pytest.raises(ValueError):
         storage.check_not_shrinking(prev, prev.iloc[:900], table)  # 10% fewer: refused
+
+
+def test_release_date_comes_from_the_earliest_publication_date():
+    m = build()["movies"].iloc[0]
+    assert m["release_date"] == pd.Timestamp("2010-07-08") and m["release_year"] == 2010

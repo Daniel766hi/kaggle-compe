@@ -46,6 +46,8 @@ FILM_TYPES = [
     "Q202866",    # animated film
     "Q29168811",  # animated feature film
     "Q93204",     # documentary film
+    "Q20650540",  # anime film (Spirited Away, Princess Mononoke)
+    "Q226730",    # silent film
 ]
 MONOCHROME = {"black-and-white", "sepia", "monochrome", "black-and-white film"}
 NAMED_RATIOS = {"academy ratio": 1.375, "widescreen": None, "cinemascope": 2.35, "anamorphic format": 2.39}
@@ -226,6 +228,23 @@ def film_list(session, min_sitelinks=MIN_SITELINKS):
         "film_id": [qid(r["film"]) for r in rows],
         "wikipedia_languages": [int(r["links"]) for r in rows],
     }).drop_duplicates("film_id")
+
+
+def log_other_types(session, min_sitelinks=MIN_SITELINKS):
+    """Diagnostic only: types of notable works that have a director but none of FILM_TYPES.
+    If a film type shows up here, add it to FILM_TYPES. Failures are logged, never raised."""
+    try:
+        rows = sparql(session, f"""
+            SELECT ?type ?typeLabel (COUNT(DISTINCT ?work) AS ?n) WHERE {{
+              ?work wdt:P57 ?director ; wikibase:sitelinks ?links ; wdt:P31 ?type .
+              FILTER(?links >= {min_sitelinks})
+              FILTER NOT EXISTS {{ VALUES ?known {{ {" ".join("wd:" + t for t in FILM_TYPES)} }} ?work wdt:P31 ?known }}
+              OPTIONAL {{ ?type rdfs:label ?typeLabel FILTER(LANG(?typeLabel) = "en") }}
+            }} GROUP BY ?type ?typeLabel ORDER BY DESC(?n) LIMIT 25""")
+        summary = ", ".join(f"{r.get('typeLabel', qid(r['type']))} ({qid(r['type'])}): {r['n']}" for r in rows)
+        log.info("Directed works not counted as films, by type: %s", summary)
+    except Exception as exc:  # noqa: BLE001
+        log.info("Type diagnostic skipped: %s", exc)
 
 
 def _values(ids):
@@ -420,6 +439,7 @@ def fetch_batch(batch):
 def fetch_all(session):
     films = film_list(session)
     log.info("%d films with >= %d Wikipedia languages", len(films), MIN_SITELINKS)
+    log_other_types(session)
     ids = films["film_id"].tolist()
     batches = [ids[i:i + BATCH] for i in range(0, len(ids), BATCH)]
     parts = {"basic": [], "rel": [], "qty": [], "rev": []}

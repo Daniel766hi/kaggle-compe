@@ -1,0 +1,16 @@
+{
+ "n_nodes": 1108.4803149606298,
+ "n_edges": 983.8110236220473,
+ "spearman_cos_jaccard": 0.14320452959170998,
+ "mean_cos_adjacent": 0.9886060066110506,
+ "mean_cos_nonadjacent": 0.8642048732502254,
+ "mean_cos_same_module": 0.8786575963178019,
+ "mean_cos_diff_module": 0.8631660553414052,
+ "nn_is_graph_neighbor": 0.0898193742199879,
+ "random_is_graph_neighbor": 0.002190057545974082,
+ "nn_same_module": 0.6363309945064665,
+ "random_same_module": 0.09276085427954575,
+ "nn_jaccard": 0.3803249764105705,
+ "random_jaccard": 0.04627876009637417,
+ "n_snapshots": 127
+}

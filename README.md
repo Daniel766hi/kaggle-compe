@@ -111,7 +111,9 @@ chi_pilot/         χ-Bench agent harness (see docs/chi-bench.md)
   hb_search.py     ranked handbook search, installed in each trial as `hb-search`
   stop_hook.py     Claude Code Stop hook that runs the completion audit
   kaggle_csv.py    task_id,reward submission file from trial results
+  results.py       per-trial summary, failed checks, pass@1 / pass^3 / cost metrics
 scripts/install_chi_pilot.py   copies chi_pilot/ into a χ-Bench checkout and registers it
 notebooks/chi_pilot_run.py     private Kaggle notebook that runs chi-pilot on Modal
+report/                        technical report draft and its result-table generator
 configs/chi_bench/chi-pilot.yaml   χ-Bench submission config
 ```

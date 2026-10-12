@@ -6,3 +6,7 @@ venv/
 build/
 kaggle.json
 access_token
+report/*.aux
+report/*.log
+report/*.out
+report/*.pdf

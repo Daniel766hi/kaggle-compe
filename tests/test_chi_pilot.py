@@ -238,3 +238,81 @@ def test_write_command_round_trips_awkward_text(tmp_path):
     target = tmp_path / "out.md"
     subprocess.run(["sh", "-c", _write_command(str(target), text)], check=True)
     assert target.read_text() == text
+
+
+# ---------- result summaries and report tables ----------
+
+def _scored_trial(root, track, name, task, reward, started, failed=(), tool_calls=3, packet=False):
+    trial = root / ("packet/p/trials" if packet else "") / track / "job" / name
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "agent" / "chi-pilot").mkdir(parents=True)
+    (trial / "result.json").write_text(json.dumps({
+        "task_name": task, "started_at": started,
+        "verifier_result": {"rewards": {"reward": reward}}, "agent_result": {"cost_usd": 2.0},
+    }))
+    (trial / "verifier" / "reward.json").write_text(json.dumps({"reward": reward}))
+    (trial / "verifier" / "scorecard.json").write_text(
+        json.dumps({"fractional_reward": 0.5, "failed_checks": list(failed)}))
+    (trial / "agent" / "trajectory.json").write_text(
+        json.dumps({"steps": [{"tool_calls": [{}] * tool_calls}, {"tool_calls": None}]}))
+    (trial / "agent" / "chi-pilot" / "domain").write_text(track)
+
+
+def _three_attempt_trials(root):
+    for i, (reward, failed) in enumerate([(1.0, []), (1.0, []), (0.0, ["outcome.letter_types"])]):
+        _scored_trial(root, "pa_um", f"u{i}", "um_1", reward, f"2026-10-01T1{i}:00", failed)
+    for i in range(3):
+        _scored_trial(root, "cm", f"c{i}", "cm_1", 0.0, f"2026-10-01T1{i}:00",
+                      ["cm.care_plan.finalized", "judge.cm.outreach.quality"])
+    _scored_trial(root, "cm", "c0", "cm_1", 0.0, "2026-10-01T10:00", packet=True)
+
+
+def test_results_number_attempts_and_skip_packet_copies(tmp_path):
+    from chi_pilot import results
+
+    _three_attempt_trials(tmp_path)
+    rows = results.summarize_trials(tmp_path, "chi-pilot")
+    assert len(rows) == 6
+    assert [r["attempt"] for r in rows if r["task_id"] == "um_1"] == [1, 2, 3]
+    assert rows[0]["tool_calls"] == 3 and rows[0]["detected_track"] == rows[0]["track"]
+
+    overall = results.metrics(rows)
+    assert overall["n_tasks"] == 2 and overall["pass_at_1"] == 0.5
+    assert overall["pass_pow_3"] == 0.0  # um_1 failed its third attempt
+    assert overall["mean_cost_usd"] == 2.0 and overall["mean_tool_calls"] == 3
+    assert results.metrics(rows, "pa_um")["pass_at_1"] == 1.0
+    assert results.failed_check_counts(rows) == {"cm.care_plan.finalized": 1, "judge.cm.outreach.quality": 1}
+
+
+def test_results_cli_round_trips_through_csv(tmp_path):
+    from chi_pilot import results
+
+    _three_attempt_trials(tmp_path / "trials")
+    assert results.main(["--trials", str(tmp_path / "trials"), "--label", "x", "--out", str(tmp_path)]) == 0
+    rows = results.read_summary(tmp_path / "trial_summary.csv")
+    assert results.metrics(rows)["pass_at_1"] == 0.5
+    assert (tmp_path / "failed_checks.csv").read_text().splitlines()[0] == "check,n_trials"
+
+
+def _make_tables():
+    spec = importlib.util.spec_from_file_location("make_tables", REPO / "report" / "make_tables.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_report_tables_from_summaries_and_placeholders(tmp_path):
+    from chi_pilot import results
+
+    make_tables = _make_tables()
+    _three_attempt_trials(tmp_path / "trials")
+    results.main(["--trials", str(tmp_path / "trials"), "--label", "chi-pilot-audit1", "--out", str(tmp_path)])
+
+    out = tmp_path / "results.tex"
+    assert make_tables.main([str(tmp_path / "trial_summary.csv"), "--out", str(out)]) == 0
+    tex = out.read_text()
+    assert r"chi-pilot-audit1 & -- & 100.0 & 0.0 & 50.0" in tex
+    assert r"\texttt{cm.care\_plan.finalized} & 1/2" in tex
+
+    assert make_tables.main(["--out", str(out)]) == 0
+    assert "Pending: no runs yet" in out.read_text()

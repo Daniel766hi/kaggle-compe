@@ -134,6 +134,26 @@ directory. The evidence packet goes to the private Modal volume `chi-pilot-packe
 notebook outputs, because trajectories can quote the handbook. The notebook must stay private;
 the push script refuses `--public` for it.
 
+Notebook settings for the report's ablations: `AGENT = "claude-code"` (stock baseline),
+`AUDIT_ROUNDS = 0` (chi-pilot without the completion audit), `N_ATTEMPTS = 3` (pass^3). Each run
+writes `trial_summary.csv` with a `label` column naming its configuration.
+
+## Technical report
+
+`report/chi_pilot_report.tex` is the qualifying report draft (IEEE conference template, at most
+5 pages plus references). Red `\pending{...}` text depends on results not yet run. The tables
+come from the runs:
+
+```bash
+python report/make_tables.py --main chi-pilot-audit1 \
+  runs/chi-pilot/trial_summary.csv runs/no-audit/trial_summary.csv runs/baseline/trial_summary.csv
+cd report && pdflatex chi_pilot_report && pdflatex chi_pilot_report
+```
+
+`chi_pilot.results` computes pass@1 per track (first attempt), a 95% task-level bootstrap
+interval, pass^3 when three attempts exist, mean cost and mean tool calls per task. Only verifier
+check names are exported, never judge text or trajectories.
+
 ## Private-final package (due November 15, 2026)
 
 Email `research@actava.ai` with `[Kaggle]` in the subject and your team details, containing:
@@ -145,7 +165,8 @@ Email `research@actava.ai` with `[Kaggle]` in the subject and your team details,
 - exact model and endpoint identifiers (for example `claude-opus-5-5` on the Anthropic API);
 - reproduction steps (this document) or the image digest from the packet's `provenance.json`;
 - cost and token records (in the packet);
-- a qualifying technical report, IEEE conference template, at most 5 pages plus references.
+- a qualifying technical report, IEEE conference template, at most 5 pages plus references
+  (draft: `report/chi_pilot_report.tex`).
 
 Before the freeze, pin the Claude Code version you tested with: set
 `CHI_PILOT_CLAUDE_CODE_VERSION` in `.env` and record it in the report.

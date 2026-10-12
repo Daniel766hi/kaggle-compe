@@ -1,0 +1,186 @@
+% chi-pilot: qualifying technical report for the χ-Bench Healthcare AI Agents Challenge
+% (IEEE Big Data Cup 2026). IEEE conference template, at most 5 pages plus references.
+%
+% Build:  python report/make_tables.py <trial_summary.csv ...>   (writes report/results.tex)
+%         cd report && pdflatex chi_pilot_report && pdflatex chi_pilot_report
+%
+% Text marked \pending{...} (red) depends on runs that have not been done yet. Replace it with
+% what the results show, and delete \pending before submitting. Do not quote the handbook:
+% refer to handbook documents by name or section number only.
+
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{url}
+\newcommand{\pending}[1]{\textcolor{red}{[#1]}}
+\newcommand{\chib}{$\chi$-Bench}
+
+\begin{document}
+
+\title{chi-pilot: Workflow Guidance and Self-Audit for\\Long-Horizon Healthcare Operations Agents}
+
+\author{\IEEEauthorblockN{Daniel Silalahi}
+\IEEEauthorblockA{\pending{Affiliation} \\ \pending{Team name, contact e-mail}}}
+
+\maketitle
+
+\begin{abstract}
+\chib{} asks AI agents to complete U.S. managed-care workflows end to end: provider prior
+authorization, payer utilization management and telephonic care management, inside a simulator
+of twenty healthcare applications and a 1,279-document operations handbook. We present
+chi-pilot, an agent that keeps a strong general-purpose coding agent (Claude Code) as its
+reasoning and tool-use core and adds three light components: track-specific operating guides
+injected into the system prompt, ranked retrieval over the handbook, and a completion audit that
+the agent must run, in the same session, before it may stop. The additions encode workflow
+structure and honesty rules only; no task answers and no handbook content. On the 75-task
+public development set, chi-pilot reaches \pending{X.X\%} pass@1 against \pending{Y.Y\%} for the
+stock Claude Code harness with the same model, \pending{at a mean cost of \$Z per task}.
+\end{abstract}
+
+\section{Introduction}
+Healthcare administration is a natural target for autonomous agents: the work is procedural,
+policy-governed and document heavy. It is also unforgiving. A prior-authorization case is only
+complete when every record, determination and letter is in the right state, and a single
+overstated clinical claim can invalidate otherwise correct work. \chib{}~\cite{chibench}
+measures exactly this. Unlike earlier tool-agent-user benchmarks~\cite{taubench}, its tasks
+span dozens of tool calls across several applications, simulated conversations and a large
+policy corpus, and rewards are strictly binary: a trial passes only if every deterministic
+contract check and every LLM-judged rubric passes. The strongest system in the original study,
+Claude Code with a Claude model, passed 28\% of tasks, and no system exceeded 20\% pass$^3$.
+
+Our starting observation is that most failures are not missing medical knowledge but workflow
+errors: a required step skipped, a field that does not match the source document, a letter
+never delivered, a gap in the chart presented as a met criterion. We therefore leave the base
+agent unchanged and give it what a new employee would get on day one: a procedure manual for
+the role, a way to find the right policy quickly, and a checklist to run before handing work
+back. Our contributions are:
+\begin{itemize}
+\item a harness that detects the workflow track from the task instruction and injects a
+  track-specific operating guide covering workflow order, tool use, scope and honesty rules;
+\item a completion audit implemented as a Claude Code Stop hook, which turns ``stop'' into
+  ``verify, then stop'' without a second session, so trajectory and cost accounting stay exact;
+\item ranked BM25 retrieval over the handbook, exposed as a shell command;
+\item an evaluation, with ablations, on the public development set, and an analysis of the
+  verifier checks that still fail.
+\end{itemize}
+
+\section{Task and Environment}
+Each \chib{} task gives the agent an instruction and access to role-scoped tools served over the
+Model Context Protocol: chart, case, forms, documents and authorization tools for the provider;
+intake, triage, nurse and medical-director review, peer-to-peer, determination and letter tools
+for the payer; referral, chart review, outreach, assessment and care-plan tools for the care
+manager. Care-management outreach is a conversation with an LLM-simulated patient, and
+peer-to-peer reviews are conversations with a simulated clinician. The handbook is mounted as an
+agent skill. After the agent stops, the verifier exports the world state and the workspace,
+runs deterministic checks (terminal status, routing, structured payloads, required artifacts,
+forbidden mutations) and an LLM judge (Claude Opus~4.7, three votes per rubric) for policy
+grounding and clinical reasoning~\cite{chibench}. The public set has 25 tasks per track; final
+standings use about 75 unreleased clinician-validated tasks.
+
+\section{System}
+\subsection{Base agent}
+Claude Code interleaves reasoning and tool calls in the ReAct style~\cite{react}.
+chi-pilot is a harness class registered with \chib{}'s Harbor-based runner. It subclasses the
+stock Claude Code harness, so installation, MCP registration, skill mounting and trajectory
+conversion are unchanged. We use \pending{model identifier} at high reasoning effort.
+
+\subsection{Track-specific operating guides}
+The harness classifies the instruction into one of the three tracks using the role named in its
+tool table, falling back to counts of track-specific tool namespaces. It then appends two texts
+to Claude Code's system prompt. A shared core guide fixes a working loop (checklist the
+deliverables, investigate with read-only tools, ground each decision in a handbook section,
+decide criterion by criterion, act in workflow order and read back every write, audit, stop) and
+hard rules: every fact must trace to a tool result; gaps and failed thresholds are stated, never
+smoothed over; only the named case is changed; workflow steps move forward only and are never
+duplicated; state-changing tools are never called speculatively; hidden grading material is off
+limits. A track guide then lays out the typical sequence of the role: for example, for the payer,
+intake, triage, nurse review (which may approve but never deny), medical-director review,
+peer-to-peer, determination from the correct source record, and letter generation and delivery;
+for the care manager, consent-first outreach that discloses data access before citing chart
+details and never bundles sensitive topics, followed by sourced assessment and a SMART care
+plan. The guides were written from the public documentation, tool catalog and verifier design,
+not from task answers, and contain no handbook text.
+
+\subsection{Handbook retrieval}
+The handbook is large enough that keyword grep often returns either nothing or hundreds of
+lines. chi-pilot installs \texttt{hb-search}, a dependency-free BM25~\cite{bm25} index over all
+handbook documents, with title and path tokens up-weighted and hyphenated codes split, that
+prints the top documents with their best-matching lines. The agent uses it to find the governing
+document, then reads the relevant sections in full and cites them by section number.
+
+\subsection{Completion audit}
+Agents frequently stop one step early. chi-pilot registers a Claude Code Stop hook: the first
+time the agent tries to finish, the hook blocks the stop and returns a track-specific audit
+checklist (for the payer: intake fields match the submission; triage recorded; review chain
+complete with no nurse denial; determination consistent with its source record; correct letter
+generated, delivered and audited). The agent verifies each item with read-only tools, fixes gaps
+without redoing completed steps, and stops; the hook allows the second stop. Unlike re-running
+the agent~\cite{reflexion}, the audit happens inside one session, so the agent keeps its full
+context and Harbor's token, cost and tool-call accounting, which feed the competition's
+tie-breakers, stays exact. The number of audit rounds is configurable (default one).
+
+\subsection{Compliance}
+The harness never reads verifier inputs; the guides contain no task-specific outputs; the
+handbook is downloaded at run time from the gated source and never stored in the submission,
+the repository or notebook outputs. Every reported reward is the unmodified output of the
+official verifier, one run per task.
+
+\section{Experimental Setup}
+We run all 75 public tasks of \chib{} release \texttt{chi-bench-v1.0.0} with runtime 1.1.0
+(commit \texttt{d465596}), on Modal sandboxes, with the official judge. The primary metric is
+pass@1 on the first attempt; we report 95\% confidence intervals from a task-level percentile
+bootstrap (1,000 resamples), pass$^3$ over three attempts where run, mean agent cost per task
+and mean tool calls per task. We compare: (i)~the stock \texttt{claude-code} harness;
+(ii)~chi-pilot without the completion audit (guides and retrieval only); (iii)~full chi-pilot.
+All use the same model. \pending{Claude Code version; number of attempts per configuration;
+total cost.}
+
+\section{Results}
+\input{results.tex}
+
+Table~\ref{tab:results} summarizes the results. \pending{Describe the overall difference
+between chi-pilot and the baseline, whether the confidence intervals overlap, and which track
+gains most. Discuss the effect of the audit: (iii) versus (ii). Discuss reliability (pass$^3$)
+and cost per task.}
+
+\subsection{Error analysis}
+Table~\ref{tab:failures} lists the verifier checks that most often fail for chi-pilot.
+\pending{Group them into causes (workflow step missing, record field mismatch, artifact or
+letter missing, rubric failures on grounding or outreach quality) and give one or two
+anonymized examples per cause, describing behavior, not task content. Note whether the track
+detector was ever wrong (column \texttt{detected\_track}).}
+
+\section{Limitations}
+The public set is small (25 tasks per track), so differences of a few tasks are within noise;
+the confidence intervals in Table~\ref{tab:results} should be read accordingly. The judge is an
+LLM and non-deterministic. The guides encode our reading of public workflow documentation and
+may not cover workflows that appear only in the private tasks. chi-pilot inherits the base
+model's cost profile; the audit adds tool calls, which count against the tie-breaker.
+\pending{Add limitations observed in the runs.}
+
+\section{Conclusion}
+A small amount of role knowledge, delivered as an operating guide, retrieval and a mandatory
+self-audit, can be added to a general agent without changing its core loop.
+\pending{One sentence on the measured effect and on what would help next.}
+
+\section*{Reproducibility}
+Source: the \texttt{chi\_pilot} package, installer and configuration (provided to the
+organizers). Each run records the \chib{} commit, image digest, model identifier, Claude Code
+version and per-trial cost in the official evidence packet.
+
+\begin{thebibliography}{9}
+\bibitem{chibench} H.~Chen \emph{et al.}, ``CHI-Bench: Can AI agents automate end-to-end,
+  long-horizon, policy-rich healthcare workflows?'' arXiv:2605.16679, 2026.
+\bibitem{bm25} S.~Robertson and H.~Zaragoza, ``The probabilistic relevance framework: BM25 and
+  beyond,'' \emph{Foundations and Trends in Information Retrieval}, vol.~3, no.~4, 2009.
+\bibitem{reflexion} N.~Shinn \emph{et al.}, ``Reflexion: Language agents with verbal
+  reinforcement learning,'' in \emph{Proc. NeurIPS}, 2023.
+\bibitem{react} S.~Yao \emph{et al.}, ``ReAct: Synergizing reasoning and acting in language
+  models,'' in \emph{Proc. ICLR}, 2023.
+\bibitem{taubench} S.~Yao \emph{et al.}, ``$\tau$-bench: A benchmark for tool-agent-user
+  interaction in real-world domains,'' arXiv:2406.12045, 2024.
+\end{thebibliography}
+
+\end{document}

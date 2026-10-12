@@ -96,34 +96,35 @@ def load_embeddings(path: Path) -> dict[str, np.ndarray]:
     return out
 
 
-def snapshot_sources(tgz: Path) -> dict[str, str]:
-    """Return {repo-relative path: source} for all .py files in the snapshot."""
+def snapshot_sources(tgz) -> dict[str, str]:
+    """Return {repo-relative path: source} for all .py files in a snapshot archive.
+
+    `tgz` is a path or a binary stream; the archive is read in streaming mode.
+    """
     files = {}
-    with tarfile.open(tgz) as tf:
-        for m in tf.getmembers():
-            if not m.isfile() or not m.name.endswith(".py") or "/.git/" in m.name:
+    kw = {"name": str(tgz)} if isinstance(tgz, (str, Path)) else {"fileobj": tgz}
+    with tarfile.open(mode="r|gz", **kw) as tf:
+        for m in tf:
+            name = m.name[2:] if m.name.startswith("./") else m.name
+            if not m.isfile() or not name.endswith(".py") or name.startswith(".git/"):
                 continue
-            name = m.name
-            for prefix in ("./workspace/", "workspace/", "./"):
-                if name.startswith(prefix):
-                    name = name[len(prefix):]
-                    break
             f = tf.extractfile(m)
             if f is not None:
                 files[name] = f.read().decode("utf-8", errors="replace")
-    return _strip_common_root(files)
-
-
-def _strip_common_root(files: dict[str, str]) -> dict[str, str]:
-    # Snapshots may wrap the repo in one top-level directory; drop it if every path shares it.
-    tops = {p.split("/", 1)[0] for p in files if "/" in p}
-    if len(tops) == 1 and all("/" in p for p in files):
-        top = tops.pop()
-        if not any(p.startswith(top + "/" + top) for p in files):
-            pass
-        if top not in ("fastapi", "rich", "requests", "httpx", "src", "scripts", "tests", "docs_src"):
-            return {p.split("/", 1)[1]: s for p, s in files.items()}
     return files
+
+
+def load_sources(data: Path, iid: str) -> dict[str, str]:
+    cached = data / "sources" / f"{iid}.json.gz"
+    if cached.exists():
+        import gzip
+
+        return json.loads(gzip.decompress(cached.read_bytes()))
+    return snapshot_sources(data / "snapshots" / f"{iid}.tgz")
+
+
+def graph_key(task) -> str:
+    return f"{task['repo'].split('/')[1]}_{task['base_commit']}"
 
 
 # ---------------------------------------------------------------- labels
@@ -333,9 +334,9 @@ def run(data: Path, out: Path, n_ctrl: int = 5):
     label_log = []
     for t in tasks:
         iid = t["instance_id"]
-        ids, texts, edges = load_graph(data / "graphs" / f"{iid}.json")
-        emb = load_embeddings(data / "embeddings" / f"{iid}.npz")
-        sources = snapshot_sources(data / "snapshots" / f"{iid}.tgz")
+        ids, texts, edges = load_graph(data / "graphs" / f"{graph_key(t)}.json")
+        emb = load_embeddings(data / "embeddings" / f"{graph_key(t)}.npz")
+        sources = load_sources(data, iid)
         id_set = set(ids)
         gold_files, gold, node_file = gold_nodes(t, sources, id_set)
         cand = [i for i, n in enumerate(ids) if not is_test_node(n)]

@@ -45,13 +45,13 @@ cd ../chi-bench
 uv sync --extra dev
 
 # 2. Public tasks (pinned release)
-uv run huggingface-cli login
+uv run hf auth login
 REV=chi-bench-v1.0.0
-uv run huggingface-cli download actava/chi-bench --repo-type dataset --revision "$REV" --local-dir data/
+uv run hf download actava/chi-bench --repo-type dataset --revision "$REV" --local-dir data/
 echo "$REV" > data/.chi-bench-version
 
 # 3. Handbook (only after your access request is approved)
-uv run huggingface-cli download actava/managed-care-operations-handbook \
+uv run hf download actava/managed-care-operations-handbook \
   --repo-type dataset --local-dir data/skills/
 
 # 4. Data corrections required by χ-Bench v1.1.0, then the image

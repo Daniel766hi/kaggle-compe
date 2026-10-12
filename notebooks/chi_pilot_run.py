@@ -125,10 +125,10 @@ def setup_chi_bench():
     run(UV + ["sync", "-q", "--extra", "dev"])
 
     hf_env = {"HF_TOKEN": secrets["HF_TOKEN"]}
-    run(UV + ["run", "huggingface-cli", "download", "actava/chi-bench", "--repo-type", "dataset",
+    run(UV + ["run", "hf", "download", "actava/chi-bench", "--repo-type", "dataset",
               "--revision", DATASET_REV, "--local-dir", "data/"], env=hf_env)
     (CB / "data" / ".chi-bench-version").write_text(DATASET_REV + "\n")
-    run(UV + ["run", "huggingface-cli", "download", "actava/managed-care-operations-handbook",
+    run(UV + ["run", "hf", "download", "actava/managed-care-operations-handbook",
               "--repo-type", "dataset", "--local-dir", "data/skills/"], env=hf_env)
 
     # Required by χ-Bench 1.1.0; the scripts render PDFs with Chromium.

@@ -38,6 +38,18 @@ WORLDWIDE = "Q13780930"
 ROTTEN_TOMATOES, METACRITIC = "Q105584", "Q150248"
 TOMATOMETER = "Q108403393"  # "Tomatometer score" (determination method)
 
+# Wikidata types counted as films. Animated films and documentaries are often typed only as
+# their subclass, so plain "film" alone misses e.g. Spirited Away.
+FILM_TYPES = [
+    "Q11424",     # film
+    "Q24869",     # feature film
+    "Q202866",    # animated film
+    "Q29168811",  # animated feature film
+    "Q93204",     # documentary film
+]
+MONOCHROME = {"black-and-white", "sepia", "monochrome", "black-and-white film"}
+NAMED_RATIOS = {"academy ratio": 1.375, "widescreen": None, "cinemascope": 2.35, "anamorphic format": 2.39}
+
 # Item-valued properties: (column/role name, property id, table they go to)
 RELATIONS = [
     ("genre", "P136", "genres"),
@@ -79,9 +91,13 @@ TABLES = [
             Column("original_title", "string", "Title in the original language, when recorded"),
             Column("release_date", "datetime", "Earliest recorded publication (release) date"),
             Column("release_year", "integer", "Year of release_date"),
-            Column("runtime_min", "number", "Duration in minutes"),
-            Column("color", "string", "Color process: e.g. 'color', 'black-and-white' (several separated by '|')"),
-            Column("aspect_ratio", "string", "Aspect ratio of the image, e.g. '2.39:1' (several separated by '|')"),
+            Column("runtime_min", "number", "Duration in minutes (the main/theatrical version when several are recorded)"),
+            Column("color", "string", "Color process as recorded, e.g. 'color', 'black-and-white', 'Technicolor' "
+                                      "(several separated by '|')"),
+            Column("color_type", "string", "Simplified color: 'color', 'black-and-white' or 'mixed' (both)"),
+            Column("aspect_ratio", "string", "Aspect ratio as recorded, e.g. '2.39:1', '4:3', 'Academy ratio' "
+                                             "(several separated by '|')"),
+            Column("aspect_ratio_value", "number", "First aspect ratio as a number (width / height), e.g. 2.39, 1.33"),
             Column("genres", "string", "All genres, separated by '|' (one row per genre in movie_genres.csv)"),
             Column("directors", "string", "Director name(s), separated by '|'"),
             Column("countries", "string", "Country/countries of origin, separated by '|'"),
@@ -96,8 +112,10 @@ TABLES = [
             Column("box_office_usd", "number", "Box office gross in US dollars, worldwide where recorded (only USD values)"),
             Column("rotten_tomatoes_pct", "number", "Rotten Tomatoes Tomatometer score, % of positive critic reviews"),
             Column("metacritic_score", "number", "Metacritic critic score, 0-100"),
-            Column("oscar_wins", "integer", "Number of Academy Awards won"),
-            Column("oscar_nominations", "integer", "Number of Academy Award nominations (including wins where recorded)"),
+            Column("oscar_wins", "integer", "Academy Awards won, as recorded on the film. Acting awards are often "
+                                           "recorded on the actor instead, so this can be below the official total"),
+            Column("oscar_nominations", "integer", "Academy Award nominations recorded on the film (same caveat as "
+                                                   "oscar_wins)"),
             Column("n_cast", "integer", "Number of cast members recorded"),
             Column("wikipedia_languages", "integer", "Number of Wikipedia language editions with an article (popularity proxy)"),
             Column("imdb_id", "string", "IMDb identifier (tt...), to join with other datasets"),
@@ -187,8 +205,9 @@ def film_list(session, min_sitelinks=MIN_SITELINKS):
     """IDs of notable films. Kept to a single cheap pattern: aggregating dates here made the
     query slow enough to time out when Wikidata is busy; dates come with the batched details."""
     rows = sparql(session, f"""
-        SELECT ?film ?links WHERE {{
-          ?film wdt:P31 wd:Q11424 ; wikibase:sitelinks ?links .
+        SELECT DISTINCT ?film ?links WHERE {{
+          VALUES ?type {{ {" ".join("wd:" + t for t in FILM_TYPES)} }}
+          ?film wdt:P31 ?type ; wikibase:sitelinks ?links .
           FILTER(?links >= {min_sitelinks})
         }}""")
     return pd.DataFrame({
@@ -231,7 +250,7 @@ def relations(session, ids):
 
 def quantities(session, ids):
     return sparql(session, f"""
-        SELECT ?film ?prop ?amount ?unit ?place WHERE {{
+        SELECT ?film ?prop ?amount ?unit ?place ?rank WHERE {{
           VALUES ?film {{ {_values(ids)} }}
           VALUES (?prop ?p ?psv) {{ ("runtime" p:P2047 psv:P2047) ("budget" p:P2130 psv:P2130)
                                    ("box_office" p:P2142 psv:P2142) }}
@@ -257,6 +276,34 @@ def reviews(session, ids):
 def parse_runtime(amount, unit):
     value = float(amount)
     return {MINUTE: value, HOUR: value * 60, SECOND: value / 60}.get(unit)
+
+
+def pick_runtime(runtime):
+    """Per film: the preferred-rank value if Wikidata marks one, else the shortest. Several
+    durations usually mean theatrical vs extended cuts; the theatrical one is the common reference."""
+    preferred = runtime["rank"].astype("string").fillna("").str.endswith("PreferredRank")
+    chosen = runtime[preferred].groupby("film_id")["m"].min()
+    fallback = runtime.groupby("film_id")["m"].min()
+    return chosen.combine_first(fallback)
+
+
+def aspect_value(label):
+    """'2.39:1' -> 2.39, '16:9' -> 1.78, 'Academy ratio' -> 1.375; None if unknown."""
+    if not isinstance(label, str):
+        return None
+    first = label.split("|")[0].strip()
+    m = re.match(r"^([\d.]+)\s*:\s*([\d.]+)$", first)
+    if m and float(m.group(2)):
+        return round(float(m.group(1)) / float(m.group(2)), 3)
+    return NAMED_RATIOS.get(first.lower())
+
+
+def color_type(label):
+    """'color', 'black-and-white' or 'mixed' (both, e.g. Schindler's List); None if unknown."""
+    if not isinstance(label, str):
+        return None
+    kinds = {"black-and-white" if v.strip().lower() in MONOCHROME else "color" for v in label.split("|")}
+    return "mixed" if len(kinds) > 1 else kinds.pop()
 
 
 def pick_money(rows):
@@ -320,11 +367,11 @@ def build_tables(films, basic_rows, relation_rows, quantity_rows, review_rows):
                       ("series", "series"), ("based_on", "based_on")]:
         movies[col] = movies["film_id"].map(joined(name))
 
-    q = pd.DataFrame(quantity_rows, columns=["film", "prop", "amount", "unit", "place"])
+    q = pd.DataFrame(quantity_rows, columns=["film", "prop", "amount", "unit", "place", "rank"])
     q["film_id"], q["unit"], q["place"] = q["film"].map(qid), q["unit"].map(qid), q["place"].map(qid)
     q = q.where(q.notna(), None)
     runtime = q[q["prop"] == "runtime"].assign(m=lambda d: [parse_runtime(a, u) for a, u in zip(d["amount"], d["unit"])])
-    movies["runtime_min"] = movies["film_id"].map(runtime.dropna(subset=["m"]).groupby("film_id")["m"].max())
+    movies["runtime_min"] = movies["film_id"].map(pick_runtime(runtime.dropna(subset=["m"])))
     for prop, col in [("budget", "budget_usd"), ("box_office", "box_office_usd")]:
         sub = q[q["prop"] == prop]
         money = {f: pick_money(g.to_dict("records")) for f, g in sub.groupby("film_id")}
@@ -345,6 +392,8 @@ def build_tables(films, basic_rows, relation_rows, quantity_rows, review_rows):
     movies["oscar_nominations"] = movies["film_id"].map(awards[oscar].drop_duplicates(["film_id", "award_id"])
                                                         .groupby("film_id").size()).fillna(0)
     movies["n_cast"] = movies["film_id"].map(cast.groupby("film_id").size()).fillna(0)
+    movies["color_type"] = movies["color"].map(color_type)
+    movies["aspect_ratio_value"] = movies["aspect_ratio"].map(aspect_value)
     movies["release_date"] = pd.to_datetime(movies["release_date"], errors="coerce")
     movies["release_year"] = movies["release_date"].dt.year
     movies["title"] = movies["title"].fillna(movies["original_title"])
@@ -399,7 +448,8 @@ def completeness_markdown(movies):
 
 def describe(snapshot_date, tables_written, frames=None):
     return "\n".join([
-        "Metadata for **notable feature films**, from the early days of cinema to this year's releases: "
+        "Metadata for **notable films** (live-action, animated and documentary), from the early days of "
+        "cinema to this year's releases: "
         "genres, directors, writers, cast, cinematographers, composers, color vs black-and-white, aspect "
         "ratio, runtime, country, language, budget, box office, critic scores and awards.",
         "",
@@ -426,7 +476,9 @@ def describe(snapshot_date, tables_written, frames=None):
         "",
         "Wikidata is edited by volunteers, so not every field is filled for every film. Empty means "
         "\"not recorded\", not zero. Money columns only use values recorded in US dollars (not adjusted for "
-        "inflation). Share of films with a value, as of this version:",
+        "inflation). Award counts include only awards recorded on the film itself; Wikidata often records "
+        "acting awards on the actor, so counts can be below official totals. Share of films with a value, "
+        "as of this version:",
         "",
         completeness_markdown(frames.get("movies") if frames else None),
         "",

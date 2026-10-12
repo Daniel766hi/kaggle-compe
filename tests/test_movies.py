@@ -139,3 +139,26 @@ def test_movies_may_lose_a_few_films_but_not_many(tmp_path):
 def test_release_date_comes_from_the_earliest_publication_date():
     m = build()["movies"].iloc[0]
     assert m["release_date"] == pd.Timestamp("2010-07-08") and m["release_year"] == 2010
+
+
+@pytest.mark.parametrize("label,expected", [("2.39:1", 2.39), ("16:9", 1.778), ("4:3", 1.333),
+                                            ("Academy ratio", 1.375), ("2.2:1|2.39:1", 2.2), (None, None)])
+def test_aspect_value(label, expected):
+    assert mv.aspect_value(label) == expected
+
+
+@pytest.mark.parametrize("label,expected", [("color", "color"), ("Technicolor", "color"),
+                                            ("black-and-white", "black-and-white"),
+                                            ("black-and-white|color", "mixed"), (None, None)])
+def test_color_type(label, expected):
+    assert mv.color_type(label) == expected
+
+
+def test_runtime_prefers_preferred_rank_else_shortest():
+    q = [
+        qty("Q1", "runtime", "201", mv.MINUTE), qty("Q1", "runtime", "263", mv.MINUTE),       # theatrical/extended
+        qty("Q2", "runtime", "120", mv.MINUTE), qty("Q2", "runtime", "135", mv.MINUTE),
+    ]
+    q[3]["rank"] = "http://wikiba.se/ontology#PreferredRank"
+    out = build(n=2, quantities=q)["movies"].set_index("film_id")["runtime_min"]
+    assert out["Q1"] == 201 and out["Q2"] == 135

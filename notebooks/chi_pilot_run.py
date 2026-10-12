@@ -90,7 +90,7 @@ def run(cmd, cwd=CB, env=None, echo=True, check=True):
 # ## 1. Secrets
 
 # %%
-secrets, missing = {}, []
+secrets, missing = {}, {}
 try:
     from kaggle_secrets import UserSecretsClient
 except ImportError:  # outside Kaggle: read the same names from the environment
@@ -98,16 +98,21 @@ except ImportError:  # outside Kaggle: read the same names from the environment
 for name in ("ANTHROPIC_API_KEY", "HF_TOKEN", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"):
     try:
         value = UserSecretsClient().get_secret(name) if UserSecretsClient else os.environ[name]
-        secrets[name] = value
-    except Exception:
-        missing.append(name)
+        if not value or not value.strip():
+            raise ValueError("empty value")
+        secrets[name] = value.strip()
+    except Exception as exc:  # the reason only; never the value
+        missing[name] = f"{type(exc).__name__}: {str(exc)[:200]}"
 READY = not missing
 if READY:
     print("secrets attached:", ", ".join(secrets))
 else:
-    print("NOT RUNNING. Attach these Kaggle secrets (Add-ons → Secrets), then run again:")
-    for name in missing:
-        print("  -", name)
+    print("NOT RUNNING. These Kaggle secrets could not be read:")
+    for name, reason in missing.items():
+        print(f"  - {name}  ({reason})")
+    print("Check Add-ons → Secrets: each name must match exactly and be ticked for this notebook.")
+    print("Secrets are only available when the run is started from the Kaggle editor")
+    print("(Run All, or Save Version → Save & Run All), not in runs started through the API.")
 
 # %% [markdown]
 # ## 2. Steps

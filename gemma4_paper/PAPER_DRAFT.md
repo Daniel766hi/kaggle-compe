@@ -21,7 +21,9 @@ Personalized PageRank over the call graph does not improve function ranking. In 
 cross-validated exploratory analysis, a degree-preserving rewired graph does as well as the real
 one. We ship the lexical bridge as a
 standard-library ADK skill that runs in under a second, and report an end-to-end paired pilot
-with Gemma 4 31B on Kaggle L4×4 [PILOT RESULTS PENDING].
+with Gemma 4 31B on Kaggle L4×4. There the skill variant resolved 5 of 24 tasks against 3 of 24 for
+the unchanged baseline (2 discordant pairs, both favouring the skill; exact sign test p = 0.50).
+The direction is encouraging, but the pilot is too small to establish an effect.
 
 ## 1. Introduction
 
@@ -206,7 +208,26 @@ public leaderboard), unchanged. B is A plus the skill and one prompt line asking
 it first. Both use 28 tool calls, 8 minutes and thinking budget 4,096. The 24 tasks come from the
 labelled set ordered by SHA-256 of the instance id, stratified 12/9/2/1 across FastAPI, Rich,
 Requests and HTTPX. Each task runs A then B on the same vLLM server (Kaggle L4×4).
-[PILOT RESULTS PENDING]
+**Pilot results.** All 24 pairs completed in one Kaggle session.
+
+| | Baseline (A) | + `locate-code` (B) |
+|---|---|---|
+| Resolved | 3 / 24 (12.5%) | 5 / 24 (20.8%) |
+| Resolved only by this arm | 0 | 2 (`rich_4079`, `rich_3470`) |
+| Mean tool calls | 21.0 | 21.8 |
+| Mean wall time per task | 276 s | 317 s |
+| Stopped by the 8-minute cap | 4 | 4 |
+
+*Table 4. Paired pilot, one run per arm per task. Wall time excludes grading.*
+
+B solved every task A solved, plus two more. Both extra wins are on Rich, the repository where
+BM25 most improves on the tool in Section 5 (Hit@10 57.8% vs. 28.9%). With only two discordant
+pairs, the exact two-sided sign test gives p = 0.50. This is consistent with no effect, and a
+single sampled run per arm adds noise of the same size. B cost about 41 s more per task on
+average, which is within the 12-hour budget. We could not reliably check whether the agent
+actually called the skill on every task: our counter searched the trace for `run_skill_script`,
+and the system prompt itself contains that string. Measuring adoption, repeating runs, and
+evaluating all 116 labelled tasks are the obvious next steps.
 
 ## 8. Limitations
 

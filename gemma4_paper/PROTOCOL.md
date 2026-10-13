@@ -61,3 +61,19 @@ its best node's rank). Paired comparison against `bm25` with a two-sided sign te
 on per-task reciprocal rank and a 10,000-sample paired bootstrap 95% CI. Results are
 also broken down per repository. Every number in the writeup comes from
 `run_study.py` output.
+
+## Addendum (2026-10-13): end-to-end extension, written before any extension run
+
+The 24-task pilot gave 5/24 (skill) vs. 3/24 (baseline). To test this properly we run the same
+two agent configurations, unchanged, on the remaining 92 labelled tasks: sha256 order minus
+the pilot, dealt round-robin into 4 shards of 23 (`build_pilot_notebook.py --shard k`). One run
+per arm per task, A then B on the same server, as in the pilot.
+
+- Primary analysis: all 116 pairs (pilot + extension). Report resolved counts per arm, the
+  discordant pairs, and the exact two-sided McNemar (sign) test on them. No other test is
+  primary.
+- Secondary: per-repository counts; mean tool calls and wall time; adoption = the fraction of
+  B runs whose recorded trace contains a `run_skill_script` tool call (counted from tool-call
+  events, not prompt text), and the fraction where it is the first call.
+- If a shard cannot be run before the deadline, report the pairs completed and say which
+  shards are missing. Do not replace or drop tasks after seeing results.

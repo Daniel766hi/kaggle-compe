@@ -26,19 +26,31 @@ NO_LABEL = {
 }
 
 
-def pick_tasks(tasks_path: Path, labels_path: Path | None) -> list[str]:
+def labelled_in_order(tasks_path: Path, labels_path: Path | None) -> list[dict]:
     tasks = [json.loads(l) for l in tasks_path.open()]
     excluded = set(NO_LABEL)
     if labels_path and labels_path.exists():
         excluded = {x["instance_id"] for x in json.loads(labels_path.read_text()) if not x["gold_nodes"]}
     tasks = [t for t in tasks if t["instance_id"] not in excluded]
     tasks.sort(key=lambda t: hashlib.sha256(t["instance_id"].encode()).hexdigest())
+    return tasks
+
+
+def pick_tasks(tasks_path: Path, labels_path: Path | None) -> list[str]:
+    tasks = labelled_in_order(tasks_path, labels_path)
     chosen, left = [], dict(QUOTA)
     for t in tasks:
         if left.get(t["repo"], 0) > 0:
             chosen.append(t["instance_id"])
             left[t["repo"]] -= 1
     return chosen
+
+
+def shard_tasks(tasks_path: Path, labels_path: Path | None, shard: int, n_shards: int) -> list[str]:
+    """Extension run: the labelled tasks not in the pilot, in sha256 order, dealt round-robin."""
+    pilot = set(pick_tasks(tasks_path, labels_path))
+    rest = [t["instance_id"] for t in labelled_in_order(tasks_path, labels_path) if t["instance_id"] not in pilot]
+    return rest[shard - 1::n_shards]
 
 
 def agent_files(name: str) -> dict[str, str]:
@@ -174,13 +186,29 @@ if OUT.exists():
 T0 = time.time()
 STOP_AFTER_S = 11.0 * 3600  # leave room to save outputs inside a 12 h session
 
-def skill_calls(res):
+def tool_sequence(res):
+    """Names of the tools the agent actually called, in order (from the recorded trace)."""
+    tr = getattr(res, 'trace', None)
+    entries = getattr(tr, 'entries', None) if tr is not None else None
+    if entries:
+        return [e.tool_name for e in entries if getattr(e, 'event_type', '') == 'tool_call' and e.tool_name]
+    names = []
+    def walk(o):
+        if isinstance(o, dict):
+            n = o.get('function_name')
+            if isinstance(n, str) and n:
+                names.append(n)
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
     p = getattr(res, 'trace_path', None)
     try:
-        txt = Path(p).read_text() if p else ''
-    except OSError:
-        txt = ''
-    return txt.count('run_skill_script'), txt.count('search_similar_code')
+        walk(json.loads(Path(p).read_text())) if p else None
+    except (OSError, ValueError):
+        pass
+    return names
 
 for idx, iid in enumerate(PILOT_TASKS, start=1):
     for name in ('baseline', 'locate'):
@@ -192,11 +220,13 @@ for idx, iid in enumerate(PILOT_TASKS, start=1):
         t1 = time.time()
         try:
             res = run_sync(lambda: evaluators[name].evaluate_task(task=t, task_index=idx, total_tasks=len(PILOT_TASKS)))
-            sk, sim = skill_calls(res)
+            seq = tool_sequence(res)
             row = dict(config=name, instance_id=iid, repo=t.repo, resolved=bool(res.resolved),
                        tool_calls=res.tool_calls, duration_s=round(time.time() - t1, 1),
                        patch_chars=len(res.agent_patch or ''), test_exit_code=res.test_exit_code,
-                       skill_mentions=sk, similar_code_mentions=sim,
+                       n_skill_calls=seq.count('run_skill_script'), first_tool=(seq[0] if seq else None),
+                       n_graph_calls=sum(t in ('search_similar_code', 'get_code_neighbors', 'get_code_subgraph') for t in seq),
+                       tools=seq,
                        error=getattr(res, 'error_message', None))
         except Exception as e:
             row = dict(config=name, instance_id=iid, repo=t.repo, resolved=False, error=repr(e)[:500],
@@ -204,6 +234,7 @@ for idx, iid in enumerate(PILOT_TASKS, start=1):
         with OUT.open('a') as f:
             f.write(json.dumps(row) + '\n')
         print(idx, name, iid, row.get('resolved'), row.get('tool_calls'), row.get('duration_s'), row.get('error'), flush=True)
+        print('ROW ' + json.dumps(row), flush=True)
 '''
 
 SUMMARY = r'''
@@ -216,7 +247,8 @@ a = sum(v['baseline']['resolved'] for v in pairs); b = sum(v['locate']['resolved
 only_a = sum(v['baseline']['resolved'] and not v['locate']['resolved'] for v in pairs)
 only_b = sum(v['locate']['resolved'] and not v['baseline']['resolved'] for v in pairs)
 summary = dict(pairs=len(pairs), baseline_resolved=a, locate_resolved=b, only_baseline=only_a, only_locate=only_b,
-               locate_used_skill=sum(v['locate'].get('skill_mentions', 0) > 0 for v in pairs))
+               locate_called_skill=sum(v['locate'].get('n_skill_calls', 0) > 0 for v in pairs),
+               locate_skill_first=sum(v['locate'].get('first_tool') == 'run_skill_script' for v in pairs))
 print(json.dumps(summary, indent=1))
 (WORK / 'pilot_summary.json').write_text(json.dumps(summary, indent=1))
 for name in AGENTS:
@@ -225,7 +257,7 @@ for name in AGENTS:
 
 INTRO = """# Query-gap pilot: does a BM25 locate skill help Gemma 4 fix more bugs?
 
-Paired pilot on 24 development tasks (fixed before running). **A** is the public Budget-Fit
+Paired run on the development tasks listed in `PILOT_TASKS` (fixed before running). **A** is the public Budget-Fit
 Single Agent bundle (0.18 public LB; credit: verracodeguacas) unchanged. **B** is the same bundle
 plus a `locate-code` skill (BM25 over the repository's functions, standard library only) and one
 prompt line asking the agent to run it first. Everything else (sampling, budgets, tools) is identical.
@@ -248,8 +280,11 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--slug", default="gemma4-query-gap-pilot")
     ap.add_argument("--user", default="danielaijdkx")
+    ap.add_argument("--shard", type=int, default=0, help="0 = the 24-task pilot; k = extension shard k")
+    ap.add_argument("--n-shards", type=int, default=4)
     a = ap.parse_args()
-    pilot = pick_tasks(a.tasks, a.labels)
+    pilot = (pick_tasks(a.tasks, a.labels) if a.shard == 0
+             else shard_tasks(a.tasks, a.labels, a.shard, a.n_shards))
     files = {"baseline": agent_files("baseline"), "locate": agent_files("locate")}
     nb = {
         "cells": [
@@ -269,7 +304,7 @@ def main():
     (a.out / f"{a.slug}.ipynb").write_text(json.dumps(nb, indent=1))
     meta = {
         "id": f"{a.user}/{a.slug}",
-        "title": "Gemma4 Query Gap Pilot",
+        "title": "Gemma4 Query Gap Pilot" if a.shard == 0 else f"Gemma4 Query Gap S{a.shard}",
         "code_file": f"{a.slug}.ipynb",
         "language": "python",
         "kernel_type": "notebook",

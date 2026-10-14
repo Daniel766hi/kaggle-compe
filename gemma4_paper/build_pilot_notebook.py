@@ -118,14 +118,17 @@ litellm.drop_params = True
 DATA_DIR = Path('/kaggle/input/competitions/gemma-4-developer-agent')
 if not DATA_DIR.exists():
     DATA_DIR = Path('/kaggle/input/gemma-4-developer-agent')
-TARGET_MODEL_NAME = 'gemma-4-31b-it-qat-w4a16-ct'
-cands = sorted(glob.glob('/kaggle/input/**/gemma-4-31b-it-qat-w4a16-ct/**/config.json', recursive=True))
-MODEL_PATH = Path(cands[0]).parent
-print('model at', MODEL_PATH)
-
 declared = {n: sorted(discover_declared_models(d)) for n, d in AGENTS.items()}
-assert all(v == [TARGET_MODEL_NAME] for v in declared.values()), declared
-adapters = discover_adapters(str(AGENTS['baseline']), adapter_extensions=ALLOWED_ADAPTER_EXTENSIONS)
+assert len({tuple(v) for v in declared.values()}) == 1 and all(len(v) == 1 for v in declared.values()), declared
+TARGET_MODEL_NAME = next(iter(declared.values()))[0]
+cands = sorted(glob.glob(f'/kaggle/input/**/{TARGET_MODEL_NAME}/**/config.json', recursive=True))
+MODEL_PATH = Path(cands[0]).parent
+print('model', TARGET_MODEL_NAME, 'at', MODEL_PATH)
+# per the official getting-started notebook (Ryan Holbrook, 2026-10-12)
+MODEL_VLLM_EXTRA_ARGS = {
+    'gemma-4-12b-it-qat-w4a16-ct': ('--hf-overrides', '{"architectures": ["Gemma4ForCausalLM"], "model_type": "gemma4"}'),
+}
+adapters = discover_adapters(str(next(iter(AGENTS.values()))), adapter_extensions=ALLOWED_ADAPTER_EXTENSIONS)
 gpu_count = torch.cuda.device_count()
 tp_size = 4 if gpu_count >= 4 else (2 if gpu_count >= 2 else 1)
 vllm_cfg = VllmConfig(
@@ -134,6 +137,7 @@ vllm_cfg = VllmConfig(
     dtype='bfloat16' if torch.cuda.is_bf16_supported() else 'auto',
     gpu_memory_utilization=0.90, enable_auto_tool_choice=True, enable_lora=True,
     max_loras=8, max_lora_rank=128, tensor_parallel_size=tp_size, startup_timeout=60 * 20,
+    extra_args=MODEL_VLLM_EXTRA_ARGS.get(TARGET_MODEL_NAME, ()),
 )
 server = VllmServer(vllm_cfg, adapter_manifest=adapters)
 server.start()
@@ -169,6 +173,8 @@ for name, d in AGENTS.items():
         tasks_path=TASKS_PATH, snapshots_dir=DATA_DIR / 'snapshots', results_dir=WORK / 'results' / name,
         submission_dir=d, models=models, sandbox='subprocess',
         timeout_seconds=int(ev['timeout_seconds']), max_time_minutes=float(ev['max_time_minutes']),
+        verification_timeout_seconds=(int(ev['verification_timeout_seconds'])
+                                      if 'verification_timeout_seconds' in ev else None),
         max_tool_calls=int(ev['max_tool_calls']), max_turns=int(ev['max_turns']),
         limits=limits, generation_constraints=gen_constraints, adapter_manifest=adapters,
         context_cache_config=ContextCacheConfig(min_tokens=2048, ttl_seconds=1800, cache_intervals=10),
@@ -211,7 +217,7 @@ def tool_sequence(res):
     return names
 
 for idx, iid in enumerate(PILOT_TASKS, start=1):
-    for name in ('baseline', 'locate'):
+    for name in AGENTS:
         if (name, iid) in done:
             continue
         if time.time() - T0 > STOP_AFTER_S:
@@ -242,13 +248,18 @@ rows = [json.loads(l) for l in OUT.read_text().splitlines()]
 by = {}
 for r in rows:
     by.setdefault(r['instance_id'], {})[r['config']] = r
-pairs = [v for v in by.values() if 'baseline' in v and 'locate' in v]
-a = sum(v['baseline']['resolved'] for v in pairs); b = sum(v['locate']['resolved'] for v in pairs)
-only_a = sum(v['baseline']['resolved'] and not v['locate']['resolved'] for v in pairs)
-only_b = sum(v['locate']['resolved'] and not v['baseline']['resolved'] for v in pairs)
-summary = dict(pairs=len(pairs), baseline_resolved=a, locate_resolved=b, only_baseline=only_a, only_locate=only_b,
-               locate_called_skill=sum(v['locate'].get('n_skill_calls', 0) > 0 for v in pairs),
-               locate_skill_first=sum(v['locate'].get('first_tool') == 'run_skill_script' for v in pairs))
+summary = {}
+for name in AGENTS:
+    rs = [v[name] for v in by.values() if name in v]
+    summary[name] = dict(runs=len(rs), resolved=sum(r['resolved'] for r in rs),
+                         mean_s=round(sum(r.get('duration_s', 0) for r in rs) / max(len(rs), 1), 1),
+                         called_skill=sum(r.get('n_skill_calls', 0) > 0 for r in rs),
+                         skill_first=sum(r.get('first_tool') == 'run_skill_script' for r in rs))
+if 'baseline' in AGENTS and 'locate' in AGENTS:
+    pairs = [v for v in by.values() if 'baseline' in v and 'locate' in v]
+    summary['pairs'] = len(pairs)
+    summary['only_baseline'] = sum(v['baseline']['resolved'] and not v['locate']['resolved'] for v in pairs)
+    summary['only_locate'] = sum(v['locate']['resolved'] and not v['baseline']['resolved'] for v in pairs)
 print(json.dumps(summary, indent=1))
 (WORK / 'pilot_summary.json').write_text(json.dumps(summary, indent=1))
 for name in AGENTS:
@@ -282,10 +293,11 @@ def main():
     ap.add_argument("--user", default="danielaijdkx")
     ap.add_argument("--shard", type=int, default=0, help="0 = the 24-task pilot; k = extension shard k")
     ap.add_argument("--n-shards", type=int, default=4)
+    ap.add_argument("--configs", default="baseline,locate", help="agent/<name> dirs, run in this order per task")
     a = ap.parse_args()
     pilot = (pick_tasks(a.tasks, a.labels) if a.shard == 0
              else shard_tasks(a.tasks, a.labels, a.shard, a.n_shards))
-    files = {"baseline": agent_files("baseline"), "locate": agent_files("locate")}
+    files = {c: agent_files(c) for c in a.configs.split(",")}
     nb = {
         "cells": [
             md(INTRO),
@@ -315,7 +327,7 @@ def main():
         "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse"],
         "competition_sources": ["gemma-4-developer-agent"],
         "kernel_sources": [],
-        "model_sources": ["google/gemma-4/Other/gemma-4-31b-it-qat-w4a16-ct/2"],
+        "model_sources": [f"google/gemma-4/Other/gemma-4-{v}-it-qat-w4a16-ct/2" for v in ("31b", "12b")],
         "machine_shape": "NvidiaL4",
         # same image as the official getting-started notebook (vLLM + harness wheels tested on it)
         "docker_image": "gcr.io/kaggle-private-byod/python@sha256:37c64f7dd9c54116ecd1bcc88817c5469b88387388fade02bfa8bf3fc647d461",

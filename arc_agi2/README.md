@@ -13,3 +13,11 @@ Push and submit:
     kaggle kernels push -p arc_agi2/kernel
     kaggle kernels status danielaijdkx/arc-agi-2-nvarc-baseline
     kaggle competitions submit arc-prize-2026-arc-agi-2 -k danielaijdkx/arc-agi-2-nvarc-baseline -f submission.json -v <version> -m "<note>"
+
+## Submissions
+
+| Date (UTC) | Kernel version | Change | Public LB |
+|---|---|---|---|
+| 2026-10-12 | v2 | Reproduction of the public LB33.89 notebook (data/model path lookup only) | 30.56 |
+
+Scoring queue for 4×L4 was ~30 h at the time; the same public notebook scores 29–34 across reruns.

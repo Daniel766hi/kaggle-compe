@@ -43,3 +43,17 @@ def test_cosine_identical_and_disjoint():
     # top-k keeps the most intense peaks, sorted by m/z
     mk, _ = prepare_peaks(np.arange(100.0), np.arange(1.0, 101.0), top_k=5)
     assert list(mk) == [95.0, 96.0, 97.0, 98.0, 99.0]
+
+
+def test_featurize_and_loglik():
+    import numpy as np
+
+    from enveda_casmi26.model import N_FEAT, N_FRAG, featurize, loglik
+
+    x = featurize([50.2, 120.7, 1500.0], [0.6, 0.8, 0.1], 200.0, "[M+H]+")
+    assert x.shape == (N_FEAT,)
+    assert x[50] == pytest.approx(0.6) and x[120] == pytest.approx(0.8)
+    assert x[N_FRAG + 79] == pytest.approx(0.8)  # 200 - 120.7 = 79.3 Da loss
+    p = np.array([0.9, 0.1, 0.5])
+    good, bad = np.array([[1, 0, 1]]), np.array([[0, 1, 1]])
+    assert loglik(p, good)[0] > loglik(p, bad)[0]

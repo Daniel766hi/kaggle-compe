@@ -6,8 +6,9 @@ import sys
 from pathlib import Path
 
 PKG = Path(__file__).parent
-MODULES = ["__init__", "chem", "library", "search", "submission", "predict"]
+MODULES = ["__init__", "chem", "library", "search", "model", "rank", "submission", "predict"]
 SLUG = "casmi26-original-library-search"
+DATASET = "danielaijdkx/casmi26-own-candidates-and-model"
 
 
 def main(outdir):
@@ -24,7 +25,7 @@ def main(outdir):
         "id": f"danielaijdkx/{SLUG}", "title": "CASMI26 original library search",
         "code_file": f"{SLUG}.py", "language": "python", "kernel_type": "script",
         "is_private": True, "enable_gpu": False, "enable_tpu": False, "enable_internet": False,
-        "dataset_sources": [], "kernel_sources": [], "model_sources": [],
+        "dataset_sources": [DATASET], "kernel_sources": [], "model_sources": [],
         "competition_sources": ["enveda-CASMI26-molecule-id-mass-spectra"],
     }
     Path(outdir, "kernel-metadata.json").write_text(json.dumps(meta, indent=2))

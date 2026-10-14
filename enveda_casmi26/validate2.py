@@ -19,7 +19,8 @@ import pandas as pd
 
 from .library import Library, build
 from .model import ADDUCT_IDX, N_FEAT, featurize, loglik, make_net, predict_proba
-from .search import Searcher, cosine
+from .rank import Ranker, combine
+from .search import Searcher
 
 SEED = 0
 HOLD_LIBS = {"enveda-np-examples", "enveda-180"}
@@ -92,55 +93,6 @@ def train_net(X, rows, fp, keys, epochs, log=print, seed=SEED):
     return net
 
 
-def rank_molecule(g, lib, searcher, pool, fp, net, tol_ppm=10.0):
-    """Return (pool indices, library cosine, fp loglik) for the candidates of one molecule."""
-    mass = searcher.query_mass(g)
-    pm = pool["mass"].to_numpy()
-    lo = np.searchsorted(pm, mass * (1 - tol_ppm * 1e-6))
-    hi = np.searchsorted(pm, mass * (1 + tol_ppm * 1e-6), side="right")
-    cand = np.arange(lo, hi)
-    if len(cand) == 0:
-        return cand, np.zeros(0), np.zeros(0)
-    # library cosine for candidates that have library spectra
-    lib_sid = pd.Series(np.arange(len(lib.structures)), index=lib.structures.inchikey14)
-    qs = []
-    from .library import prepare_peaks
-    for mzs, ints, mode, pmz, add in zip(g.ms2_mzs, g.ms2_normalized_intensities, g.ionization_mode,
-                                         g.precursor_mz, g.adduct):
-        q = prepare_peaks(mzs if mzs is not None else [], ints if ints is not None else [])
-        if len(q[0]):
-            qs.append((q, mode, pmz, add))
-    cos = np.zeros(len(cand))
-    keys = pool.inchikey14.to_numpy()[cand]
-    for j, k in enumerate(keys):
-        sid = lib_sid.get(k)
-        if sid is None:
-            continue
-        best = 0.0
-        for li in lib.spectra_of(sid):
-            lm, lt = lib.peaks(li)
-            for (qm, qt), mode, _, _ in qs:
-                if mode == searcher.mode[li] and len(lm):
-                    best = max(best, cosine(qm, qt, lm, lt, searcher.mz_tol))
-        cos[j] = best
-    # fingerprint model
-    if qs:
-        X = np.stack([featurize(qm, qt, pmz, add) for (qm, qt), _, pmz, add in qs])
-        p = predict_proba(net, X).mean(0)
-        n_bits = len(p)
-        bits = np.unpackbits(fp[cand], axis=1)[:, :n_bits].astype(np.float64)
-        ll = loglik(p, bits)
-    else:
-        ll = np.zeros(len(cand))
-    return cand, cos, ll
-
-
-def combine(cos, ll, tau=0.6, beta=0.0):
-    """Library hits above tau first (by cosine); the rest by fp log-likelihood (+ beta*cosine)."""
-    z = (ll - ll.mean()) / (ll.std() + 1e-9) if len(ll) > 1 else ll * 0
-    return np.where(cos >= tau, 10.0 + cos, z + beta * cos)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("train")
@@ -181,9 +133,10 @@ def main():
                                                          ("inchikey14", "in", sorted(A | B))])
     q = q[q.adduct.isin(list(ADDUCT_IDX))].groupby("inchikey14").head(16)
     s = Searcher(lib)
+    rk = Ranker(lib, pool, fp, net)
     res = []
     for key, g in q.groupby("inchikey14"):
-        cand, cos, ll = rank_molecule(g, lib, s, pool, fp, net)
+        cand, cos, ll = rk.score(g, s.query_mass(g))
         keys = pool.inchikey14.to_numpy()[cand]
         res.append(dict(key=key, set="A" if key in A else "B", keys=keys, cos=cos, ll=ll))
     pd.to_pickle(res, os.path.join(a.work, "val2_scores.pkl"))

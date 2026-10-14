@@ -1,13 +1,18 @@
-"""Kaggle entry point: build the library from train.parquet, rank candidates, write submission.csv."""
+"""Kaggle entry point: library + fingerprint model ranking, writes submission.csv.
+
+Expects the competition data and our own dataset with cand.pool.parquet, cand.fp.npy and
+fpnet.pt (built by fingerprints.py and train_full.py) somewhere under /kaggle/input.
+"""
 
 import glob
-import os
 import time
 
 import numpy as np
 import pandas as pd
 
 from .library import build
+from .model import make_net
+from .rank import Ranker
 from .search import Searcher
 from .submission import validate
 
@@ -19,32 +24,36 @@ def find(name):
     return hits[0]
 
 
-def fill(ranked, lib, mass, n=25):
-    """Pad a short list with the structures nearest in mass so every row has guesses."""
-    have = {sid for sid, _ in ranked}
-    out = [sid for sid, _ in ranked]
+def pad(order, ranker, mass, n=25):
+    """Pad a short list with the pool structures nearest in mass so every row has guesses."""
+    out = list(order)
     if len(out) < n and np.isfinite(mass):
-        m = lib.structures["mass"].to_numpy()
+        m = ranker.mass
         i = int(np.searchsorted(m, mass))
         near = sorted(range(max(0, i - n), min(len(m), i + n)), key=lambda j: abs(m[j] - mass))
+        have = set(out)
         out += [j for j in near if j not in have][: n - len(out)]
     return out[:n]
 
 
-def main(train=None, test=None, out="submission.csv"):
+def main(train=None, test=None, pool=None, fp=None, weights=None, out="submission.csv"):
+    import torch
     t0 = time.time()
-    train = train or find("train.parquet")
-    test = test or find("test.parquet")
+    train, test = train or find("train.parquet"), test or find("test.parquet")
+    pool = pd.read_parquet(pool or find("cand.pool.parquet"))
+    fp = np.load(fp or find("cand.fp.npy"))
+    net = make_net(fp.shape[1] * 8)
+    net.load_state_dict(torch.load(weights or find("fpnet.pt"), map_location="cpu"))
     lib = build(train)
     print(f"library built {time.time() - t0:.0f}s", flush=True)
+    rk, s = Ranker(lib, pool, fp, net), Searcher(lib)
+    smiles = pool["smiles"].to_numpy()
     te = pd.read_parquet(test)
-    s = Searcher(lib)
-    smiles = lib.structures["smiles"].to_numpy()
     rows = []
     for mid, g in te.groupby("molecule_id", sort=False):
-        ranked = s.rank(g)
-        sids = fill(ranked, lib, s.query_mass(g))
-        rows.append((mid, ";".join(smiles[j] for j in sids) if sids else "C"))
+        mass = s.query_mass(g)
+        order = pad(rk.rank(g, mass) if np.isfinite(mass) else [], rk, mass)
+        rows.append((mid, ";".join(smiles[j] for j in order) if order else "C"))
     sub = pd.DataFrame(rows, columns=["molecule_id", "smiles"])
     problems = validate(sub, te.molecule_id.unique())
     assert not problems, problems

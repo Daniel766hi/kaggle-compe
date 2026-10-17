@@ -113,7 +113,7 @@ def test_parse_cabinet_tables_handles_merged_cells_footnotes_and_incumbents():
 
 
 def test_parse_cabinet_tables_fails_loudly_when_the_article_changes_shape():
-    with pytest.raises(ValueError):  # pandas: no table matching "Took office"
+    with pytest.raises(RuntimeError, match="no cabinet table"):
         ip.parse_cabinet_tables("<table><tr><th>Event</th></tr><tr><td>x</td></tr></table>")
 
 

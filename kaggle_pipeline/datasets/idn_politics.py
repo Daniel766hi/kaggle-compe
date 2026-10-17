@@ -387,12 +387,12 @@ def _clean(series):
 
 def parse_cabinet_tables(html):
     """Rows of every table in the article that has a 'Took office' column."""
-    tables = pd.read_html(io.StringIO(html), match="Took office", flavor="lxml")
+    tables = pd.read_html(io.StringIO(html), flavor="lxml")
     frames = []
     for n, table in enumerate(tables, start=1):
         table.columns = _flat(table.columns)
         cols = list(table.columns)
-        start = _find(cols, "took office", "start")
+        start = _find(cols, "took office", "start", "assumed office", "since", "appointed")
         end = _find(cols, "left office", "end")
         person = _find(cols, "minister", "name", "officeholder", "incumbent", "holder", "official", "head")
         position = _find(cols, "portfolio", "office", "position", "ministry", "title", "post")
@@ -417,6 +417,9 @@ def parse_cabinet_tables(html):
         })
         frames.append(out.dropna(subset=["person", "position", "start_date"]))
     if not frames:
+        for n, table in enumerate(tables, start=1):
+            log.warning("Wikipedia table %d (%d rows): columns %s; first row %s", n, len(table), list(table.columns),
+                        table.head(1).to_dict("records"))
         raise RuntimeError(f"no cabinet table recognised among {len(tables)} tables of '{WIKI_PAGE}'")
     df = pd.concat(frames, ignore_index=True)
     return df[df["person"] != df["position"]]

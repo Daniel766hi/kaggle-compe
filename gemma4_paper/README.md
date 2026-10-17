@@ -40,3 +40,10 @@ The aggregate outputs we obtained are in `results/`.
 | `explore_weights.py` | Post hoc: z-scored terms, weights chosen by cross-validation across repositories |
 | `agent/locate/skills/locate-code/` | The skill (standard library only) |
 | `build_pilot_notebook.py` | Kaggle notebook for the paired pilot |
+
+## Leaderboard submissions (main competition)
+
+| Ref | Config | Result |
+|---|---|---|
+| 57131199 | `agent/locate` (31B + locate-code skill) | public 0.20 (rank 59 / 2,747 on 2026-10-14) |
+| 57186550 | `agent/locate_12b` (12B, same agent) | failed: "notebook hit an unhandled error while rerunning"; not GPU-tested beforehand, likely the 12B vLLM start-up issue reported on the forum. Do not resubmit without a GPU smoke test. |

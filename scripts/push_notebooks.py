@@ -49,6 +49,12 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    "idn-politics": {
+        "source": "notebooks/indonesia_politics_tracker.py",
+        "title": "Indonesia's Political Pulse: Protests & Reshuffles",
+        "datasets": ["indonesian-political-moves-database-2024-2026"],
+        "tags": ["politics", "government", "time series analysis", "data visualization"],
+    },
     "movies": {
         "source": "notebooks/movies_oscars_and_recommender.py",
         "title": "Predicting Best Picture + a Movie Recommender",

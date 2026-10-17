@@ -202,12 +202,15 @@ print(f"{len(reshuffles)} days with 3 or more appointments:")
 reshuffles
 
 # %%
-turnover = (cabinet.groupby("position")["person"].nunique().sort_values(ascending=False))
-print("Positions with the most different holders since the inauguration:")
-print(turnover[turnover > 1].head(10).to_string())
-print("\nLongest-serving still in office (since the inauguration):")
-current = cabinet[cabinet["end_date"].isna() & (cabinet["start_date"] <= "2024-10-21")]
-print(f"{len(current)} of {cabinet['position'].nunique()} positions are still held by their original holder.")
+# Some posts have several holders at once (e.g. more than one deputy minister of finance), so
+# turnover counts replacements: appointments that took over from a named previous holder.
+replaced = changes.dropna(subset=["previous_holder"])
+turnover = replaced.groupby("position").size().sort_values(ascending=False)
+print(f"{len(replaced)} replacements across {turnover.size} positions. Positions replaced more than once:")
+print(turnover[turnover > 1].to_string())
+original = cabinet[(cabinet["start_date"] <= "2024-10-21") & cabinet["end_date"].isna()]
+print(f"\n{len(original)} of the {(cabinet['start_date'] <= '2024-10-21').sum()} terms that began at the "
+      "inauguration are still running.")
 
 # %% [markdown]
 # ## 5. Were reshuffles preceded by unrest?

@@ -78,6 +78,7 @@ the dataset they use is public.
 | `rupiah_since_1999.py` | Rupiah crises, trends and volatility |
 | `indonesia_air_quality.py` | PM2.5 across 31 cities |
 | `indonesia_weather.py` | Rain seasons and warming |
+| `indonesia_politics_tracker.py` | Protest waves, where protests happen, cabinet reshuffles and unrest before them |
 | `movies_oscars_and_recommender.py` | Best Picture nomination/winner prediction (time-based backtest, blind test on the 2026 ceremony, forecast for 2026 films) and an explainable content-based movie recommender |
 
 ## Adding a dataset

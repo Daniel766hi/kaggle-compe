@@ -109,9 +109,10 @@ EVENTS = Table(
         Column("province", "string", "Province where the event took place (GDELT geocoding); empty if national"),
         Column("location", "string", "Place name as geocoded by GDELT"),
         Column("adm1_code", "string", "GDELT province code (FIPS 10-4, e.g. ID04 = Jakarta)"),
-        Column("latitude", "number", "Latitude of the event location"),
+        Column("latitude", "number", "Latitude of the event location; empty if GDELT's location was wrong"),
         Column("longitude", "number", "Longitude of the event location"),
         Column("source_url", "string", "Link to one news article reporting the event"),
+        Column("geo_corrected", "string", "Set when GDELT's location was fixed: 'not a place in Indonesia' or 'province corrected'"),
     ],
 )
 
@@ -182,7 +183,52 @@ PROVINCE = Table(
     ],
 )
 
-TABLES = [EVENTS, CABINET, CHANGES, DAILY, PROVINCE]
+# Topics are recognised from words in the article address (source_url), which is short but specific
+# and can be checked by anyone. English and Indonesian spellings; words joined by hyphens in URLs.
+TOPICS = {
+    "mbg": "Free nutritious meals programme (Makan Bergizi Gratis, MBG)",
+    "karhutla": "Forest and land fires, haze (kebakaran hutan dan lahan)",
+    "cabinet_reshuffle": "Cabinet reshuffles",
+    "dpr_allowance": "Allowances and perks of members of parliament (DPR)",
+}
+TOPIC_PATTERNS = {
+    "mbg": r"makan-bergizi|free-meal|free-lunch|school-meal|nutritious-meal|\bmbg\b|badan-gizi|nutrition-agency|free-food",
+    "karhutla": r"karhutla|forest-fire|wildfire|bushfire|kebakaran-hutan|kebakaran-lahan|haze|kabut-asap|peatland"
+                r"|peat-fire|land-fire|titik-panas",
+    "cabinet_reshuffle": r"reshuffl|rombak-kabinet|perombakan-kabinet|kocok-ulang",
+    "dpr_allowance": r"(?=.*(?:dpr|lawmaker|parliament|legislator))(?=.*(?:allowance|tunjangan|perks|salar|housing))",
+}
+
+EVENT_TOPICS = Table(
+    name="event_topics",
+    kind="derived",
+    description="Which events are about MBG, forest fires (karhutla), reshuffles or DPR allowances (from source_url).",
+    key=("event_id", "topic"),
+    min_rows=0,
+    columns=[
+        Column("event_id", "integer", "GDELT event ID, joins to events.parquet"),
+        Column("date", "datetime", "Event date"),
+        Column("topic", "string", "mbg, karhutla, cabinet_reshuffle or dpr_allowance"),
+    ],
+)
+
+DAILY_TOPICS = Table(
+    name="daily_topics",
+    kind="derived",
+    description="Per day and topic: events, protests, news articles and average tone.",
+    key=("date", "topic"),
+    min_rows=0,
+    columns=[
+        Column("date", "datetime", "Event date"),
+        Column("topic", "string", "mbg, karhutla, cabinet_reshuffle or dpr_allowance"),
+        Column("events", "integer", "Events on the topic"),
+        Column("protests", "integer", "Protest events on the topic (CAMEO root 14)"),
+        Column("articles", "integer", "News articles behind those events"),
+        Column("avg_tone", "number", "Average tone, weighted by articles"),
+    ],
+)
+
+TABLES = [EVENTS, CABINET, CHANGES, DAILY, PROVINCE, EVENT_TOPICS, DAILY_TOPICS]
 
 # ---------- GDELT ----------
 
@@ -261,7 +307,34 @@ def fetch_day(session, day):
 UNNAMED_CODES = {"(ID20)": "Sulawesi Selatan", "(ID25)": "Sumatera Selatan"}
 
 
-def province_of(full_name, geo_type):
+# GDELT's geocoder mistakes some common Indonesian words and names for villages: "Jakarta (ANTARA)"
+# datelines land in a village called Antara in Aceh, Garuda Indonesia in a village called Garuda, and so
+# on. Others are real places put in a same-named village elsewhere (Bali in East Java). Found by
+# reviewing the most frequent locations; together they cover most misplaced events, not all.
+NOT_PLACES = {
+    "Antara", "Garuda", "Merdeka", "Nusantara", "Airlangga", "Pancasila", "Mandiri", "Agoda", "Kesehatan",
+    "Masjid", "Firdaus", "Gadjah", "Gajah", "Pupuk", "Merah Putih", "Sinar", "Bigo", "Trisakti", "Madinah",
+    "Pindad", "Negara", "Bagus", "Brawijaya", "Puspa", "Lintang", "Temu", "Bakom", "Begawan", "Akmil",
+    "Widodo", "Melania", "Putu", "Padjadjaran", "Asabri", "Diponegoro", "Gpus", "Bambang", "Gelap", "Kartini",
+    "Andalas", "Inpres", "Sinta", "Permata", "Pegunungan", "Kodam", "Roro", "Kenangan", "Goyang", "Jalan",
+    "Udayana", "Saputra", "Permana", "Angga", "Tunggul", "Bayu", "Tanjung", "Duyung", "Manyar", "Papar",
+    "Balah", "Kertanegara", "To Bali", "To Asia", "Sukatani",
+    # Malaysian states and districts placed in Indonesian villages
+    "Johor", "Penang", "Perak", "Kelantan", "Kedah", "Pahang", "Petaling", "Sepang",
+}
+WRONG_PROVINCE = {
+    "Bali": "Bali", "Banten": "Banten", "Maluku": "Maluku", "Lampung": "Lampung", "Weda": "Maluku Utara",
+    "Senayan": "Jakarta Raya", "Istiqlal": "Jakarta Raya", "Tanjung Priok": "Jakarta Raya",
+    "Kemayoran": "Jakarta Raya", "Gambir": "Jakarta Raya", "Labuan Bajo": "Nusa Tenggara Timur",
+    "Sabang": "Aceh", "Canggu": "Bali", "Sanur": "Bali", "Legian": "Bali", "Jimbaran": "Bali",
+    "Mandalika": "Nusa Tenggara Barat", "Bima": "Nusa Tenggara Barat", "Sentul": "Jawa Barat",
+    "Cilacap": "Jawa Tengah", "Blora": "Jawa Tengah", "Bantul": "Yogyakarta", "Solok": "Sumatera Barat",
+    "Banjarbaru": "Kalimantan Selatan", "Rempang": "Kepulauan Riau", "Miangas": "Sulawesi Utara",
+    "Bangka": "Kepulauan Bangka Belitung", "Puncak Jaya": "Papua",
+}
+
+
+def province_of(full_name, geo_type=None):
     """GDELT location names look like 'City, Province, Indonesia' or 'Province, Indonesia'.
     Geo type 1 is a whole country, so it has no province."""
     if not isinstance(full_name, str) or geo_type == "1":
@@ -272,6 +345,21 @@ def province_of(full_name, geo_type):
     return UNNAMED_CODES.get(parts[-2], parts[-2])
 
 
+def fix_geo(events):
+    """Apply the province rules above; misplaced events lose their (wrong) coordinates."""
+    events = events.copy()
+    place = events["location"].fillna("").str.split(",").str[0].str.strip()
+    events["province"] = [province_of(loc) for loc in events["location"]]
+    events["geo_corrected"] = None
+    not_place, moved = place.isin(NOT_PLACES), place.isin(list(WRONG_PROVINCE))
+    events.loc[not_place, ["province", "adm1_code", "latitude", "longitude"]] = None
+    events.loc[not_place, "geo_corrected"] = "not a place in Indonesia"
+    events.loc[moved, "province"] = place[moved].map(WRONG_PROVINCE)
+    events.loc[moved, ["adm1_code", "latitude", "longitude"]] = None
+    events.loc[moved, "geo_corrected"] = "province corrected"
+    return events
+
+
 def tidy_events(raw, event_labels, type_labels):
     """Raw GDELT columns -> the published events table."""
     def actor_type(codes):
@@ -280,7 +368,7 @@ def tidy_events(raw, event_labels, type_labels):
     root = raw["EventRootCode"].str.zfill(2)
     quad = pd.to_numeric(raw["QuadClass"], errors="coerce")
     added = raw["DATEADDED"].str[:8]
-    return pd.DataFrame({
+    return fix_geo(pd.DataFrame({
         "event_id": raw["GLOBALEVENTID"],
         "date": pd.to_datetime(raw["SQLDATE"], format="%Y%m%d", errors="coerce"),
         "date_added": pd.to_datetime(added, format="%Y%m%d", errors="coerce"),
@@ -300,13 +388,13 @@ def tidy_events(raw, event_labels, type_labels):
         "num_sources": raw["NumSources"],
         "num_articles": raw["NumArticles"],
         "avg_tone": raw["AvgTone"],
-        "province": [province_of(n, t) for n, t in zip(raw["ActionGeo_FullName"], raw["ActionGeo_Type"])],
+        "province": None,  # set by fix_geo
         "location": raw["ActionGeo_FullName"].replace("", None),
         "adm1_code": raw["ActionGeo_ADM1Code"].replace("", None),
         "latitude": raw["ActionGeo_Lat"],
         "longitude": raw["ActionGeo_Long"],
         "source_url": raw["SOURCEURL"].replace("", None),
-    })
+    }))
 
 
 def plan_days(previous, last_day, first_day=FIRST_DAY, recent_days=RECENT_DAYS):
@@ -361,14 +449,14 @@ def fetch_events(session, previous, last_day, budget_s=BUDGET_S, clock=time.mono
     events = tidy_events(raw, event_labels, type_labels)
     events = events[events["date"] >= pd.Timestamp(FIRST_DAY)]
     if previous is not None and not previous.empty:
-        # Rows published before the province fixes above: send them again fixed (the merge replaces rows
-        # by event_id).
-        province = previous["province"].fillna("")
-        stale = previous[province.str.contains("(general)", regex=False) | province.isin(list(UNNAMED_CODES))]
-        if len(stale):
-            log.info("GDELT: fixing the province of %d published events", len(stale))
-            fixed = stale.assign(province=[province_of(loc, None) for loc in stale["location"]])
-            events = pd.concat([fixed, events], ignore_index=True)
+        # Published rows whose location the rules above now read differently are sent again, fixed
+        # (the merge replaces rows by event_id).
+        redone = fix_geo(previous)
+        changed = ((redone["province"].fillna("") != previous["province"].fillna(""))
+                   | (redone["geo_corrected"].fillna("") != previous.get("geo_corrected", pd.Series(index=previous.index)).fillna("")))
+        if changed.any():
+            log.info("GDELT: re-locating %d published events", int(changed.sum()))
+            events = pd.concat([redone[changed], events], ignore_index=True)
     log.info("GDELT: %d events from %d files (%d days failed)", len(events), len(frames), len(failed))
     return events
 
@@ -511,10 +599,30 @@ def daily_tables(events):
     return national, by_province[PROVINCE.column_names]
 
 
+def event_topics(events):
+    if events is None or events.empty:
+        return pd.DataFrame(columns=EVENT_TOPICS.column_names)
+    url = events["source_url"].fillna("").str.lower()
+    parts = [events.loc[url.str.contains(pattern, regex=True), ["event_id", "date"]].assign(topic=topic)
+             for topic, pattern in TOPIC_PATTERNS.items()]
+    return pd.concat(parts, ignore_index=True)
+
+
+def daily_topics(events, topics):
+    if topics.empty:
+        return pd.DataFrame(columns=DAILY_TOPICS.column_names)
+    joined = topics.merge(events.drop(columns="date"), on="event_id")
+    out = joined.groupby(["date", "topic"]).apply(_summary, include_groups=False).reset_index()
+    return out[DAILY_TOPICS.column_names]
+
+
 def derive(frames):
-    national, by_province = daily_tables(frames.get("events"))
+    events = frames.get("events")
+    national, by_province = daily_tables(events)
+    topics = event_topics(events)
     return {"cabinet_changes": cabinet_changes(frames.get("cabinet_positions")),
-            "daily_national": national, "daily_province": by_province}
+            "daily_national": national, "daily_province": by_province,
+            "event_topics": topics, "daily_topics": daily_topics(events, topics)}
 
 
 def make_fetchers(_, snapshot_date):
@@ -560,6 +668,15 @@ def describe(snapshot_date, tables_written, frames=None):
         "",
         coverage_markdown(frames),
         "",
+        "## Topics: MBG, forest fires, reshuffles, DPR allowances",
+        "",
+        "`event_topics` tags events whose news article is about one of these topics, recognised from words in "
+        "the article address (`source_url`), in English and Indonesian (e.g. *free-meal*, *makan-bergizi*, "
+        "*karhutla*, *wildfire*, *haze*, *reshuffle*). `daily_topics` sums them per day: how much news attention "
+        "each topic gets, how many protests, and how negative the coverage is. Matching on the address is "
+        "conservative: articles that never name the topic in their URL are missed, and a few matches are off "
+        "topic, so treat the counts as an attention index.",
+        "",
         "## How to read the event data",
         "",
         "GDELT reads news coverage worldwide and codes each reported action with the CAMEO scheme: who did what "
@@ -576,6 +693,12 @@ def describe(snapshot_date, tables_written, frames=None):
         "- It measures **news coverage**. Events that the media covers heavily (for example in Jakarta) are "
         "over-represented compared with remote regions.",
         "- Only *root* events located in Indonesia are kept (`ActionGeo` = Indonesia).",
+        "- **Locations were corrected where GDELT is clearly wrong.** Its geocoder reads some common words as "
+        "villages: articles datelined *Jakarta (ANTARA)* were placed in a village called Antara in Aceh, "
+        "*Garuda Indonesia* in a village called Garuda, and Bali in a village in East Java. The most frequent "
+        "of these are fixed: words that are not places lose their location, and real places get the right "
+        "province. `geo_corrected` marks every changed row. Rarer errors remain, so a province's count is "
+        "approximate.",
         "",
         "## Cabinet data",
         "",

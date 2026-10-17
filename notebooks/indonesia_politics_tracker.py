@@ -11,6 +11,7 @@
 # 3. Where in Indonesia do protests happen, relative to all reported events?
 # 4. When was the cabinet reshuffled, and which posts changed most?
 # 5. Were reshuffles preceded by unrest? A simple before/after comparison.
+# 6. How much attention did the free meals programme (MBG) and the forest fires (karhutla) get, and when?
 #
 # > GDELT is machine-coded from news coverage. Counts are best read as **trends**, not exact
 # > tallies, and every event links to a news article (`source_url`) that can be checked.
@@ -59,6 +60,8 @@ daily = pd.read_csv(find("daily_national.csv"), parse_dates=["date"])
 by_province = pd.read_csv(find("daily_province.csv"), parse_dates=["date"])
 cabinet = pd.read_csv(find("cabinet_positions.csv"), parse_dates=["start_date", "end_date"])
 changes = pd.read_csv(find("cabinet_changes.csv"), parse_dates=["date"])
+topics = pd.read_csv(find("daily_topics.csv"), parse_dates=["date"])
+event_topics = pd.read_csv(find("event_topics.csv"), parse_dates=["date"])
 
 # The most recent day is still being filled in by GDELT; leave it out of trends.
 last_full_day = daily["date"].max() - pd.Timedelta(days=1)
@@ -239,6 +242,71 @@ study
 # average protest activity is one that followed a period of unrest. Read the table together
 # with section 2: the September 2025 reshuffles came right after the biggest protest wave in
 # the data.
+#
+# ## 6. MBG and karhutla in the news
+#
+# `event_topics` tags events whose article is about a topic, recognised from words in its address
+# (e.g. *free-meal*, *makan-bergizi*, *karhutla*, *wildfire*, *haze*). Monthly event counts work as
+# an **attention index**: how much reported activity there was around each topic.
+
+# %%
+topics = topics[topics["date"] <= last_full_day]
+month = topics.assign(month=topics["date"].dt.to_period("M").dt.to_timestamp())
+attention = month.groupby(["month", "topic"])["events"].sum().unstack(fill_value=0)
+labels = {"mbg": "Free meals (MBG)", "karhutla": "Forest fires & haze (karhutla)"}
+
+fig, axes = plt.subplots(2, 1, figsize=(11, 6.4), sharex=True)
+for ax, (topic, color) in zip(axes, [("mbg", C[2]), ("karhutla", C[1])]):
+    series = attention[topic]
+    ax.bar(series.index, series.values, width=25, color=color)
+    ax.set_title(f"{labels[topic]}: events per month")
+    peak = series.idxmax()
+    note(ax, peak, series.max(), f"{peak:%b %Y}: {series.max():,} events", dx=-140 if topic == "karhutla" else 20, dy=-12)
+axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+plt.tight_layout()
+plt.show()
+
+summary = month.groupby("topic").agg(events=("events", "sum"), protests=("protests", "sum"))
+tone = topics.assign(w=topics["avg_tone"] * topics["articles"]).groupby("topic")[["w", "articles"]].sum()
+summary["avg_tone"] = (tone["w"] / tone["articles"]).round(2)
+summary["protest_share"] = (summary["protests"] / summary["events"]).round(3)
+print("Overall average tone of all events:",
+      round((daily["avg_tone"] * daily["articles"]).sum() / daily["articles"].sum(), 2))
+summary.rename(index=lambda t: labels.get(t, t))
+
+# %% [markdown]
+# Two very different stories:
+#
+# - **MBG** is a steady presence in the news from its launch in January 2025, with surges
+#   rather than one peak. Its peak months are when the programme met trouble or big decisions
+#   (see the most-reported articles below).
+# - **Karhutla** is seasonal and was quiet for most of the period, then exploded in the 2026
+#   dry season. Its coverage is far more negative than the national average (compare `avg_tone`
+#   with the overall value printed above).
+#
+# The most-reported articles in each topic's peak month, to see what drove the attention:
+
+# %%
+tagged = event_topics.merge(events[["event_id", "num_articles", "source_url", "province"]], on="event_id")
+for topic in ["mbg", "karhutla"]:
+    peak = attention[topic].idxmax()
+    rows = tagged[(tagged["topic"] == topic) & (tagged["date"].dt.to_period("M") == peak.to_period("M"))]
+    top_urls = (rows.groupby("source_url")["num_articles"].max().sort_values(ascending=False).head(5))
+    print(f"\n{labels[topic]}, {peak:%B %Y}:")
+    for url, n in top_urls.items():
+        print(f"  {n:4d} articles  {url}")
+
+# %%
+fires = tagged[(tagged["topic"] == "karhutla") & (tagged["date"] >= "2026-07-01")]
+print("Where the 2026 fire-season events were located (top provinces):")
+print(fires["province"].value_counts().head(8).to_string())
+
+# %% [markdown]
+# The provinces list shows where the fire season was reported from. For the fires themselves
+# (burned area, hotspots, smoke), satellite data is the better source; the
+# [Indonesia air quality](https://www.kaggle.com/datasets/danielaijdkx/indonesia-air-quality-hourly-pm25)
+# dataset shows the smoke's effect on PM2.5 in cities such as Pekanbaru, Palembang and
+# Palangka Raya.
 #
 # ## How to use this dataset well
 #

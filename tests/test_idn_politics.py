@@ -168,3 +168,62 @@ def test_fetch_events_repairs_published_pseudo_provinces(monkeypatch):
     previous["date_added"] = pd.Timestamp("2024-10-20")
     out = ip.fetch_events(None, previous, date(2024, 10, 21), budget_s=0).set_index("event_id")
     assert pd.isna(out.loc["1", "province"]) and out.loc["2", "province"] == "Sulawesi Selatan"
+
+
+def test_topics_are_recognised_from_the_article_address():
+    lines = [
+        gdelt_row(1, ip.GDELT1_COLUMNS),  # https://news.example/1: no topic
+        gdelt_row(2, ip.GDELT1_COLUMNS),
+        gdelt_row(3, ip.GDELT1_COLUMNS),
+        gdelt_row(4, ip.GDELT1_COLUMNS),
+        gdelt_row(5, ip.GDELT1_COLUMNS),
+    ]
+    events = ip.tidy_events(ip.read_export(zipped(lines)), {}, {})
+    events["source_url"] = [
+        "https://news.example/sports-results",
+        "https://en.tempo.co/read/1/students-fall-ill-after-free-meals",
+        "https://www.thejakartapost.com/2026/10/09/wildfire-haze-disrupts-flights-across-sumatra",
+        "https://www.reuters.com/world/indonesia-lawmakers-housing-allowance-protest",
+        "https://kompas.com/read/prabowo-reshuffles-cabinet",
+    ]
+    events = events.astype({"avg_tone": float, "num_articles": float, "goldstein": float})
+    topics = ip.event_topics(events)
+    assert dict(zip(topics["event_id"], topics["topic"])) == {
+        "2": "mbg", "3": "karhutla", "4": "dpr_allowance", "5": "cabinet_reshuffle"}
+    daily = ip.daily_topics(events, topics)
+    assert set(daily["topic"]) == {"mbg", "karhutla", "dpr_allowance", "cabinet_reshuffle"}
+    assert daily["protests"].sum() == 4  # every synthetic row is a protest (code 141)
+
+
+def test_allowance_needs_parliament_in_the_same_address():
+    events = pd.DataFrame({"event_id": [1, 2], "date": pd.to_datetime(["2025-08-25"] * 2),
+                           "source_url": ["https://x/teacher-allowance-raised", "https://x/dpr-allowance-cut"]})
+    assert ip.event_topics(events)["event_id"].tolist() == [2]
+
+
+def test_fix_geo_drops_words_that_are_not_places_and_moves_misplaced_places():
+    events = pd.DataFrame({
+        "location": ["Antara, Aceh, Indonesia", "Bali, Jawa Timur, Indonesia", "Surabaya, Jawa Timur, Indonesia",
+                     "Indonesia"],
+        "adm1_code": ["ID01", "ID08", "ID08", None], "latitude": [3.5, -7.0, -7.2, -5.0],
+        "longitude": [99.0, 112.0, 112.7, 120.0],
+    })
+    out = ip.fix_geo(events)
+    assert pd.isna(out["province"].iloc[0]) and pd.isna(out["province"].iloc[3])
+    assert out["province"].tolist()[1:3] == ["Bali", "Jawa Timur"]
+    assert out["geo_corrected"].tolist()[:2] == ["not a place in Indonesia", "province corrected"]
+    assert pd.isna(out.loc[0, "latitude"]) and pd.isna(out.loc[1, "latitude"]) and out.loc[2, "latitude"] == -7.2
+
+
+def test_fetch_events_relocates_published_rows_once(monkeypatch):
+    monkeypatch.setattr(ip, "fetch_day", lambda session, day: ip.read_export(zipped([gdelt_row(9, ip.GDELT1_COLUMNS)])))
+    monkeypatch.setattr(ip, "lookup", lambda session, url: {})
+    previous = ip.tidy_events(ip.read_export(zipped([gdelt_row(1, ip.GDELT1_COLUMNS),
+                                                     gdelt_row(2, ip.GDELT1_COLUMNS)])), {}, {})
+    previous = previous.drop(columns="geo_corrected")  # as published before the corrections existed
+    previous["location"] = ["Antara, Aceh, Indonesia", "Jakarta, Jakarta Raya, Indonesia"]
+    previous["province"] = ["Aceh", "Jakarta Raya"]
+    previous["date_added"] = pd.Timestamp("2024-10-20")
+    out = ip.fetch_events(None, previous, date(2024, 10, 21), budget_s=0).set_index("event_id")
+    assert "1" in out.index and "2" not in out.index  # only the changed row is sent again
+    assert pd.isna(out.loc["1", "province"])

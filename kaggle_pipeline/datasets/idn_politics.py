@@ -256,6 +256,11 @@ def fetch_day(session, day):
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=GDELT2_COLUMNS)
 
 
+# Older province codes GDELT has no name for; identified from their events' coordinates
+# (Makassar and Palembang, the capitals of these provinces).
+UNNAMED_CODES = {"(ID20)": "Sulawesi Selatan", "(ID25)": "Sumatera Selatan"}
+
+
 def province_of(full_name, geo_type):
     """GDELT location names look like 'City, Province, Indonesia' or 'Province, Indonesia'.
     Geo type 1 is a whole country, so it has no province."""
@@ -264,7 +269,7 @@ def province_of(full_name, geo_type):
     parts = [p.strip() for p in full_name.split(",")]
     if len(parts) < 2 or "(general)" in parts[-2]:  # "Indonesia (general)" is GDELT's country-wide pseudo-province
         return None
-    return parts[-2]
+    return UNNAMED_CODES.get(parts[-2], parts[-2])
 
 
 def tidy_events(raw, event_labels, type_labels):
@@ -356,12 +361,14 @@ def fetch_events(session, previous, last_day, budget_s=BUDGET_S, clock=time.mono
     events = tidy_events(raw, event_labels, type_labels)
     events = events[events["date"] >= pd.Timestamp(FIRST_DAY)]
     if previous is not None and not previous.empty:
-        # Rows published before GDELT's country-wide pseudo-province was dropped: send them again fixed
-        # (the merge replaces rows by event_id).
-        stale = previous[previous["province"].fillna("").str.contains("(general)", regex=False)]
+        # Rows published before the province fixes above: send them again fixed (the merge replaces rows
+        # by event_id).
+        province = previous["province"].fillna("")
+        stale = previous[province.str.contains("(general)", regex=False) | province.isin(list(UNNAMED_CODES))]
         if len(stale):
-            log.info("GDELT: clearing the pseudo-province on %d published events", len(stale))
-            events = pd.concat([stale.assign(province=None), events], ignore_index=True)
+            log.info("GDELT: fixing the province of %d published events", len(stale))
+            fixed = stale.assign(province=[province_of(loc, None) for loc in stale["location"]])
+            events = pd.concat([fixed, events], ignore_index=True)
     log.info("GDELT: %d events from %d files (%d days failed)", len(events), len(frames), len(failed))
     return events
 

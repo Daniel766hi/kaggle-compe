@@ -162,7 +162,9 @@ def test_fetch_events_repairs_published_pseudo_provinces(monkeypatch):
     monkeypatch.setattr(ip, "fetch_day", lambda session, day: ip.read_export(zipped([gdelt_row(9, ip.GDELT1_COLUMNS)])))
     monkeypatch.setattr(ip, "lookup", lambda session, url: {})
     previous = ip.tidy_events(ip.read_export(zipped([gdelt_row(1, ip.GDELT1_COLUMNS)])), {}, {})
-    previous["province"] = "Indonesia (general)"
+    previous = pd.concat([previous, previous.assign(event_id="2")], ignore_index=True)
+    previous["province"] = ["Indonesia (general)", "(ID20)"]
+    previous["location"] = ["Indonesia (general), Indonesia", "Makassar, (ID20), Indonesia"]
     previous["date_added"] = pd.Timestamp("2024-10-20")
-    out = ip.fetch_events(None, previous, date(2024, 10, 21), budget_s=0)
-    assert out.loc[out["event_id"] == "1", "province"].isna().all()
+    out = ip.fetch_events(None, previous, date(2024, 10, 21), budget_s=0).set_index("event_id")
+    assert pd.isna(out.loc["1", "province"]) and out.loc["2", "province"] == "Sulawesi Selatan"

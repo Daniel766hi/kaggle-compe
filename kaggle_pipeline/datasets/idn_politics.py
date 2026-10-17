@@ -363,13 +363,18 @@ def fetch_events(session, previous, last_day, budget_s=BUDGET_S, clock=time.mono
 # ---------- Wikidata: cabinet ----------
 
 
+# Terms in national positions of Indonesia that started with or after the new government, plus any
+# term tagged with the cabinet itself (few are).
 CABINET_QUERY = """
 SELECT ?person ?personLabel ?position ?positionLabel ?start ?end ?replaces ?replacesLabel
        ?replacedBy ?replacedByLabel WHERE {
-  VALUES ?cabinet { %s }
-  ?person p:P39 ?st .
-  ?st ps:P39 ?position ; pq:P5054 ?cabinet .
-  OPTIONAL { ?st pq:P580 ?start }
+  { ?position wdt:P1001 wd:Q252 .
+    ?person p:P39 ?st . ?st ps:P39 ?position ; pq:P580 ?start .
+    FILTER(?start >= "2024-10-19T00:00:00Z"^^xsd:dateTime) }
+  UNION
+  { VALUES ?cabinet { %s }
+    ?person p:P39 ?st . ?st ps:P39 ?position ; pq:P5054 ?cabinet .
+    OPTIONAL { ?st pq:P580 ?start } }
   OPTIONAL { ?st pq:P582 ?end }
   OPTIONAL { ?st pq:P1365 ?replaces }
   OPTIONAL { ?st pq:P1366 ?replacedBy }
@@ -431,6 +436,9 @@ def fetch_cabinet(session):
     for i in range(0, len(people), 200):
         party_rows += movies.sparql(session, PARTY_QUERY % " ".join(f"wd:{p}" for p in people[i:i + 200]))
     df = cabinet_frame(rows, party_rows)
+    # TEMPORARY diagnostic: which positions the query returns, to choose the cabinet filter.
+    counts = df.groupby("position").size().sort_values(ascending=False)
+    log.info("Wikidata positions (%d): %s", len(counts), "; ".join(f"{p} ({n})" for p, n in counts.items()))
     log.info("Wikidata: %d cabinet terms, %d people, %d positions", len(df), df["person_id"].nunique(),
              df["position_id"].nunique())
     return df

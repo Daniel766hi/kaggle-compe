@@ -91,13 +91,12 @@ def test_fetch_events_fails_only_if_nothing_downloads(monkeypatch):
 WIKI_HTML = """
 <h2>Ministers</h2>
 <table class="wikitable">
-<tr><th rowspan="2">Portfolio</th><th rowspan="2">Minister</th><th colspan="2">Term</th><th rowspan="2">Party</th></tr>
-<tr><th>Took office</th><th>Left office</th></tr>
-<tr><td rowspan="2">Minister of Finance</td><td>Sri Mulyani Indrawati[a]</td><td>21 October 2024</td><td>8 September 2025</td><td>Independent</td></tr>
-<tr><td>Purbaya Yudhi Sadewa</td><td>8 September 2025</td><td>Incumbent</td><td>Independent</td></tr>
-<tr><td rowspan="2">Minister of Cooperatives</td><td>Budi Arie Setiadi</td><td>21 October 2024[1]</td><td>8 September 2025</td><td>Gerindra</td></tr>
-<tr><td>Ferry Juliantono</td><td>8 September 2025</td><td>Incumbent</td><td>Gerindra</td></tr>
-<tr><td>Minister of Hajj</td><td>New Person</td><td>8 September 2025</td><td>Incumbent</td><td></td></tr>
+<tr><th>Portfolio</th><th>Minister</th><th>Took office</th><th>Left office</th><th colspan="2">Party</th></tr>
+<tr><td rowspan="2">Minister of Finance</td><td>Sri Mulyani Indrawati[a]</td><td>21 October 2024</td><td>8 September 2025</td><td></td><td>Independent</td></tr>
+<tr><td>Purbaya Yudhi Sadewa</td><td>8 September 2025</td><td>Incumbent</td><td></td><td>Independent</td></tr>
+<tr><td rowspan="2">Minister of Cooperatives</td><td>Budi Arie Setiadi</td><td>21 October 2024[1]</td><td>8 September 2025</td><td></td><td>Gerindra</td></tr>
+<tr><td>Ferry Juliantono</td><td>8 September 2025</td><td>Incumbent</td><td></td><td>Gerindra</td></tr>
+<tr><td>Minister of Hajj</td><td>New Person</td><td>8 September 2025</td><td>Incumbent</td><td></td><td></td></tr>
 </table>
 <table class="wikitable"><tr><th>Event</th><th>Date</th></tr><tr><td>Inauguration</td><td>21 October 2024</td></tr></table>
 """
@@ -110,6 +109,8 @@ def test_parse_cabinet_tables_handles_merged_cells_footnotes_and_incumbents():
     assert df.loc["Sri Mulyani Indrawati", "end_date"] == pd.Timestamp("2025-09-08")  # footnote removed
     assert pd.isna(df.loc["Ferry Juliantono", "end_date"])  # "Incumbent"
     assert df.loc["Budi Arie Setiadi", "start_date"] == pd.Timestamp("2024-10-21")
+    assert df.loc["Ferry Juliantono", "party"] == "Gerindra"
+    assert df.loc["Ferry Juliantono", "level"] == "minister"  # the filled one of the two party columns
 
 
 def test_parse_cabinet_tables_fails_loudly_when_the_article_changes_shape():

@@ -127,7 +127,7 @@ CABINET = Table(
         Column("start_date", "datetime", "Took office"),
         Column("end_date", "datetime", "Left office; empty while in office"),
         Column("party", "string", "Party, as listed in the Wikipedia table (empty if none listed)"),
-        Column("table", "string", "Which table of the article the row comes from (e.g. ministers, deputies)"),
+        Column("level", "string", "coordinating minister, minister, deputy, or other official (from the title)"),
     ],
 )
 
@@ -368,7 +368,7 @@ def _flat(columns):
     for col in columns:
         parts = col if isinstance(col, tuple) else (col,)
         name = " ".join(dict.fromkeys(str(p) for p in parts if not str(p).startswith("Unnamed")))
-        names.append(name.strip())
+        names.append(" ".join(name.split()))  # also turns non-breaking and en spaces into plain spaces
     return names
 
 
@@ -381,7 +381,7 @@ def _find(columns, *words):
 
 
 def _clean(series):
-    return (series.astype("string").str.replace(r"\[[^\]]*\]", "", regex=True)  # footnote markers
+    return (series.astype("string").str.replace("\xa0", " ").str.replace(r"\[[^\]]*\]", "", regex=True)
             .str.replace(r"\s+", " ", regex=True).str.strip().replace({"": None, "nan": None}))
 
 
@@ -400,7 +400,9 @@ def parse_cabinet_tables(html):
             position = cols[0]
         if person in (start, end, position):
             person = None
-        party = _find(cols, "party", "affiliation")
+        # The article has two "Party" columns: a colour swatch (empty) and the name; take the filled one.
+        parties = [c for c in cols if "party" in c.lower() or "affiliation" in c.lower()]
+        party = max(parties, key=lambda c: table[c].notna().sum()) if parties else None
         log.info("Wikipedia table %d: %d rows, columns %s -> position=%r person=%r start=%r end=%r party=%r",
                  n, len(table), cols, position, person, start, end, party)
         if not (start and person and position):
@@ -413,7 +415,6 @@ def parse_cabinet_tables(html):
             "end_date": pd.to_datetime(_clean(table[end]).str.extract(DATE_RE)[0], format="%d %B %Y",
                                        errors="coerce") if end else pd.NaT,
             "party": _clean(table[party]) if party else None,
-            "table": f"table {n}",
         })
         frames.append(out.dropna(subset=["person", "position", "start_date"]))
     if not frames:
@@ -422,7 +423,20 @@ def parse_cabinet_tables(html):
                         table.head(1).to_dict("records"))
         raise RuntimeError(f"no cabinet table recognised among {len(tables)} tables of '{WIKI_PAGE}'")
     df = pd.concat(frames, ignore_index=True)
-    return df[df["person"] != df["position"]]
+    df = df[df["person"] != df["position"]].copy()
+    df["level"] = df["position"].map(level_of)
+    return df
+
+
+def level_of(position):
+    p = (position or "").lower()
+    if p.startswith(("deputy", "vice")):
+        return "deputy"
+    if p.startswith("coordinating minister"):
+        return "coordinating minister"
+    if p.startswith("minister"):
+        return "minister"
+    return "other official"
 
 
 def fetch_cabinet(session):

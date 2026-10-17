@@ -10,9 +10,6 @@ import pytest
 from kaggle_pipeline import pipeline
 from kaggle_pipeline.datasets import idn_politics as ip
 
-WD = "http://www.wikidata.org/entity/"
-
-
 def gdelt_row(event_id, columns, country="ID", root="1", event="141", quad="3", geo="Jakarta, Jakarta Raya, Indonesia",
               geo_type="4", day="20261015", articles="4", tone="-3.5"):
     row = dict.fromkeys(columns, "")
@@ -91,28 +88,37 @@ def test_fetch_events_fails_only_if_nothing_downloads(monkeypatch):
         ip.fetch_events(None, None, date(2024, 10, 22), budget_s=0)
 
 
-def cabinet_rows():
-    def term(person, name, position, label, start=None, end=None):
-        row = {"person": WD + person, "personLabel": name, "position": WD + position, "positionLabel": label}
-        if start:
-            row["start"] = start + "T00:00:00Z"
-        if end:
-            row["end"] = end + "T00:00:00Z"
-        return row
-    return [
-        term("Q1", "Sri Mulyani Indrawati", "Q100", "Minister of Finance", "2024-10-21", "2025-09-08"),
-        term("Q2", "Purbaya Yudhi Sadewa", "Q100", "Minister of Finance", "2025-09-08"),
-        term("Q3", "Budi Arie Setiadi", "Q101", "Minister of Cooperatives", None, "2025-09-08"),
-        term("Q4", "Ferry Juliantono", "Q101", "Minister of Cooperatives", "2025-09-08"),
-        term("Q5", "New Person", "Q102", "Minister of Hajj", "2025-09-08"),
-    ]
+WIKI_HTML = """
+<h2>Ministers</h2>
+<table class="wikitable">
+<tr><th rowspan="2">Portfolio</th><th rowspan="2">Minister</th><th colspan="2">Term</th><th rowspan="2">Party</th></tr>
+<tr><th>Took office</th><th>Left office</th></tr>
+<tr><td rowspan="2">Minister of Finance</td><td>Sri Mulyani Indrawati[a]</td><td>21 October 2024</td><td>8 September 2025</td><td>Independent</td></tr>
+<tr><td>Purbaya Yudhi Sadewa</td><td>8 September 2025</td><td>Incumbent</td><td>Independent</td></tr>
+<tr><td rowspan="2">Minister of Cooperatives</td><td>Budi Arie Setiadi</td><td>21 October 2024[1]</td><td>8 September 2025</td><td>Gerindra</td></tr>
+<tr><td>Ferry Juliantono</td><td>8 September 2025</td><td>Incumbent</td><td>Gerindra</td></tr>
+<tr><td>Minister of Hajj</td><td>New Person</td><td>8 September 2025</td><td>Incumbent</td><td></td></tr>
+</table>
+<table class="wikitable"><tr><th>Event</th><th>Date</th></tr><tr><td>Inauguration</td><td>21 October 2024</td></tr></table>
+"""
+
+
+def test_parse_cabinet_tables_handles_merged_cells_footnotes_and_incumbents():
+    df = ip.parse_cabinet_tables(WIKI_HTML).set_index("person")
+    assert len(df) == 5
+    assert df.loc["Purbaya Yudhi Sadewa", "position"] == "Minister of Finance"  # from the merged cell
+    assert df.loc["Sri Mulyani Indrawati", "end_date"] == pd.Timestamp("2025-09-08")  # footnote removed
+    assert pd.isna(df.loc["Ferry Juliantono", "end_date"])  # "Incumbent"
+    assert df.loc["Budi Arie Setiadi", "start_date"] == pd.Timestamp("2024-10-21")
+
+
+def test_parse_cabinet_tables_fails_loudly_when_the_article_changes_shape():
+    with pytest.raises(ValueError):  # pandas: no table matching "Took office"
+        ip.parse_cabinet_tables("<table><tr><th>Event</th></tr><tr><td>x</td></tr></table>")
 
 
 def test_cabinet_changes_find_reshuffles_and_previous_holders():
-    cabinet = ip.cabinet_frame(cabinet_rows(), [{"person": WD + "Q2", "partyLabel": "Independent"}])
-    assert cabinet.loc[cabinet["person_id"] == "Q3", "start_date"].item() == ip.INAUGURATION  # no start: cabinet start
-    assert cabinet.loc[cabinet["person_id"] == "Q2", "party"].item() == "Independent"
-    changes = ip.cabinet_changes(cabinet).set_index("person")
+    changes = ip.cabinet_changes(ip.parse_cabinet_tables(WIKI_HTML)).set_index("person")
     assert changes.loc["Purbaya Yudhi Sadewa", "previous_holder"] == "Sri Mulyani Indrawati"
     assert changes.loc["Ferry Juliantono", "previous_holder"] == "Budi Arie Setiadi"
     assert pd.isna(changes.loc["New Person", "previous_holder"])  # a new ministry
@@ -135,8 +141,8 @@ def test_daily_tables_count_protests_and_weight_tone_by_articles():
 def test_full_build_writes_every_file_with_column_descriptions(tmp_path):
     lines = [gdelt_row(i, ip.GDELT1_COLUMNS, day=f"202610{10 + i % 5}") for i in range(1, 81)]
     events = ip.tidy_events(ip.read_export(zipped(lines)), {}, {})
-    cabinet = ip.cabinet_frame(cabinet_rows() * 5, [])
-    cabinet = pd.concat([cabinet.assign(person_id=cabinet["person_id"] + str(i)) for i in range(5)])
+    cabinet = ip.parse_cabinet_tables(WIKI_HTML)
+    cabinet = pd.concat([cabinet.assign(person=cabinet["person"] + str(i)) for i in range(10)])
     fetchers = {"events": lambda prev: events, "cabinet_positions": lambda prev: cabinet}
     report = pipeline.build(ip.SPEC, tmp_path / "v1", None, pd.Timestamp("2026-10-17"), "u/s", fetchers=fetchers)
     assert not report.failed, report.failed

@@ -8,8 +8,9 @@ Two public sources, both re-checkable row by row:
   GDELT 1.0 publishes one events file per day; if a day's file is missing, the day is rebuilt from
   GDELT 2.0's 15-minute files. The history since October 2024 is too large for one run, so each run
   refreshes the last days first, then backfills older days until a time budget is spent.
-- **Wikidata** (https://www.wikidata.org): who held which cabinet position, from when to when.
-  Reshuffles are derived from these dates rather than counted by hand.
+- **Wikipedia** (the "Red and White Cabinet" article): who held which cabinet position, from when
+  to when. Reshuffles are derived from these dates rather than counted by hand. (Wikidata was tried
+  first, but records only a handful of this cabinet's terms with dates.)
 """
 
 import csv
@@ -29,7 +30,6 @@ from urllib3.util.retry import Retry
 
 from ..http import USER_AGENT
 from ..schema import Column, DatasetSpec, Table, files_markdown
-from . import movies
 
 log = logging.getLogger(__name__)
 
@@ -117,20 +117,17 @@ EVENTS = Table(
 CABINET = Table(
     name="cabinet_positions",
     kind="history",
-    description="Who held which position in the Red and White Cabinet, with start and end dates (Wikidata).",
-    key=("person_id", "position_id", "start_date"),
-    min_rows=20,
+    description="Who held which position in the Red and White Cabinet, with start and end dates (from Wikipedia).",
+    key=("position", "person", "start_date"),
+    min_rows=40,
     max_shrink=0.1,
     columns=[
-        Column("person_id", "string", "Wikidata ID of the person (e.g. Q123)"),
-        Column("person", "string", "Name"),
-        Column("position_id", "string", "Wikidata ID of the position"),
-        Column("position", "string", "Position, e.g. Minister of Finance"),
-        Column("start_date", "datetime", "Start of the term in this position"),
-        Column("end_date", "datetime", "End of the term; empty while still in office"),
-        Column("party", "string", "Political party membership recorded on Wikidata, | separated"),
-        Column("replaces", "string", "Previous holder, as recorded on Wikidata"),
-        Column("replaced_by", "string", "Next holder, as recorded on Wikidata"),
+        Column("position", "string", "Portfolio or office, as named in the Wikipedia table"),
+        Column("person", "string", "Office holder"),
+        Column("start_date", "datetime", "Took office"),
+        Column("end_date", "datetime", "Left office; empty while in office"),
+        Column("party", "string", "Party, as listed in the Wikipedia table (empty if none listed)"),
+        Column("table", "string", "Which table of the article the row comes from (e.g. ministers, deputies)"),
     ],
 )
 
@@ -138,15 +135,13 @@ CHANGES = Table(
     name="cabinet_changes",
     kind="derived",
     description="Cabinet changes after the inauguration, one row per new appointment, derived from cabinet_positions.",
-    key=("date", "position_id", "person_id"),
+    key=("date", "position", "person"),
     min_rows=0,
     columns=[
         Column("date", "datetime", "Start date of the new appointment"),
-        Column("position_id", "string", "Wikidata ID of the position"),
         Column("position", "string", "Position"),
-        Column("person_id", "string", "Wikidata ID of the person appointed"),
         Column("person", "string", "Person appointed"),
-        Column("previous_holder", "string", "Who held the position before, from start/end dates; empty if new"),
+        Column("previous_holder", "string", "Who held the position before, from the start/end dates; empty if new"),
         Column("appointments_that_day", "integer", "Appointments with the same start date (a reshuffle)"),
     ],
 )
@@ -360,87 +355,80 @@ def fetch_events(session, previous, last_day, budget_s=BUDGET_S, clock=time.mono
     log.info("GDELT: %d events from %d files (%d days failed)", len(events), len(frames), len(failed))
     return events
 
-# ---------- Wikidata: cabinet ----------
+# ---------- Wikipedia: cabinet ----------
+
+WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_PAGE = "Red and White Cabinet"
+DATE_RE = r"(\d{1,2} [A-Z][a-z]+ \d{4})"
 
 
-# Terms in national positions of Indonesia that started with or after the new government, plus any
-# term tagged with the cabinet itself (few are).
-CABINET_QUERY = """
-SELECT ?person ?personLabel ?position ?positionLabel ?start ?end ?replaces ?replacesLabel
-       ?replacedBy ?replacedByLabel WHERE {
-  { ?position wdt:P1001 wd:Q252 .
-    ?person p:P39 ?st . ?st ps:P39 ?position ; pq:P580 ?start .
-    FILTER(?start >= "2024-10-19T00:00:00Z"^^xsd:dateTime) }
-  UNION
-  { VALUES ?cabinet { %s }
-    ?person p:P39 ?st . ?st ps:P39 ?position ; pq:P5054 ?cabinet .
-    OPTIONAL { ?st pq:P580 ?start } }
-  OPTIONAL { ?st pq:P582 ?end }
-  OPTIONAL { ?st pq:P1365 ?replaces }
-  OPTIONAL { ?st pq:P1366 ?replacedBy }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,id". }
-}
-"""
-
-PARTY_QUERY = """
-SELECT ?person ?partyLabel WHERE {
-  VALUES ?person { %s }
-  ?person wdt:P102 ?party .
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,id". }
-}
-"""
-
-CABINET_LABELS = ['"Red and White Cabinet"@en', '"Kabinet Merah Putih"@id']
+def _flat(columns):
+    """Wikipedia tables often have two header rows; join them into one name per column."""
+    names = []
+    for col in columns:
+        parts = col if isinstance(col, tuple) else (col,)
+        name = " ".join(dict.fromkeys(str(p) for p in parts if not str(p).startswith("Unnamed")))
+        names.append(name.strip())
+    return names
 
 
-def find_cabinet(session):
-    union = " UNION ".join(f"{{ ?c rdfs:label {label} }}" for label in CABINET_LABELS)
-    rows = movies.sparql(session, f"SELECT DISTINCT ?c WHERE {{ {union} }}")
-    ids = sorted({movies.qid(r["c"]) for r in rows})
-    if not ids:
-        raise RuntimeError("Wikidata has no item labelled 'Red and White Cabinet'")
-    log.info("Wikidata cabinet item(s): %s", ", ".join(ids))
-    return ids
+def _find(columns, *words):
+    for word in words:
+        for col in columns:
+            if word in col.lower():
+                return col
+    return None
 
 
-def cabinet_frame(rows, party_rows):
-    df = pd.DataFrame(rows)
-    if df.empty:
-        return pd.DataFrame(columns=CABINET.column_names)
-    for col in ["start", "end", "replacesLabel", "replacedByLabel"]:
-        if col not in df:
-            df[col] = None
-    parties = (pd.DataFrame(party_rows, columns=["person", "partyLabel"]).dropna()
-               .groupby("person")["partyLabel"].agg(lambda s: "|".join(sorted(set(s)))))
-    out = pd.DataFrame({
-        "person_id": df["person"].map(movies.qid),
-        "person": df["personLabel"],
-        "position_id": df["position"].map(movies.qid),
-        "position": df["positionLabel"],
-        "start_date": pd.to_datetime(df["start"].astype("string").str[:10], errors="coerce"),
-        "end_date": pd.to_datetime(df["end"].astype("string").str[:10], errors="coerce"),
-        "party": df["person"].map(parties),
-        "replaces": df["replacesLabel"],
-        "replaced_by": df["replacedByLabel"],
-    })
-    # Terms without a start date are taken to start with the cabinet.
-    out["start_date"] = out["start_date"].fillna(INAUGURATION)
-    return out
+def _clean(series):
+    return (series.astype("string").str.replace(r"\[[^\]]*\]", "", regex=True)  # footnote markers
+            .str.replace(r"\s+", " ", regex=True).str.strip().replace({"": None, "nan": None}))
+
+
+def parse_cabinet_tables(html):
+    """Rows of every table in the article that has a 'Took office' column."""
+    tables = pd.read_html(io.StringIO(html), match="Took office", flavor="lxml")
+    frames = []
+    for n, table in enumerate(tables, start=1):
+        table.columns = _flat(table.columns)
+        cols = list(table.columns)
+        start = _find(cols, "took office", "start")
+        end = _find(cols, "left office", "end")
+        person = _find(cols, "minister", "name", "officeholder", "incumbent", "holder", "official", "head")
+        position = _find(cols, "portfolio", "office", "position", "ministry", "title", "post")
+        if position in (start, end):
+            position = cols[0]
+        if person in (start, end, position):
+            person = None
+        party = _find(cols, "party", "affiliation")
+        log.info("Wikipedia table %d: %d rows, columns %s -> position=%r person=%r start=%r end=%r party=%r",
+                 n, len(table), cols, position, person, start, end, party)
+        if not (start and person and position):
+            continue
+        out = pd.DataFrame({
+            "position": _clean(table[position]),
+            "person": _clean(table[person]),
+            "start_date": pd.to_datetime(_clean(table[start]).str.extract(DATE_RE)[0], format="%d %B %Y",
+                                         errors="coerce"),
+            "end_date": pd.to_datetime(_clean(table[end]).str.extract(DATE_RE)[0], format="%d %B %Y",
+                                       errors="coerce") if end else pd.NaT,
+            "party": _clean(table[party]) if party else None,
+            "table": f"table {n}",
+        })
+        frames.append(out.dropna(subset=["person", "position", "start_date"]))
+    if not frames:
+        raise RuntimeError(f"no cabinet table recognised among {len(tables)} tables of '{WIKI_PAGE}'")
+    df = pd.concat(frames, ignore_index=True)
+    return df[df["person"] != df["position"]]
 
 
 def fetch_cabinet(session):
-    ids = find_cabinet(session)
-    rows = movies.sparql(session, CABINET_QUERY % " ".join(f"wd:{i}" for i in ids))
-    people = sorted({movies.qid(r["person"]) for r in rows})
-    party_rows = []
-    for i in range(0, len(people), 200):
-        party_rows += movies.sparql(session, PARTY_QUERY % " ".join(f"wd:{p}" for p in people[i:i + 200]))
-    df = cabinet_frame(rows, party_rows)
-    # TEMPORARY diagnostic: which positions the query returns, to choose the cabinet filter.
-    counts = df.groupby("position").size().sort_values(ascending=False)
-    log.info("Wikidata positions (%d): %s", len(counts), "; ".join(f"{p} ({n})" for p, n in counts.items()))
-    log.info("Wikidata: %d cabinet terms, %d people, %d positions", len(df), df["person_id"].nunique(),
-             df["position_id"].nunique())
+    resp = session.get(WIKI_API, params={"action": "parse", "page": WIKI_PAGE, "prop": "text",
+                                         "format": "json", "formatversion": "2", "redirects": "1"}, timeout=60)
+    resp.raise_for_status()
+    df = parse_cabinet_tables(resp.json()["parse"]["text"])
+    log.info("Wikipedia: %d cabinet terms, %d people, %d positions; e.g. %s", len(df), df["person"].nunique(),
+             df["position"].nunique(), df.head(5).to_dict("records"))
     return df
 
 # ---------- derived ----------
@@ -453,11 +441,11 @@ def cabinet_changes(cabinet):
     new = terms[terms["start_date"] > INAUGURATION].copy()
     previous = []
     for row in new.itertuples():
-        before = terms[(terms["position_id"] == row.position_id) & (terms["start_date"] < row.start_date)
-                       & (terms["person_id"] != row.person_id)]
+        before = terms[(terms["position"] == row.position) & (terms["start_date"] < row.start_date)
+                       & (terms["person"] != row.person)]
         previous.append(before["person"].iloc[-1] if len(before) else None)
     new["previous_holder"] = previous
-    new["appointments_that_day"] = new.groupby("start_date")["person_id"].transform("size")
+    new["appointments_that_day"] = new.groupby("start_date")["person"].transform("size")
     return new.rename(columns={"start_date": "date"})[CHANGES.column_names]
 
 
@@ -498,7 +486,7 @@ def make_fetchers(_, snapshot_date):
     last_day = snapshot_date.date() - timedelta(days=1)
     return {
         "events": lambda previous: fetch_events(make_session(), previous, last_day),
-        "cabinet_positions": lambda previous: fetch_cabinet(movies.make_session()),
+        "cabinet_positions": lambda previous: fetch_cabinet(make_session()),
     }
 
 # ---------- description ----------
@@ -524,7 +512,7 @@ def describe(snapshot_date, tables_written, frames=None):
         "## Why this dataset",
         "",
         "- **Every row can be verified.** Events link to the news article they come from; cabinet terms come "
-        "from Wikidata, with Wikidata IDs.",
+        "from the Wikipedia article on the cabinet, which cites its sources.",
         "- **Updated daily** by an automated pipeline, so it keeps covering new events.",
         "- **Ready for analysis.** Daily national and per-province summaries (events, protests, conflict, news "
         "tone) are included next to the event-level data.",
@@ -556,20 +544,22 @@ def describe(snapshot_date, tables_written, frames=None):
         "",
         "## Cabinet data",
         "",
-        "`cabinet_positions` lists every term in the Red and White Cabinet recorded on Wikidata (positions held "
-        "with the cabinet qualifier), with start and end dates. `cabinet_changes` lists appointments after the "
-        "inauguration and the previous holder, so reshuffles show up as days with several appointments. "
-        "Wikidata is edited by volunteers: a missing end date can mean the term is ongoing or not yet recorded.",
+        "`cabinet_positions` lists every term in the tables of the English Wikipedia article "
+        "[Red and White Cabinet](https://en.wikipedia.org/wiki/Red_and_White_Cabinet), with start and end dates. "
+        "`cabinet_changes` lists appointments after the inauguration and the previous holder, so reshuffles show up "
+        "as days with several appointments. Wikipedia is edited by volunteers and usually updated within days of a "
+        "change; position names are kept as the article writes them.",
         "",
         "## Updates",
         "",
-        f"Updated daily from GDELT and Wikidata. Last update: {snapshot_date:%Y-%m-%d} (UTC).",
+        f"Updated daily from GDELT and Wikipedia. Last update: {snapshot_date:%Y-%m-%d} (UTC).",
         "",
         "## Sources and terms",
         "",
         "- Events: [The GDELT Project](https://www.gdeltproject.org), free for any use with citation. "
         "Please cite GDELT when using the event data.",
-        "- Cabinet: [Wikidata](https://www.wikidata.org), CC0.",
+        "- Cabinet: [Wikipedia](https://en.wikipedia.org/wiki/Red_and_White_Cabinet), CC BY-SA 4.0. If you "
+        "share `cabinet_positions` or `cabinet_changes`, credit Wikipedia and share under the same license.",
         "",
         "Earlier versions of this dataset (up to October 2026) were a small hand-collected set of notes. "
         "They were replaced by this verifiable, automatically updated version.",
@@ -581,12 +571,12 @@ SPEC = DatasetSpec(
     slug="indonesian-political-moves-database-2024-2026",
     title="Indonesia Politics Tracker: Events & Cabinet",
     subtitle="Daily GDELT events, protests and cabinet changes in Indonesia since Oct 2024",
-    license="CC0-1.0",
+    license="other",
     keywords=["politics", "government", "asia", "time series analysis", "tabular"],
     tables=TABLES,
     sources=(
         "The GDELT Project (https://www.gdeltproject.org), daily events export; "
-        "Wikidata (https://www.wikidata.org), CC0, via https://query.wikidata.org. "
+        "Wikipedia, 'Red and White Cabinet' (https://en.wikipedia.org/wiki/Red_and_White_Cabinet), CC BY-SA 4.0. "
         "Built daily by https://github.com/daniel766hi/kaggle-compe"
     ),
     make_fetchers=make_fetchers,

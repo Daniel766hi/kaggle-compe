@@ -33,7 +33,7 @@ KNOWN_KAGGLE_TAGS = {
     "environment", "exploratory data analysis", "finance", "geography", "international relations",
     "investing", "pollution", "public health", "tabular", "time series analysis", "weather and climate",
     "movies and tv shows", "arts and entertainment", "popular culture", "recommender systems", "sql",
-    "social networks", "culture and humanities", "music",
+    "social networks", "culture and humanities", "music", "politics", "government",
 }
 
 

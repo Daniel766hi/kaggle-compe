@@ -277,12 +277,15 @@ summary.rename(index=lambda t: labels.get(t, t))
 # %% [markdown]
 # Two very different stories:
 #
-# - **MBG** is a steady presence in the news from its launch in January 2025, with surges
-#   rather than one peak. Its peak months are when the programme met trouble or big decisions
-#   (see the most-reported articles below).
-# - **Karhutla** is seasonal and was quiet for most of the period, then exploded in the 2026
-#   dry season. Its coverage is far more negative than the national average (compare `avg_tone`
-#   with the overall value printed above).
+# - **MBG** is a steady presence in the news from its launch in January 2025, with several
+#   surges rather than one peak. Its coverage is on average slightly *positive* (much of it
+#   reports government announcements, visits and partnerships), even though its busiest
+#   months coincide with trouble such as food-poisoning cases (see the articles below).
+# - **Karhutla** is seasonal: quiet for most of the period, a smaller rise in mid-2025, then an
+#   explosion in the 2026 dry season. Its coverage is far more negative than the national
+#   average (compare `avg_tone` with the overall value printed above).
+# - The **DPR allowance** topic is small but the most negative of all, and almost a third of its
+#   events are protests: it is the issue behind the August 2025 wave.
 #
 # The most-reported articles in each topic's peak month, to see what drove the attention:
 
@@ -302,7 +305,8 @@ print("Where the 2026 fire-season events were located (top provinces):")
 print(fires["province"].value_counts().head(8).to_string())
 
 # %% [markdown]
-# The provinces list shows where the fire season was reported from. For the fires themselves
+# Jakarta usually tops such lists because national decisions are reported from the capital;
+# below it come the provinces where fires burned. For the fires themselves
 # (burned area, hotspots, smoke), satellite data is the better source; the
 # [Indonesia air quality](https://www.kaggle.com/datasets/danielaijdkx/indonesia-air-quality-hourly-pm25)
 # dataset shows the smoke's effect on PM2.5 in cities such as Pekanbaru, Palembang and

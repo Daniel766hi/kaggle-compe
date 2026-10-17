@@ -170,7 +170,12 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
                     log.warning("Cover image still not applied; it will be retried on the next run")
             break
         except SystemExit as exc:  # the client prints the errors and calls exit(1)
-            raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
+            # Right after a version whose file names changed, Kaggle can still answer "doesn't contain a
+            # file named ..." for a few minutes; a later attempt goes through. Real errors fail every time.
+            if attempt == attempts:
+                raise RuntimeError("Kaggle settings update failed (see errors above)") from exc
+            log.warning("Kaggle rejected the settings update; retrying in %ds", pause_s)
+            time.sleep(pause_s)
         except requests.exceptions.RequestException as exc:
             if attempt == attempts:
                 raise

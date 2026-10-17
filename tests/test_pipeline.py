@@ -210,6 +210,9 @@ class FakeSettingsApi:
         if self.fail == "empty reply":  # HTTP 200 with an empty body: applied, but unparseable
             self.sent = json.loads((Path(path) / "dataset-metadata.json").read_text())
             raise requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        if self.fail == "once":
+            self.fail = False
+            raise SystemExit(1)
         if self.fail:
             raise SystemExit(1)
         self.sent = json.loads((Path(path) / "dataset-metadata.json").read_text())
@@ -234,8 +237,17 @@ def test_update_settings_missing_private_flag_means_public(tmp_path):
 
 def test_update_settings_failure_raises(tmp_path):
     (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"isPrivate": True}, fail=True)
     with pytest.raises(RuntimeError, match="settings update failed"):
-        kaggle_sync.update_settings(FakeSettingsApi({"isPrivate": True}, fail=True), tmp_path, REF)
+        kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
+    assert api.updates == 3  # retried: Kaggle can reject it while a new version's files are processed
+
+
+def test_update_settings_retries_while_new_files_are_processed(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"isPrivate": True}, fail="once")
+    kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
+    assert api.updates == 2 and api.sent is not None
 
 
 def test_wait_until_ready_polls_then_fails_on_error():

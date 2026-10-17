@@ -48,6 +48,7 @@ def test_tidy_events_labels_codes_and_finds_the_province():
     raw = ip.read_export(zipped([
         gdelt_row(1, ip.GDELT1_COLUMNS),
         gdelt_row(2, ip.GDELT1_COLUMNS, geo="Indonesia", geo_type="1"),  # national: no province
+        gdelt_row(3, ip.GDELT1_COLUMNS, geo="Indonesia (general), Indonesia", geo_type="2"),
     ]))
     out = ip.tidy_events(raw, {"141": "Demonstrate or rally"}, {"GOV": "Government", "CVL": "Civilian"})
     first = out.iloc[0]
@@ -55,7 +56,7 @@ def test_tidy_events_labels_codes_and_finds_the_province():
     assert first["quad_class"] == "verbal conflict"
     assert (first["actor1_type"], first["actor2_type"]) == ("Civilian", "Government")
     assert first["province"] == "Jakarta Raya" and first["date"] == pd.Timestamp("2026-10-15")
-    assert pd.isna(out.iloc[1]["province"])
+    assert pd.isna(out.iloc[1]["province"]) and pd.isna(out.iloc[2]["province"])
 
 
 def test_plan_refreshes_recent_days_then_backfills_newest_first():
@@ -96,7 +97,7 @@ WIKI_HTML = """
 <tr><td>Purbaya Yudhi Sadewa</td><td>8 September 2025</td><td>Incumbent</td><td></td><td>Independent</td></tr>
 <tr><td rowspan="2">Minister of Cooperatives</td><td>Budi Arie Setiadi</td><td>21 October 2024[1]</td><td>8 September 2025</td><td></td><td>Gerindra</td></tr>
 <tr><td>Ferry Juliantono</td><td>8 September 2025</td><td>Incumbent</td><td></td><td>Gerindra</td></tr>
-<tr><td>Minister of Hajj</td><td>New Person</td><td>8 September 2025</td><td>Incumbent</td><td></td><td></td></tr>
+<tr><td>Minister of Hajj<br/>Head of Hajj Agency</td><td>New Person</td><td>8 September 2025</td><td>Incumbent</td><td></td><td></td></tr>
 </table>
 <table class="wikitable"><tr><th>Event</th><th>Date</th></tr><tr><td>Inauguration</td><td>21 October 2024</td></tr></table>
 """
@@ -109,8 +110,9 @@ def test_parse_cabinet_tables_handles_merged_cells_footnotes_and_incumbents():
     assert df.loc["Sri Mulyani Indrawati", "end_date"] == pd.Timestamp("2025-09-08")  # footnote removed
     assert pd.isna(df.loc["Ferry Juliantono", "end_date"])  # "Incumbent"
     assert df.loc["Budi Arie Setiadi", "start_date"] == pd.Timestamp("2024-10-21")
-    assert df.loc["Ferry Juliantono", "party"] == "Gerindra"
-    assert df.loc["Ferry Juliantono", "level"] == "minister"  # the filled one of the two party columns
+    assert df.loc["Ferry Juliantono", "party"] == "Gerindra"  # the filled one of the two party columns
+    assert df.loc["Ferry Juliantono", "level"] == "minister"
+    assert df.loc["New Person", "position"] == "Minister of Hajj / Head of Hajj Agency"  # line break kept apart
 
 
 def test_parse_cabinet_tables_fails_loudly_when_the_article_changes_shape():
@@ -154,3 +156,13 @@ def test_full_build_writes_every_file_with_column_descriptions(tmp_path):
         assert all(field["description"] for field in resource["schema"]["fields"]), resource["path"]
     assert "80 events" in meta["description"]
     assert len(pd.read_csv(tmp_path / "v1" / "daily_national.csv")) == 5
+
+
+def test_fetch_events_repairs_published_pseudo_provinces(monkeypatch):
+    monkeypatch.setattr(ip, "fetch_day", lambda session, day: ip.read_export(zipped([gdelt_row(9, ip.GDELT1_COLUMNS)])))
+    monkeypatch.setattr(ip, "lookup", lambda session, url: {})
+    previous = ip.tidy_events(ip.read_export(zipped([gdelt_row(1, ip.GDELT1_COLUMNS)])), {}, {})
+    previous["province"] = "Indonesia (general)"
+    previous["date_added"] = pd.Timestamp("2024-10-20")
+    out = ip.fetch_events(None, previous, date(2024, 10, 21), budget_s=0)
+    assert out.loc[out["event_id"] == "1", "province"].isna().all()

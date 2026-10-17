@@ -9,6 +9,7 @@ Kaggle dataset. One GitHub Actions workflow runs them all.
 | [Indonesia Air Quality: Hourly PM2.5, 31 Cities](https://www.kaggle.com/datasets/danielaijdkx/indonesia-air-quality-hourly-pm25) | `idn-air-quality` | Open-Meteo (CAMS), CC BY 4.0 | daily |
 | [Indonesia Daily Weather: 31 Cities since 2000](https://www.kaggle.com/datasets/danielaijdkx/indonesia-daily-weather-31-cities) | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
 | [Rupiah (IDR) Daily Exchange Rates](https://www.kaggle.com/datasets/danielaijdkx/rupiah-idr-daily-exchange-rates) | `idr-fx` | ECB reference rates via Frankfurter | daily |
+| [Indonesia Politics Tracker: Events & Cabinet](https://www.kaggle.com/datasets/danielaijdkx/indonesian-political-moves-database-2024-2026) | `idn-politics` | GDELT events, Wikipedia cabinet tables (CC BY-SA) | daily |
 | [Movie Metadata: Genre, Crew, Color & Tech Specs](https://www.kaggle.com/datasets/danielaijdkx/movie-metadata-genre-crew-color-tech-specs) | `movies` | Wikidata (CC0) | weekly (Mondays) |
 
 ## How it works
@@ -109,5 +110,7 @@ kaggle_pipeline/
     idn_air_quality.py
     idn_weather.py
     idr_fx.py
+    movies.py          Wikidata movie metadata
+    idn_politics.py    GDELT events in Indonesia + cabinet terms from Wikipedia
 tests/             offline tests with synthetic API payloads
 ```

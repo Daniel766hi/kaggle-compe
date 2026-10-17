@@ -17,6 +17,7 @@ import csv
 import io
 import logging
 import os
+import re
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -261,7 +262,9 @@ def province_of(full_name, geo_type):
     if not isinstance(full_name, str) or geo_type == "1":
         return None
     parts = [p.strip() for p in full_name.split(",")]
-    return parts[-2] if len(parts) >= 2 else None
+    if len(parts) < 2 or "(general)" in parts[-2]:  # "Indonesia (general)" is GDELT's country-wide pseudo-province
+        return None
+    return parts[-2]
 
 
 def tidy_events(raw, event_labels, type_labels):
@@ -352,6 +355,13 @@ def fetch_events(session, previous, last_day, budget_s=BUDGET_S, clock=time.mono
     raw = pd.concat(frames, ignore_index=True)
     events = tidy_events(raw, event_labels, type_labels)
     events = events[events["date"] >= pd.Timestamp(FIRST_DAY)]
+    if previous is not None and not previous.empty:
+        # Rows published before GDELT's country-wide pseudo-province was dropped: send them again fixed
+        # (the merge replaces rows by event_id).
+        stale = previous[previous["province"].fillna("").str.contains("(general)", regex=False)]
+        if len(stale):
+            log.info("GDELT: clearing the pseudo-province on %d published events", len(stale))
+            events = pd.concat([stale.assign(province=None), events], ignore_index=True)
     log.info("GDELT: %d events from %d files (%d days failed)", len(events), len(frames), len(failed))
     return events
 
@@ -387,6 +397,7 @@ def _clean(series):
 
 def parse_cabinet_tables(html):
     """Rows of every table in the article that has a 'Took office' column."""
+    html = re.sub(r"<br\s*/?>", " / ", html)  # keep two titles in one cell apart
     tables = pd.read_html(io.StringIO(html), flavor="lxml")
     frames = []
     for n, table in enumerate(tables, start=1):

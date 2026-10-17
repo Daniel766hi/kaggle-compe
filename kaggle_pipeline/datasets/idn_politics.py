@@ -15,6 +15,7 @@ Two public sources, both re-checkable row by row:
 import csv
 import io
 import logging
+import os
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -41,7 +42,8 @@ GDELT2_15MIN = "http://data.gdeltproject.org/gdeltv2/{stamp}.export.CSV.zip"
 CAMEO_EVENTS_URL = "https://www.gdeltproject.org/data/lookups/CAMEO.eventcodes.txt"
 CAMEO_TYPES_URL = "https://www.gdeltproject.org/data/lookups/CAMEO.type.txt"
 RECENT_DAYS = 3  # always refetched: GDELT keeps adding coverage of the last few days
-BUDGET_S = 40 * 60  # time a run may spend backfilling older days
+# Time a run may spend backfilling older days (a dry run uses a short budget to give quick feedback).
+BUDGET_S = int(os.environ.get("GDELT_BUDGET_S") or 40 * 60)
 WORKERS = 4
 
 _ACTOR = ["Code", "Name", "CountryCode", "KnownGroupCode", "EthnicCode", "Religion1Code", "Religion2Code",

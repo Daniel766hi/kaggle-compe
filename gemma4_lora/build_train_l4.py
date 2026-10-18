@@ -22,7 +22,7 @@ WH = Path('/kaggle/input/datasets/metric/gemma-4-developer-agent-wheelhouse')
 if not WH.exists():
     WH = Path('/kaggle/input/gemma-4-developer-agent-wheelhouse')
 want = ['transformers-', 'bitsandbytes-', 'safetensors-', 'compressed_tensors-', 'adk_submission-', 'google_adk-',
-        'adk_eval_core-', 'swegemma-', 'tokenizers-', 'huggingface_hub-']
+        'adk_eval_core-', 'swegemma-', 'tokenizers-', 'huggingface_hub-', 'google_genai-']
 whl = [str(w) for w in WH.glob('*.whl') if any(w.name.startswith(p) for p in want)]
 extra = sorted(w for w in glob.glob('/kaggle/input/**/wheels/*.whl', recursive=True) if 'gemma4-offline-wheels' in w)
 print('wheelhouse picks', sorted(Path(w).name for w in whl)); print('extra', [Path(w).name for w in extra])

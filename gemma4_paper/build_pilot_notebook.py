@@ -350,7 +350,7 @@ def main():
     (a.out / f"{a.slug}.ipynb").write_text(json.dumps(nb, indent=1))
     meta = {
         "id": f"{a.user}/{a.slug}",
-        "title": "Gemma4 Query Gap Pilot" if a.shard == 0 else f"Gemma4 Query Gap S{a.shard}",
+        "title": a.slug.replace("-", " ").title(),  # Kaggle derives the slug from the title
         "code_file": f"{a.slug}.ipynb",
         "language": "python",
         "kernel_type": "notebook",

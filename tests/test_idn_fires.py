@@ -116,3 +116,16 @@ def test_missing_key_is_explained(monkeypatch):
     monkeypatch.delenv("FIRMS_MAP_KEY", raising=False)
     with pytest.raises(RuntimeError, match="FIRMS_MAP_KEY"):
         fi.map_key()
+
+
+def test_wait_for_quota_pauses_until_the_window_resets(monkeypatch):
+    usage = iter([(4800, 5000), (4700, 5000), (100, 5000)])
+    monkeypatch.setattr(fi, "key_usage", lambda session, key: next(usage))
+    slept = []
+    assert fi.wait_for_quota(None, "k", deadline=10_000, clock=lambda: 0, sleep=slept.append)
+    assert slept == [60, 60]
+
+
+def test_wait_for_quota_gives_up_when_the_budget_ends(monkeypatch):
+    monkeypatch.setattr(fi, "key_usage", lambda session, key: (4900, 5000))
+    assert not fi.wait_for_quota(None, "k", deadline=30, clock=lambda: 0, sleep=lambda s: None)

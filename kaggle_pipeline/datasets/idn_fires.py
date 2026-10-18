@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets"
 FIRMS = "https://firms.modaps.eosdis.nasa.gov/api"
+FIRMS_KEY_STATUS = "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/"
 BBOX = "94.5,-11.5,141.5,6.5"  # west,south,east,north around Indonesia
 DAYS_PER_REQUEST = 5  # FIRMS's maximum day range per request
 GEOBOUNDARIES = "https://www.geoboundaries.org/api/current/gbOpen/IDN/ADM1/"
@@ -39,6 +40,9 @@ COAST_TOLERANCE_DEG = 0.02  # detections this close to a province outline (about
 RECENT_DAYS = 10  # always refetched: NRT data for the last days is still being completed
 BUDGET_S = int(os.environ.get("FIRMS_BUDGET_S") or 45 * 60)
 WORKERS = 3
+# Each request over the whole of Indonesia costs FIRMS many "transactions" (limit: 5,000 per 10 minutes
+# per key). Keep this many in reserve before sending the next batch.
+QUOTA_RESERVE = 1500
 
 # satellite name -> (first day, FIRMS source for the archive, FIRMS source for near real time)
 SATELLITES = {
@@ -130,11 +134,35 @@ def archive_end(session, key):
     return {row.data_id: pd.Timestamp(row.max_date).date() for row in df.itertuples()}
 
 
+def key_usage(session, key):
+    """(transactions used in the current 10-minute window, limit), or None if FIRMS doesn't say."""
+    try:
+        resp = session.get(FIRMS_KEY_STATUS, params={"MAP_KEY": key}, timeout=30)
+        status = resp.json()
+        return int(status["current_transactions"]), int(status["transaction_limit"])
+    except Exception:  # noqa: BLE001 - pacing is best effort
+        return None
+
+
+def wait_for_quota(session, key, deadline, clock=time.monotonic, sleep=time.sleep, reserve=QUOTA_RESERVE):
+    """Pause while the key is close to FIRMS's transaction limit (it resets every 10 minutes).
+    Returns False if the run's time budget ends first."""
+    while True:
+        usage = key_usage(session, key)
+        if usage is None or usage[0] < usage[1] - reserve:
+            return True
+        if clock() + 60 > deadline:
+            return False
+        log.info("FIRMS: %d of %d transactions used in this 10-minute window; waiting", *usage)
+        sleep(60)
+
+
 def fetch_chunk(session, key, source, start):
     """Detections in the bounding box for DAYS_PER_REQUEST days starting at `start`."""
     url = f"{FIRMS}/area/csv/{key}/{source}/{BBOX}/{DAYS_PER_REQUEST}/{start:%Y-%m-%d}"
     resp = session.get(url, timeout=180)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise RuntimeError(f"HTTP {resp.status_code} for {source} {start}: {resp.text.strip()[:200]}")
     text = resp.text.strip()
     if not text or "," not in text.splitlines()[0]:
         raise RuntimeError(f"FIRMS answered {source} {start}: {text[:200]}")
@@ -258,7 +286,7 @@ def fetch_hotspots(session, previous, last_day, provinces=None, key=None, budget
         deadline = clock() + budget_s
         step = WORKERS * 4
         for i in range(0, len(older), step):
-            if clock() > deadline:
+            if clock() > deadline or not wait_for_quota(session, key, deadline, clock=clock):
                 log.info("FIRMS: time budget spent; %d chunks left for the next runs", len(older) - i)
                 break
             collect(pool.map(one, older[i:i + step]))

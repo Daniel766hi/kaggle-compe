@@ -24,7 +24,7 @@ if not WH.exists():
 want = ['transformers-', 'bitsandbytes-', 'safetensors-', 'compressed_tensors-', 'adk_submission-', 'google_adk-',
         'adk_eval_core-', 'swegemma-', 'tokenizers-', 'huggingface_hub-']
 whl = [str(w) for w in WH.glob('*.whl') if any(w.name.startswith(p) for p in want)]
-extra = sorted(glob.glob('/kaggle/input/**/wheels/*.whl', recursive=True))
+extra = sorted(w for w in glob.glob('/kaggle/input/**/wheels/*.whl', recursive=True) if 'gemma4-offline-wheels' in w)
 print('wheelhouse picks', sorted(Path(w).name for w in whl)); print('extra', [Path(w).name for w in extra])
 subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', '--no-deps', *whl, *extra], check=True)
 import torch, transformers, peft, accelerate, bitsandbytes

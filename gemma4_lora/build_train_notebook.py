@@ -79,7 +79,25 @@ def fix_schema(s):
 TOOLS = [{'type': 'function', 'function': fix_schema(t)} for t in TOOLS]
 print('tools', [t['function'].get('name') for t in TOOLS])
 
+GRAPH_TOOLS = {'search_similar_code', 'get_code_neighbors', 'get_code_subgraph'}
+
+def drop_graph_calls(msgs):
+    """The agent prompt forbids graph tools; drop those call/response pairs so the targets agree
+    with the instruction the model is given."""
+    out, skip_resp = [], False
+    for m in msgs:
+        if m['role'] == 'assistant' and m.get('tool_calls') and all(c['name'] in GRAPH_TOOLS for c in m['tool_calls']):
+            skip_resp = True
+            continue
+        if m['role'] == 'tool' and skip_resp:
+            skip_resp = False
+            continue
+        skip_resp = False
+        out.append(m)
+    return out
+
 def to_hf(msgs):
+    msgs = drop_graph_calls(msgs)
     """Harness messages -> HF chat format. The oracle's short thought becomes the thinking
     channel (the Gemma 4 template keeps reasoning for every turn after the last user turn,
     and the scorer serves with thinking enabled)."""

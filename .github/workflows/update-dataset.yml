@@ -52,4 +52,6 @@ jobs:
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
           KAGGLE_DATASET_PUBLIC: ${{ vars.KAGGLE_DATASET_PUBLIC }}
           GDELT_BUDGET_S: ${{ inputs.dry_run && '240' || '' }} # short GDELT backfill in dry runs
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          FIRMS_BUDGET_S: ${{ inputs.dry_run && '240' || '' }} # short FIRMS backfill in dry runs
         run: python -m kaggle_pipeline ${{ matrix.dataset }} ${{ inputs.dry_run && '--dry-run' || '' }}

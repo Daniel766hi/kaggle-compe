@@ -59,7 +59,7 @@ def agent_files(name: str) -> dict[str, str]:
 
 
 SETUP = r'''
-import glob, importlib, json, os, shutil, subprocess, sys, time
+import glob, importlib, json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 
 os.environ['LITELLM_LOCAL_MODEL_COST_MAP'] = 'True'
@@ -106,6 +106,28 @@ for name, files in AGENT_FILES.items():
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text)
     AGENTS[name] = d
+# Agents produced by another notebook (e.g. a trained LoRA bundle), attached as a kernel source.
+for name, pattern in INPUT_AGENTS.items():
+    hits = sorted(glob.glob(pattern, recursive=True))
+    assert hits, f'missing input agent {name}: {pattern}'
+    d = WORK / 'agents' / name
+    if d.exists():
+        shutil.rmtree(d)
+    shutil.copytree(Path(hits[0]).parent, d)
+    AGENTS[name] = d
+# Test-only packages the subprocess sandbox lacks (Kevin Diaz Cordova's fix), from saved wheels.
+if TEST_DEPS_GLOB:
+    whl = sorted(glob.glob(TEST_DEPS_GLOB, recursive=True))
+    freeze = subprocess.run([sys.executable, '-m', 'pip', 'freeze'], capture_output=True, text=True).stdout
+    pins = [l for l in freeze.splitlines() if re.split(r'[=<>@ ]', l.lower())[0] in
+            {'pydantic', 'pydantic-core', 'starlette', 'httpx', 'httpcore', 'anyio', 'pygments', 'urllib3'}]
+    Path('/tmp/constraints.txt').write_text('\n'.join(pins) + '\n')
+    if whl:
+        r = subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', '--no-index', '--find-links',
+                            str(Path(whl[0]).parent), '-c', '/tmp/constraints.txt', *whl], capture_output=True, text=True)
+        print('test deps', len(whl), 'wheels:', 'OK' if r.returncode == 0 else r.stderr[-800:])
+    else:
+        print('WARNING: no test-dep wheels found')
 print({k: sorted(str(p.relative_to(v)) for p in v.rglob('*') if p.is_file()) for k, v in AGENTS.items()})
 '''
 
@@ -128,7 +150,10 @@ print('model', TARGET_MODEL_NAME, 'at', MODEL_PATH)
 MODEL_VLLM_EXTRA_ARGS = {
     'gemma-4-12b-it-qat-w4a16-ct': ('--hf-overrides', '{"architectures": ["Gemma4ForCausalLM"], "model_type": "gemma4"}'),
 }
-adapters = discover_adapters(str(next(iter(AGENTS.values()))), adapter_extensions=ALLOWED_ADAPTER_EXTENSIONS)
+_with_adapters = [d for d in AGENTS.values() if (d / 'adapters').is_dir()]
+adapters = discover_adapters(str(_with_adapters[0] if _with_adapters else next(iter(AGENTS.values()))),
+                             adapter_extensions=ALLOWED_ADAPTER_EXTENSIONS)
+print('adapters', adapters)
 gpu_count = torch.cuda.device_count()
 tp_size = 4 if gpu_count >= 4 else (2 if gpu_count >= 2 else 1)
 vllm_cfg = VllmConfig(
@@ -294,15 +319,24 @@ def main():
     ap.add_argument("--shard", type=int, default=0, help="0 = the 24-task pilot; k = extension shard k")
     ap.add_argument("--n-shards", type=int, default=4)
     ap.add_argument("--configs", default="baseline,locate", help="agent/<name> dirs, run in this order per task")
+    ap.add_argument("--input-agent", action="append", default=[],
+                    help="name=glob of an agent.yaml inside an attached kernel output, e.g. lora=/kaggle/input/**/agent_lora/agent.yaml")
+    ap.add_argument("--kernel-source", action="append", default=[])
+    ap.add_argument("--test-deps-glob", default="", help="glob of saved test-dependency wheels")
+    ap.add_argument("--tasks-file", type=Path, help="JSON list of task ids (overrides pilot/shard selection)")
     a = ap.parse_args()
     pilot = (pick_tasks(a.tasks, a.labels) if a.shard == 0
              else shard_tasks(a.tasks, a.labels, a.shard, a.n_shards))
-    files = {c: agent_files(c) for c in a.configs.split(",")}
+    files = {c: agent_files(c) for c in a.configs.split(",") if c}
+    if a.tasks_file:
+        pilot = json.loads(a.tasks_file.read_text())
+    input_agents = dict(x.split("=", 1) for x in a.input_agent)
     nb = {
         "cells": [
             md(INTRO),
             code(SETUP),
-            code("AGENT_FILES = " + json.dumps(files, indent=1) + "\nPILOT_TASKS = " + json.dumps(pilot)
+            code("AGENT_FILES = " + json.dumps(files, indent=1) + "\nINPUT_AGENTS = " + json.dumps(input_agents)
+                 + "\nTEST_DEPS_GLOB = " + json.dumps(a.test_deps_glob) + "\nPILOT_TASKS = " + json.dumps(pilot)
                  + "\nprint(len(PILOT_TASKS), 'tasks')\n" + WRITE_AGENTS),
             code(SERVER),
             code(RUN),
@@ -326,7 +360,7 @@ def main():
         "enable_internet": False,
         "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse"],
         "competition_sources": ["gemma-4-developer-agent"],
-        "kernel_sources": [],
+        "kernel_sources": a.kernel_source,
         "model_sources": [f"google/gemma-4/Other/gemma-4-{v}-it-qat-w4a16-ct/2" for v in ("31b", "12b")],
         "machine_shape": "NvidiaL4",
         # same image as the official getting-started notebook (vLLM + harness wheels tested on it)

@@ -23,6 +23,7 @@ AGENT = HERE.parent / "gemma4_paper" / "agent" / "baseline"
 SETUP = r'''
 import glob, json, os, re, shutil, subprocess, sys, time, hashlib, random
 from pathlib import Path
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 assert shutil.which('nvidia-smi'), 'Attach GPU T4 x2'
 wheels = sorted(glob.glob('/kaggle/input/**/adk_submission-*.whl', recursive=True))
 assert wheels, 'attach metric/gemma-4-developer-agent-wheelhouse'
@@ -79,6 +80,7 @@ def fix_schema(s):
 TOOLS = [{'type': 'function', 'function': fix_schema(t)} for t in TOOLS]
 print('tools', [t['function'].get('name') for t in TOOLS])
 
+TOOL_CHARS = 1200
 GRAPH_TOOLS = {'search_similar_code', 'get_code_neighbors', 'get_code_subgraph'}
 
 def drop_graph_calls(msgs):
@@ -108,7 +110,10 @@ def to_hf(msgs):
                         'tool_calls': [{'type': 'function', 'function': {'name': c['name'], 'arguments': c['arguments']}}
                                        for c in m['tool_calls']]})
         elif m['role'] == 'tool':
-            out.append({'role': 'tool', 'name': m.get('name', ''), 'content': m['content']})
+            c = m['content']
+            if len(c) > TOOL_CHARS:  # context only (never trained); keep head and tail
+                c = c[:TOOL_CHARS - 300] + '\n...[truncated]...\n' + c[-300:]
+            out.append({'role': 'tool', 'name': m.get('name', ''), 'content': c})
         else:
             out.append({'role': m['role'], 'content': m['content']})
     return out
@@ -122,7 +127,7 @@ cands = sorted(Path(p).parent for p in glob.glob('/kaggle/input/**/config.json',
 assert cands, 'attach model google/gemma-4/transformers/gemma-4-31b-it-qat-q4_0-unquantized'
 MODEL_DIR = str(cands[0])
 print('base', MODEL_DIR)
-MAX_LEN = 8192
+MAX_LEN = 4096
 model, tokenizer = FastModel.from_pretrained(model_name=MODEL_DIR, max_seq_length=MAX_LEN, load_in_4bit=True,
                                              full_finetuning=False, device_map='balanced', use_exact_model_name=True)
 tok = getattr(tokenizer, 'tokenizer', tokenizer)
@@ -169,6 +174,7 @@ for r in train_rows:
     ex = build_example(r)
     (examples.append(ex) if ex else skipped.append(r['instance_id']))
 lens = sorted(len(e['input_ids']) for e in examples)
+print('length deciles', [lens[int(q * (len(lens) - 1))] for q in (0, .1, .25, .5, .75, .9, 1)] if lens else None)
 print('examples', len(examples), 'skipped', len(skipped), 'len median', lens[len(lens)//2] if lens else None,
       'max', lens[-1] if lens else None)
 assert len(examples) >= 20

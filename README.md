@@ -9,6 +9,7 @@ Kaggle dataset. One GitHub Actions workflow runs them all.
 | [Indonesia Air Quality: Hourly PM2.5, 31 Cities](https://www.kaggle.com/datasets/danielaijdkx/indonesia-air-quality-hourly-pm25) | `idn-air-quality` | Open-Meteo (CAMS), CC BY 4.0 | daily |
 | [Indonesia Daily Weather: 31 Cities since 2000](https://www.kaggle.com/datasets/danielaijdkx/indonesia-daily-weather-31-cities) | `idn-weather` | Open-Meteo (ERA5), CC BY 4.0 | daily |
 | [Rupiah (IDR) Daily Exchange Rates](https://www.kaggle.com/datasets/danielaijdkx/rupiah-idr-daily-exchange-rates) | `idr-fx` | ECB reference rates via Frankfurter | daily |
+| [Indonesia Fire Hotspots (NASA FIRMS, daily)](https://www.kaggle.com/datasets/danielaijdkx/indonesia-fire-hotspots-nasa-firms) | `idn-fires` | NASA FIRMS VIIRS active fires (needs the free `FIRMS_MAP_KEY` secret), geoBoundaries | daily |
 | [Indonesia Politics Tracker: Events & Cabinet](https://www.kaggle.com/datasets/danielaijdkx/indonesian-political-moves-database-2024-2026) | `idn-politics` | GDELT events, Wikipedia cabinet tables (CC BY-SA) | daily |
 | [Movie Metadata: Genre, Crew, Color & Tech Specs](https://www.kaggle.com/datasets/danielaijdkx/movie-metadata-genre-crew-color-tech-specs) | `movies` | Wikidata (CC0) | weekly (Mondays) |
 
@@ -78,6 +79,7 @@ the dataset they use is public.
 | `rupiah_since_1999.py` | Rupiah crises, trends and volatility |
 | `indonesia_air_quality.py` | PM2.5 across 31 cities |
 | `indonesia_weather.py` | Rain seasons and warming |
+| `indonesia_fires_and_haze.py` | Worst fire years, the fire calendar, provinces, 2026 vs past seasons, fires vs PM2.5 in nearby cities |
 | `indonesia_politics_tracker.py` | Protest waves, where protests happen, cabinet reshuffles and unrest before them |
 | `movies_oscars_and_recommender.py` | Best Picture nomination/winner prediction (time-based backtest, blind test on the 2026 ceremony, forecast for 2026 films) and an explainable content-based movie recommender |
 
@@ -113,5 +115,6 @@ kaggle_pipeline/
     idr_fx.py
     movies.py          Wikidata movie metadata
     idn_politics.py    GDELT events in Indonesia + cabinet terms from Wikipedia
+    idn_fires.py       NASA FIRMS fire detections in Indonesia, by province
 tests/             offline tests with synthetic API payloads
 ```

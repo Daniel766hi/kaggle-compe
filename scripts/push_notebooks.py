@@ -49,6 +49,12 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    "idn-fires": {
+        "source": "notebooks/indonesia_fires_and_haze.py",
+        "title": "Indonesia's Fire Seasons from Space, and the Haze",
+        "datasets": ["indonesia-fire-hotspots-nasa-firms", "indonesia-air-quality-hourly-pm25"],
+        "tags": ["environment", "earth and nature", "pollution", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

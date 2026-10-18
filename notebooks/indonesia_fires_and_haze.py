@@ -85,7 +85,9 @@ ax.set_title("Fire detections per year (Suomi NPP); orange: the three worst full
 ax.set_ylabel("detections")
 ax.set_xticks(per_year.index)
 ax.tick_params(axis="x", rotation=45)
-ax.legend(loc="upper left")
+ax.set_ylim(0, per_year.max() * 1.2)
+ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+ax.legend(loc="upper right", ncol=2)
 plt.show()
 
 rank = to_date.rank(ascending=False).astype(int)
@@ -137,7 +139,8 @@ print(f"The top 5 provinces account for {prov.tail(5).sum() / prov.sum():.0%} of
 # %%
 sample = snpp[snpp["year"] == last_day.year]
 fig, ax = plt.subplots(figsize=(11, 4.4))
-ax.scatter(sample["longitude"], sample["latitude"], s=0.3, color=C[7], alpha=0.25)
+hb = ax.hexbin(sample["longitude"], sample["latitude"], gridsize=160, bins="log", cmap="OrRd", mincnt=1, linewidths=0)
+fig.colorbar(hb, ax=ax, shrink=0.7, label="detections per cell (log scale)")
 ax.set_xlim(94, 142)
 ax.set_ylim(-11.5, 6.5)
 ax.set_aspect("equal")
@@ -148,8 +151,8 @@ ax.set_title(f"Every fire detection in {last_day.year} so far ({len(sample):,})"
 plt.show()
 
 # %% [markdown]
-# The map traces Kalimantan's and Sumatra's peat and plantation areas, the savanna burning of
-# Nusa Tenggara, and southern Papua.
+# The darkest cells mark where fires concentrated: southern and central Kalimantan, eastern Sumatra,
+# the savanna of Nusa Tenggara and southern Papua.
 #
 # ## 4. How the current season built up
 #
@@ -168,7 +171,12 @@ ax.set_title("Cumulative fire detections through the year")
 ax.set_xlabel("day of year")
 ax.set_ylabel("detections so far")
 ax.set_xlim(1, 400)
+ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
 plt.show()
+
+ahead = to_date[to_date > to_date[last_day.year]].index.tolist()
+print(f"By {last_day:%d %B}, {last_day.year} had {int(to_date[last_day.year]):,} detections. "
+      f"Years with more by the same date: {', '.join(map(str, ahead)) or 'none'}.")
 
 # %% [markdown]
 # ## 5. Fires and the air in nearby cities
@@ -217,7 +225,7 @@ for i, city in enumerate(fire_cities):
     ax.plot(labels, table.loc[city, labels].values, marker="o", color=C[i], lw=1.8)
     ax.text(len(labels) - 1 + 0.08, table.loc[city, labels[-1]], city, color=C[i], va="center", fontsize=9.5)
 ax.axhline(15, color=INK2, lw=1, ls="--")
-ax.text(0, 16, "WHO 24-hour guideline (15 µg/m³)", fontsize=9, color=INK2)
+ax.text(-0.25, 4, "dashed: WHO 24-hour guideline (15 µg/m³)", fontsize=9, color=INK2)
 ax.set_title("Median daily PM2.5 by number of fires within 200 km that day")
 ax.set_xlabel("fire detections within 200 km")
 ax.set_ylabel("PM2.5 (µg/m³)")
@@ -231,10 +239,11 @@ print("PM2.5 on days with >200 fires nearby, compared with days without fires:")
 print(ratio.round(1).sort_values(ascending=False).to_string())
 
 # %% [markdown]
-# In every city, PM2.5 rises step by step with the number of fires nearby, and on the worst days
-# it is several times the level of fire-free days (ratios printed above), far above the WHO
-# guideline. This is why fire seasons are also public-health emergencies, and why fire data is
-# useful for forecasting air quality.
+# In every city, the median PM2.5 on days with more than 200 fires nearby is above the WHO
+# guideline and well above fire-free days, but the size of the jump differs a lot (ratios printed
+# above). Palangka Raya, surrounded by Central Kalimantan's peatlands, is hit hardest; in some
+# cities PM2.5 barely moves until fires become very numerous. Fire seasons are public-health
+# emergencies, and fire counts are a useful input for air-quality warnings.
 #
 # ## Takeaways
 #
@@ -242,8 +251,8 @@ print(ratio.round(1).sort_values(ascending=False).to_string())
 #   current year compares.
 # - Fires follow the dry season and concentrate in a handful of provinces in Kalimantan, Sumatra,
 #   Nusa Tenggara and Papua.
-# - Nearby fires and urban PM2.5 move together strongly in the fire belt (with the caveat about
-#   model-based PM2.5 above).
+# - Nearby fires and urban PM2.5 move together in the fire belt, most strongly in Palangka Raya
+#   (with the caveat about model-based PM2.5 above).
 #
 # Ideas to take further: add rainfall from the
 # [Indonesia weather](https://www.kaggle.com/datasets/danielaijdkx/indonesia-daily-weather-31-cities)

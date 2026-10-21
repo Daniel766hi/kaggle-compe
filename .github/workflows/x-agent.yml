@@ -1,0 +1,53 @@
+name: X agent
+
+on:
+  schedule:
+    - cron: "17 0 * * *" # 07:17 WIB: morning post
+    - cron: "47 11 * * *" # 18:47 WIB: evening post
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "x_agent command, e.g. 'ideas --count 5', 'approve 3 4', 'post --dry-run'"
+        required: false
+        default: "autopilot"
+
+permissions:
+  contents: write # commits the updated queue back to the repo
+
+concurrency:
+  group: content-agents # one agent run at a time (X, TikTok, Instagram), so their queue commits never race
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # Turned off until the secrets are in place: set the repo variable X_AGENT_ENABLED=true.
+    if: vars.X_AGENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run the agent
+        env:
+          X_AGENT_COMMAND: ${{ inputs.command || 'autopilot' }} # passed as data, never run by the shell
+          X_AUTO_APPROVE: ${{ vars.X_AUTO_APPROVE }}
+          X_MAX_CHARS: ${{ vars.X_MAX_CHARS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: python -m x_agent
+      - name: Save the queue
+        if: always() # also keep what was posted when a later step failed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add content/x_queue.json
+          git diff --cached --quiet || git commit -m "X agent: update post queue"
+          git pull --rebase
+          git push

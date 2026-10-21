@@ -190,6 +190,54 @@ Setup:
 TikTok only lets apps post directly (without the inbox step) after it audits them. Until then, a
 direct post can only be private, so this agent uses the inbox.
 
+## Instagram Reels creator (Higgsfield)
+
+`instagram_agent/` plans and renders videos the same way as the TikTok agent. The difference is
+that Instagram's API has **no drafts**: a Reel goes live as soon as it is published. So the agent
+finishes each video before uploading it.
+- The on-screen text for each shot is burned into the video. Claude keeps it to 12 words or
+  fewer, because there is no voiceover.
+- An AAC audio track is added: a track from `assets/music/` (royalty-free only, see the README
+  there), or silence.
+- The caption ends with "Visuals made with AI." unless it already mentions AI.
+- Before uploading, the agent checks the Reels requirements: H.264 at 1080x1920, AAC audio,
+  3 s to 15 min, at most 300 MB. It also checks that the daily API publishing limit isn't reached.
+
+```
+python -m instagram_agent ideas --count 3
+python -m instagram_agent show 2
+python -m instagram_agent approve 2               # approving means it will be published
+python -m instagram_agent make 2 --no-upload      # watch build/instagram/2/video.mp4 first
+python -m instagram_agent make 2                  # publish the Reel
+python -m instagram_agent quota
+```
+
+Setup:
+1. **Instagram account:** switch it to a professional account (Creator or Business) and link it
+   to a Facebook Page (Instagram → Settings → Accounts Center, or Page settings → Linked accounts).
+2. **Meta app:** at developers.facebook.com create an app of type *Business*, add
+   *Instagram* (API setup with Facebook login), and note the app ID and secret. You are the app's
+   admin, so you can publish to your own account without App Review.
+3. **Token, once:** in the Graph API Explorer (developers.facebook.com/tools/explorer), pick your
+   app and generate a user token with `instagram_basic`, `instagram_content_publish`,
+   `pages_show_list` and `pages_read_engagement`. Then:
+   ```
+   export META_APP_ID=... META_APP_SECRET=...
+   python -m instagram_agent connect <the token from the explorer>
+   ```
+   This prints `INSTAGRAM_USER_ID` and a Page token that doesn't expire.
+4. **Automation:** add the repo secrets `ANTHROPIC_API_KEY`, `HF_KEY`, `INSTAGRAM_USER_ID` and
+   `INSTAGRAM_ACCESS_TOKEN`, then the variable `INSTAGRAM_AGENT_ENABLED=true`. The *Instagram
+   agent* workflow runs daily at 18:07 WIB. It plans new Reels when fewer than 3 are waiting,
+   then publishes the oldest approved one. Optional variables: `INSTAGRAM_AUTO_APPROVE=true`
+   (publish plans that have nothing to fact-check without asking: Reels go live with no review
+   at all), `INSTAGRAM_SHOTS`, `INSTAGRAM_CLIP_SECONDS`.
+
+The upload uses Meta's resumable upload, which the API offers with Facebook Login. That's why
+the account must be linked to a Page, and it's also why the video doesn't need to be hosted
+anywhere. If Meta changes the API version, set `INSTAGRAM_GRAPH_VERSION`
+(default `v26.0`).
+
 ## Code layout
 
 ```
@@ -215,9 +263,14 @@ x_agent/
   queue.py         content/x_queue.json: draft -> approved -> posted
   x_client.py      publish posts and threads with the X API v2
   text.py          post length as X counts it
+shorts/            short-video pipeline shared by the TikTok and Instagram agents
+  plans.py         Claude: video plans (shots, on-screen text, voiceover, caption), the video queue
+  render.py        Higgsfield image -> clip per shot; ffmpeg joins them, burns in text, adds audio
+  cli.py           commands every video agent has (ideas, approve, make, autopilot, ...)
 tiktok_agent/
-  concepts.py      Claude: video plans (shots, voiceover, caption) and content/tiktok_queue.json
-  render.py        Higgsfield image -> clip per shot, ffmpeg joins them into one mp4
   tiktok.py        TikTok login (OAuth) and upload to your inbox
+instagram_agent/
+  instagram.py     Instagram Graph API: resumable Reel upload, publish, quota, account setup
+assets/music/      your royalty-free tracks for Reels (optional)
 tests/             offline tests with synthetic API payloads
 ```

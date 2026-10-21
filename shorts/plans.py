@@ -1,19 +1,19 @@
-"""Claude plans short videos: hook, shots for Higgsfield, voiceover and caption."""
+"""Claude plans short videos: hook, shots for Higgsfield, on-screen text, voiceover and caption."""
 
 from datetime import date
 
 from x_agent.brain import WEB_SEARCH, ask
 from x_agent.queue import PostQueue
 
-CAPTION_LIMIT = 2200  # TikTok's caption limit
+CAPTION_LIMIT = 2200  # TikTok's and Instagram's caption limit
+MAX_HASHTAGS = 30  # Instagram rejects captions with more
 WORDS_PER_SECOND = 2.5  # comfortable voiceover pace
 
 RULES = """\
-You plan short vertical videos for the TikTok account of the person described in the profile
+You plan short vertical videos for the {platform} account of the person described in the profile
 below. Each video is {shots} AI-generated clips of {seconds} seconds ({total} seconds in total),
 made with Higgsfield: first an image from your image prompt, then a clip that animates it from
-your motion prompt. The owner reviews every plan, then finishes the video in the TikTok app
-(on-screen text, voiceover or text-to-speech, sound) and posts it.
+your motion prompt. {finish}
 
 Rules:
 - Never invent facts. Statistics, quotes, dates and claims about the world must come from a
@@ -77,16 +77,15 @@ REVISION_SCHEMA = {
 
 
 class VideoQueue(PostQueue):
-    """content/tiktok_queue.json. draft -> approved -> rendered -> sent (to the TikTok inbox)."""
+    """draft -> approved -> rendered -> sent (TikTok inbox) or posted (Instagram)."""
 
-    DEFAULT_PATH, PATH_ENV = "content/tiktok_queue.json", "TIKTOK_QUEUE"
-    STATUSES = ("draft", "approved", "rendered", "sent", "rejected", "failed")
+    STATUSES = ("draft", "approved", "rendered", "sent", "posted", "rejected", "failed")
 
     def _content(self, concept):
         return {k: concept[k] for k in ("shots", "voiceover", "caption")}
 
 
-def generate(profile, count, shots, seconds, theme="", avoid=(), use_web=True, client=None):
+def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None):
     request = [f"Today is {date.today():%d %B %Y}. Plan {count} videos."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
     if use_web:
@@ -94,16 +93,17 @@ def generate(profile, count, shots, seconds, theme="", avoid=(), use_web=True, c
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
     tools = [WEB_SEARCH] if use_web else []
-    return ask(client, _system(profile, shots, seconds), "\n\n".join(request), CONCEPTS_SCHEMA, tools)["concepts"]
+    return ask(client, _system(platform, profile), "\n\n".join(request), CONCEPTS_SCHEMA, tools)["concepts"]
 
 
-def revise(profile, item, feedback, shots, seconds, client=None):
+def revise(platform, profile, item, feedback, client=None):
     plan = {k: item[k] for k in ("shots", "voiceover", "caption", "sources", "fact_check")}
     request = f"Idea: {item['hook']}\n\nCurrent plan (JSON): {plan}\n\nRewrite it. Feedback: {feedback}"
-    return ask(client, _system(profile, shots, seconds), request, REVISION_SCHEMA)
+    return ask(client, _system(platform, profile), request, REVISION_SCHEMA)
 
 
-def problems(item, shots, seconds):
+def problems(platform, item):
+    shots, seconds = platform.shots, platform.seconds
     out = []
     if len(item["shots"]) != shots:
         out.append(f"{len(item['shots'])} shots planned, {shots} expected")
@@ -112,6 +112,13 @@ def problems(item, shots, seconds):
         out.append(f"voiceover is {words} words, {_max_words(shots, seconds)} fit in {shots * seconds}s")
     if len(item["caption"]) > CAPTION_LIMIT:
         out.append(f"caption is {len(item['caption'])} characters (limit {CAPTION_LIMIT})")
+    hashtags = item["caption"].count("#")
+    if hashtags > MAX_HASHTAGS:
+        out.append(f"caption has {hashtags} hashtags (limit {MAX_HASHTAGS})")
+    for i, shot in enumerate(item["shots"], 1):
+        words = len(shot["on_screen_text"].split())
+        if platform.screen_words and words > platform.screen_words:
+            out.append(f"shot {i} on-screen text is {words} words ({platform.screen_words} fit on screen)")
     return out
 
 
@@ -119,7 +126,14 @@ def _max_words(shots, seconds):
     return int(shots * seconds * WORDS_PER_SECOND)
 
 
-def _system(profile, shots, seconds):
+def _system(platform, profile):
+    shots, seconds = platform.shots, platform.seconds
     return RULES.format(
-        shots=shots, seconds=seconds, total=shots * seconds, words=_max_words(shots, seconds), profile=profile
+        platform=platform.title,
+        shots=shots,
+        seconds=seconds,
+        total=shots * seconds,
+        finish=platform.finish,
+        words=_max_words(shots, seconds),
+        profile=profile,
     )

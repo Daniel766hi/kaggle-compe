@@ -6,9 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from tiktok_agent import __main__ as cli
-from tiktok_agent import concepts, render, tiktok
-from tiktok_agent.concepts import VideoQueue
+from shorts import cli, plans, render
+from shorts.plans import VideoQueue
+from tiktok_agent import tiktok
+from tiktok_agent.__main__ import PLATFORM
 
 from .test_x_agent import FakeClaude, message, text_block
 
@@ -96,9 +97,9 @@ def fake_assemble(clips, out_dir):
 
 
 def test_plan_problems():
-    assert concepts.problems(PLAN, 3, 5) == []
+    assert plans.problems(PLATFORM, PLAN) == []
     long = {**PLAN, "shots": [SHOT], "voiceover": "word " * 40, "caption": "x" * 2201}
-    assert concepts.problems(long, 3, 5) == [
+    assert plans.problems(PLATFORM, long) == [
         "1 shots planned, 3 expected",
         "voiceover is 40 words, 37 fit in 15s",
         "caption is 2201 characters (limit 2200)",
@@ -180,10 +181,10 @@ def test_make_renders_once_and_retries_only_the_upload(tmp_path):
     q.add(PLAN, status="approved")
     hf = FakeHiggsfield()
     args = argparse.Namespace(id=1)
-    assert cli.cmd_make(q, args, hf, FakeUploader(fail=True), fake_assemble) == 1
+    assert cli.cmd_make(PLATFORM, q, args, hf, FakeUploader(fail=True), fake_assemble) == 1
     assert q.get(1)["status"] == "failed" and len(q.get(1)["clips"]) == 3
     uploader = FakeUploader()
-    assert cli.cmd_make(q, args, hf, uploader, fake_assemble) == 0
+    assert cli.cmd_make(PLATFORM, q, args, hf, uploader, fake_assemble) == 0
     assert len(hf.calls) == 6  # the retry didn't pay for a second render
     assert q.get(1)["status"] == "sent" and q.get(1)["publish_id"] == "v_inbox_1"
     assert len(uploader.uploaded) == 1
@@ -193,7 +194,7 @@ def test_make_refuses_unapproved_plans(tmp_path):
     q = VideoQueue(tmp_path / "q.json")
     q.add(PLAN)
     with pytest.raises(SystemExit):
-        cli.cmd_make(q, argparse.Namespace(id=1), FakeHiggsfield(), FakeUploader(), fake_assemble)
+        cli.cmd_make(PLATFORM, q, argparse.Namespace(id=1), FakeHiggsfield(), FakeUploader(), fake_assemble)
 
 
 def test_autopilot_plans_auto_approves_safe_ones_and_makes_one(tmp_path, monkeypatch):
@@ -204,8 +205,8 @@ def test_autopilot_plans_auto_approves_safe_ones_and_makes_one(tmp_path, monkeyp
     q = VideoQueue(tmp_path / "q.json")
     uploader = FakeUploader()
     args = SimpleNamespace(min_drafts=3, count=2)
-    assert cli.cmd_autopilot(q, args, claude, FakeHiggsfield(), uploader, fake_assemble) == 0
+    assert cli.cmd_autopilot(PLATFORM, q, args, claude, FakeHiggsfield(), uploader, fake_assemble) == 0
     assert [i["status"] for i in q.items] == ["sent", "draft"]
     request = claude.requests[0]
-    assert request["output_config"]["format"]["schema"] == concepts.CONCEPTS_SCHEMA
-    assert "3 AI-generated clips of 5 seconds" in request["system"]
+    assert request["output_config"]["format"]["schema"] == plans.CONCEPTS_SCHEMA
+    assert "TikTok account" in request["system"] and "3 AI-generated clips of 5 seconds" in request["system"]

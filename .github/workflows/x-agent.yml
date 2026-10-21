@@ -15,7 +15,7 @@ permissions:
   contents: write # commits the updated queue back to the repo
 
 concurrency:
-  group: content-agents # one agent run at a time (X and TikTok), so their queue commits never race
+  group: content-agents # one agent run at a time (X, TikTok, Instagram), so their queue commits never race
   cancel-in-progress: false
 
 jobs:

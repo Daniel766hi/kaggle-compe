@@ -7,3 +7,4 @@ lxml>=5
 shapely>=2
 anthropic>=1.17
 requests-oauthlib>=2.0
+higgsfield-client>=0.2

@@ -19,8 +19,10 @@ def now_iso():
 
 
 class PostQueue:
+    DEFAULT_PATH, PATH_ENV, STATUSES = DEFAULT_PATH, "X_QUEUE", STATUSES
+
     def __init__(self, path=None):
-        self.path = Path(path or os.environ.get("X_QUEUE") or DEFAULT_PATH)
+        self.path = Path(path or os.environ.get(self.PATH_ENV) or self.DEFAULT_PATH)
         self.items = json.loads(self.path.read_text()) if self.path.exists() else []
 
     def save(self):
@@ -33,13 +35,16 @@ class PostQueue:
             "status": status,
             "pillar": idea.get("pillar", ""),
             "hook": idea["hook"],
-            "posts": list(idea["posts"]),
+            **self._content(idea),
             "sources": list(idea.get("sources", [])),
             "fact_check": idea.get("fact_check", ""),
             "created_at": now_iso(),
         }
         self.items.append(item)
         return item
+
+    def _content(self, idea):
+        return {"posts": list(idea["posts"])}
 
     def get(self, item_id):
         for item in self.items:
@@ -55,7 +60,7 @@ class PostQueue:
         return min(approved, key=lambda i: (i.get("approved_at", ""), i["id"]), default=None)
 
     def set_status(self, item_id, status, **fields):
-        assert status in STATUSES, status
+        assert status in self.STATUSES, status
         item = self.get(item_id)
         item["status"] = status
         item[f"{status}_at"] = now_iso()

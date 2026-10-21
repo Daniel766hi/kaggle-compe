@@ -87,7 +87,7 @@ def generate_ideas(profile, count, theme="", avoid=(), use_web=True, client=None
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
     tools = [WEB_SEARCH] if use_web else []
-    return _ask(client, profile, "\n\n".join(request), IDEAS_SCHEMA, tools)["ideas"]
+    return ask(client, _system(profile), "\n\n".join(request), IDEAS_SCHEMA, tools)["ideas"]
 
 
 def revise(profile, item, feedback, client=None):
@@ -98,12 +98,16 @@ def revise(profile, item, feedback, client=None):
         f"Sources so far: {', '.join(item.get('sources', [])) or 'none'}\n\n"
         f"Rewrite it. Feedback: {feedback}"
     )
-    return _ask(client, profile, request, REVISION_SCHEMA)
+    return ask(client, _system(profile), request, REVISION_SCHEMA)
 
 
-def _ask(client, profile, request, schema, tools=()):
+def _system(profile):
+    return RULES.format(limit=text.max_chars(), profile=profile)
+
+
+def ask(client, system, request, schema, tools=()):
+    """One Claude request whose answer must match `schema`; resumes paused web searches."""
     client = client or anthropic.Anthropic()
-    system = RULES.format(limit=text.max_chars(), profile=profile)
     messages = [{"role": "user", "content": request}]
     for _ in range(MAX_CONTINUATIONS + 1):
         params = dict(

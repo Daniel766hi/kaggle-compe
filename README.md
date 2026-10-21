@@ -139,6 +139,57 @@ Setup:
 This repo is public, so drafts in `content/x_queue.json` are visible on GitHub before they are
 posted. Make the repo private if you don't want that.
 
+## TikTok content creator (Higgsfield)
+
+`tiktok_agent/` makes short vertical videos. It writes from the same `x_agent/profile.md`.
+1. **Plan:** Claude researches recent news and plans each video: a hook, 3 shots (an image prompt,
+   a motion prompt and on-screen text for each), a voiceover script and a caption.
+2. **Approve:** you check the plan. Nothing is rendered before approval, because Higgsfield
+   charges credits for every generation.
+3. **Render:** Higgsfield makes an image for each shot (Seedream 4), animates it (Kling 3.0 Turbo,
+   5 s), and ffmpeg joins the clips into a silent 1080x1920 mp4 (15 s by default).
+4. **Inbox:** the video is uploaded to your TikTok inbox as a draft. In the app, add a sound or
+   voiceover and the on-screen text, turn on the AI-generated content label, paste the caption and
+   post.
+
+```
+python -m tiktok_agent ideas --count 3
+python -m tiktok_agent show 2
+python -m tiktok_agent revise 2 "make the hook about the rupiah record"
+python -m tiktok_agent approve 2
+python -m tiktok_agent make 2 --no-upload    # preview build/tiktok/2/video.mp4
+python -m tiktok_agent make 2                # send to your TikTok inbox
+```
+
+Guardrails: the same no-invented-facts rule as the X agent. Image prompts never ask for text,
+numbers, logos or real identifiable people. A clip is never generated twice: a failed upload
+retries with the clips it already has. At most one video is made per run.
+
+Setup:
+1. **Higgsfield:** at cloud.higgsfield.ai, create an API key and secret and buy credits. Set
+   `HF_KEY=key:secret`. To use other models, copy their IDs from the model pages into
+   `HIGGSFIELD_IMAGE_MODEL` / `HIGGSFIELD_VIDEO_MODEL`. If the video model doesn't allow 5 s
+   clips, change `TIKTOK_CLIP_SECONDS`.
+2. **TikTok:** at developers.tiktok.com, create an app and add Login Kit and the Content Posting
+   API with the `video.upload` scope. Register a redirect URI. Then, once, on your computer:
+   ```
+   export TIKTOK_CLIENT_KEY=... TIKTOK_CLIENT_SECRET=...
+   python -m tiktok_agent auth-url --redirect-uri https://your-registered-uri
+   # open the link, log in, copy the "code" from the address you land on
+   python -m tiktok_agent auth-code CODE --redirect-uri https://your-registered-uri
+   ```
+   That prints `TIKTOK_REFRESH_TOKEN`, which is valid for about a year. Each run uses it to get
+   a fresh access token.
+3. **Automation:** add the repo secrets `ANTHROPIC_API_KEY`, `HF_KEY`, `TIKTOK_CLIENT_KEY`,
+   `TIKTOK_CLIENT_SECRET` and `TIKTOK_REFRESH_TOKEN`, then the variable
+   `TIKTOK_AGENT_ENABLED=true`. The *TikTok agent* workflow runs daily at 09:37 WIB. It plans new
+   videos when fewer than 3 are waiting, then makes the oldest approved one and sends it to your
+   inbox. Optional variables: `TIKTOK_AUTO_APPROVE=true` (render plans that have nothing to
+   fact-check without asking), `TIKTOK_SHOTS`, `TIKTOK_CLIP_SECONDS`.
+
+TikTok only lets apps post directly (without the inbox step) after it audits them. Until then, a
+direct post can only be private, so this agent uses the inbox.
+
 ## Code layout
 
 ```
@@ -164,5 +215,9 @@ x_agent/
   queue.py         content/x_queue.json: draft -> approved -> posted
   x_client.py      publish posts and threads with the X API v2
   text.py          post length as X counts it
+tiktok_agent/
+  concepts.py      Claude: video plans (shots, voiceover, caption) and content/tiktok_queue.json
+  render.py        Higgsfield image -> clip per shot, ffmpeg joins them into one mp4
+  tiktok.py        TikTok login (OAuth) and upload to your inbox
 tests/             offline tests with synthetic API payloads
 ```

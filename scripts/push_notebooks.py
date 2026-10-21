@@ -67,12 +67,40 @@ NOTEBOOKS = {
         "datasets": ["movie-metadata-genre-crew-color-tech-specs"],
         "tags": ["movies and tv shows", "recommender systems", "popular culture", "data visualization"],
     },
+    "nfl-bdb-2027": {
+        "source": "notebooks/nfl_bdb2027_combine_engine.py",
+        "title": "How Many NFL Games Is the Combine Worth?",
+        "datasets": [],
+        "competitions": ["nfl-big-data-bowl-2027"],
+        "inline": ["nfl_bdb2027/movement.py", "nfl_bdb2027/build_features.py"],
+        "tags": ["sports", "american football", "data visualization"],
+    },
 }
+
+
+def inline_modules(nb, paths):
+    """Paste local modules into the notebook so it runs on Kaggle, where the repo is not installed.
+
+    The module code replaces the cell's `# INLINE:` marker; imports of the package are dropped
+    everywhere, and each module's `if __name__ == "__main__":` block is cut off.
+    """
+    code = []
+    for path in paths:
+        src = (ROOT / path).read_text().split('\nif __name__ == "__main__":')[0]
+        code.append(f"# ---- {path} ----\n{src.strip()}\n")
+    for cell in nb.cells:
+        if cell.cell_type != "code":
+            continue
+        src = "\n".join("\n".join(code) if ln.startswith("# INLINE:") else ln for ln in cell.source.splitlines())
+        cell.source = "\n".join(ln for ln in src.splitlines() if not ln.startswith("from nfl_bdb2027"))
+    return nb
 
 
 def build_folder(name, owner, public, folder):
     cfg = NOTEBOOKS[name]
     nb = jupytext.read(ROOT / cfg["source"])
+    if cfg.get("inline"):
+        nb = inline_modules(nb, cfg["inline"])
     nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
     code_file = f"{slugify(cfg['title'])}.ipynb"
     jupytext.write(nb, folder / code_file)
@@ -86,6 +114,7 @@ def build_folder(name, owner, public, folder):
         "enable_gpu": False,
         "enable_internet": False,
         "dataset_sources": [f"{owner}/{d}" for d in cfg["datasets"]],
+        "competition_sources": cfg.get("competitions", []),
         "keywords": cfg["tags"],
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(metadata, indent=2))

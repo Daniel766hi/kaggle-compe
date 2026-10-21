@@ -81,6 +81,7 @@ the dataset they use is public.
 | `indonesia_weather.py` | Rain seasons and warming |
 | `indonesia_fires_and_haze.py` | Worst fire years, the fire calendar, provinces, 2026 vs past seasons, fires vs PM2.5 in nearby cities |
 | `indonesia_politics_tracker.py` | Protest waves, where protests happen, cabinet reshuffles and unrest before them |
+| `nfl_bdb2027_combine_engine.py` | NFL Big Data Bowl 2027 entry: Combine vs. in-game sprint profiles, how many games the Combine is worth, per-play engine utilization (uses competition data; see `bdb2027_writeup/`) |
 | `movies_oscars_and_recommender.py` | Best Picture nomination/winner prediction (time-based backtest, blind test on the 2026 ceremony, forecast for 2026 films) and an explainable content-based movie recommender |
 
 ## Adding a dataset

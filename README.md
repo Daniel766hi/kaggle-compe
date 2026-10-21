@@ -97,6 +97,48 @@ Each dataset's description credits its source. DeFi data is from DefiLlama's fre
 "Other"); Open-Meteo data is CC BY 4.0 (with Copernicus/ECMWF attribution); ECB reference rates
 may be reused with the source acknowledged.
 
+## X (Twitter) agent
+
+`x_agent/` is an AI agent for an X account. Claude (Anthropic API) searches the web for recent
+news, comes up with post ideas from the content pillars in `x_agent/profile.md`, and writes each one
+as a ready-to-publish post or thread. Drafts wait in `content/x_queue.json` until you approve them.
+A scheduled workflow then publishes one approved post per run.
+
+```
+python -m x_agent ideas --count 5          # research and draft 5 posts
+python -m x_agent list                     # what's waiting
+python -m x_agent show 3                   # full text, sources, what to fact-check
+python -m x_agent revise 3 "shorter, lead with the number"
+python -m x_agent approve 3                # ready to publish
+python -m x_agent post --dry-run           # what the next run would post
+python -m x_agent autopilot                # what the workflow runs (see below)
+```
+
+Guardrails:
+- The agent may not invent facts. Statistics need a source URL found by web search. Claims about
+  you must be in `profile.md`. Anything you should verify is listed under "Check before approving".
+- Nothing is posted without approval unless you turn on `X_AUTO_APPROVE`. Even then, drafts
+  that need a fact check always wait for you.
+- Posts over the length limit are never sent (280 characters; set `X_MAX_CHARS` for X Premium).
+- At most one post or thread per run. A thread that fails part way records what went out, so it
+  isn't posted twice.
+
+Setup:
+1. Edit `x_agent/profile.md`: who you are, goals, content pillars and voice.
+2. Get an Anthropic API key (console.anthropic.com) and X API keys: developer.x.com → your app →
+   *User authentication settings*: **Read and write** → *Keys and tokens*: API key and secret, plus
+   an access token and secret generated **after** setting write permission.
+3. Local use: `pip install -r requirements.txt`, export `ANTHROPIC_API_KEY`, `X_API_KEY`,
+   `X_API_SECRET`, `X_ACCESS_TOKEN` and `X_ACCESS_TOKEN_SECRET`.
+4. Automation: add the same five values as repo **secrets**, then the repo **variable**
+   `X_AGENT_ENABLED=true`. The *X agent* workflow runs at 07:17 and 18:47 WIB. Each run creates
+   new drafts when fewer than 5 are waiting, posts the oldest approved one, and commits the queue.
+   From the Actions tab you can also run any command, e.g. `approve 3 4` or `ideas --theme "rupiah"`.
+   Optional variables: `X_AUTO_APPROVE=true` (full autopilot), `X_MAX_CHARS`.
+
+This repo is public, so drafts in `content/x_queue.json` are visible on GitHub before they are
+posted. Make the repo private if you don't want that.
+
 ## Code layout
 
 ```
@@ -116,5 +158,11 @@ kaggle_pipeline/
     movies.py          Wikidata movie metadata
     idn_politics.py    GDELT events in Indonesia + cabinet terms from Wikipedia
     idn_fires.py       NASA FIRMS fire detections in Indonesia, by province
+x_agent/
+  profile.md       who you are, content pillars, voice (the agent writes from this)
+  brain.py         Claude: ideas and drafts (web search + JSON schema output), revisions
+  queue.py         content/x_queue.json: draft -> approved -> posted
+  x_client.py      publish posts and threads with the X API v2
+  text.py          post length as X counts it
 tests/             offline tests with synthetic API payloads
 ```

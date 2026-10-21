@@ -5,3 +5,5 @@ requests>=2.31
 pytest>=8
 lxml>=5
 shapely>=2
+anthropic>=1.17
+requests-oauthlib>=2.0

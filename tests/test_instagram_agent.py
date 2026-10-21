@@ -160,13 +160,13 @@ def test_make_refuses_videos_instagram_would_reject(tmp_path, monkeypatch):
     assert code == 1 and "3 s to 15 min" in q.get(1)["error"]
 
 
-def test_autopilot_prompts_for_burned_in_text(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "load_profile", lambda: "profile")
+def test_autopilot_prompts_for_burned_in_text(tmp_path):
     claude = FakeClaude(message([text_block({"concepts": [PLAN]})]))
     q = VideoQueue(tmp_path / "q.json")
     assert cli.cmd_autopilot(PLATFORM, q, argparse.Namespace(min_drafts=3, count=1), claude) == 0
     system = claude.requests[0]["system"]
     assert "Instagram Reels account" in system and "12 words per shot" in system
+    assert "ridiculous animals" in system  # the video channel's own profile, not the X profile
     assert [i["status"] for i in q.items] == ["draft"]  # nothing is published without approval
 
 
@@ -199,3 +199,10 @@ def test_assemble_makes_a_reel_instagram_accepts(tmp_path, with_music):
     assert info["streams"]["audio"]["codec_name"] == "aac" and info["streams"]["audio"]["sample_rate"] == "48000"
     assert 1.9 < info["duration"] < 2.2  # looped music is cut to the video's length
     assert (tmp_path / "out" / "text_1.txt").read_text() == "Why does the haze\ncome back every\nyear?"
+
+
+def test_a_platform_can_use_its_own_profile(tmp_path, monkeypatch):
+    profile = tmp_path / "cooking.md"
+    profile.write_text("# A cooking channel")
+    monkeypatch.setenv("INSTAGRAM_PROFILE", str(profile))
+    assert PLATFORM.profile == "# A cooking channel"

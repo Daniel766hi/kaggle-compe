@@ -44,6 +44,11 @@ class Platform:
         """Seconds per shot: 3 x 5 s by default (Higgsfield bills video per second)."""
         return int(self.setting("CLIP_SECONDS", 5))
 
+    @property
+    def profile(self):
+        """The channel the videos are made for (shorts/profile.md unless <ENV>_PROFILE is set)."""
+        return load_profile(self.setting("PROFILE", str(Path(__file__).with_name("profile.md"))))
+
     def queue(self, path=None):
         return VideoQueue(path or self.setting("QUEUE", f"content/{self.name}_queue.json"))
 
@@ -122,7 +127,7 @@ def cmd_show(platform, queue, args):
 
 def cmd_revise(platform, queue, args):
     item = _unrendered(queue, args.id)
-    item.update(plans.revise(platform, load_profile(), item, args.feedback), status="draft")
+    item.update(plans.revise(platform, platform.profile, item, args.feedback), status="draft")
     _print_item(platform, item)
 
 
@@ -189,7 +194,7 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
 
 
 def _generate(platform, queue, count, theme, use_web, client=None, unattended=False):
-    profile = load_profile()
+    profile = platform.profile
     new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client, unattended)
     for plan in new:
         problems = plans.problems(platform, plan)

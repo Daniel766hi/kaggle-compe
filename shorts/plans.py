@@ -10,8 +10,7 @@ MAX_HASHTAGS = 30  # Instagram rejects captions with more
 WORDS_PER_SECOND = 2.5  # comfortable voiceover pace
 
 RULES = """\
-You plan short vertical videos for the {platform} account of the person described in the profile
-below. Each video is {shots} AI-generated clips of {seconds} seconds ({total} seconds in total),
+You plan short vertical videos for the {platform} account described in the profile below. Each video is {shots} AI-generated clips of {seconds} seconds ({total} seconds in total),
 made with Higgsfield: first an image from your image prompt, then a clip that animates it from
 your motion prompt. {finish}
 
@@ -25,7 +24,8 @@ Rules:
   must not ask for any text, numbers, charts with values, logos or brand names (image models
   render these badly), and never show a real, identifiable person. Use people only as anonymous
   figures (hands, silhouettes, backs, crowds).
-- Motion prompts describe one simple movement of the camera or subject.
+- Motion prompts describe one clear action of the subject (the beat of the joke, if it is one)
+  and, at most, one simple camera movement.
 - All words go in "on_screen_text" (a few words per shot) and "voiceover". The first shot's
   on-screen text is the hook and must make someone stop scrolling within two seconds.
 - The voiceover is at most {words} words so it fits the video when read at a natural pace.
@@ -89,7 +89,7 @@ def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=
     request = [f"Today is {date.today():%d %B %Y}. Plan {count} videos."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
     if use_web:
-        request.append("Search the web for recent news or data worth reacting to before you plan.")
+        request.append("If it helps, search the web for recent news or trends worth reacting to before you plan.")
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
     if unattended:

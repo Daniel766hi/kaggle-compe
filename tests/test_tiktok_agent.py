@@ -199,7 +199,6 @@ def test_make_refuses_unapproved_plans(tmp_path):
 
 def test_autopilot_plans_auto_approves_safe_ones_and_makes_one(tmp_path, monkeypatch):
     monkeypatch.setenv("TIKTOK_AUTO_APPROVE", "true")
-    monkeypatch.setattr(cli, "load_profile", lambda: "profile")
     risky = {**PLAN, "hook": "A statistic", "fact_check": "check the 2019 figure"}
     claude = FakeClaude(message([text_block({"concepts": [PLAN, risky]})]))
     q = VideoQueue(tmp_path / "q.json")

@@ -141,8 +141,10 @@ posted. Make the repo private if you don't want that.
 
 ## TikTok content creator (Higgsfield)
 
-`tiktok_agent/` makes short vertical videos. It writes from the same `x_agent/profile.md`.
-1. **Plan:** Claude researches recent news and plans each video: a hook, 3 shots (an image prompt,
+`tiktok_agent/` makes short vertical videos for the channel described in `shorts/profile.md`: by
+default, funny and ridiculous AI animal sketches (setup, escalation, punchline). Edit that file to
+change the channel; `TIKTOK_PROFILE` / `INSTAGRAM_PROFILE` can point a platform to its own file.
+1. **Plan:** Claude plans each video as a three-beat sketch: a hook, 3 shots (an image prompt,
    a motion prompt and on-screen text for each), a voiceover script and a caption.
 2. **Approve:** you check the plan. Nothing is rendered before approval, because Higgsfield
    charges credits for every generation.
@@ -264,6 +266,7 @@ x_agent/
   x_client.py      publish posts and threads with the X API v2
   text.py          post length as X counts it
 shorts/            short-video pipeline shared by the TikTok and Instagram agents
+  profile.md       the video channel (ridiculous animal sketches); edit to change it
   plans.py         Claude: video plans (shots, on-screen text, voiceover, caption), the video queue
   render.py        Higgsfield image -> clip per shot; ffmpeg joins them, burns in text, adds audio
   cli.py           commands every video agent has (ideas, approve, make, autopilot, ...)

@@ -24,7 +24,7 @@ class Platform:
     env: str  # prefix of the settings variables, e.g. TIKTOK -> TIKTOK_SHOTS
     finish: str  # tells Claude what happens to the video after it is rendered
     published_status: str  # "sent" (to an inbox) or "posted"
-    publish: Callable  # (client, video_path, item) -> fields to record on the item
+    publish: Callable  # (client, video_path, item) -> fields to record on the item ("status" overrides)
     client: Callable  # () -> API client built from environment variables
     errors: tuple  # exceptions that mean publishing failed
     done: Callable  # (item) -> message after publishing
@@ -158,17 +158,25 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None):
         queue.set_status(item["id"], "failed", error=str(e))
         logging.error("#%s failed: %s", item["id"], e)
         return 1
-    queue.set_status(item["id"], platform.published_status, error="", **fields)
+    status = fields.pop("status", platform.published_status)
+    queue.set_status(item["id"], status, error="", **fields)
     print(platform.done(item))
     return 0
 
 
 def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, assemble=None):
-    waiting = len(queue.with_status("draft", "approved", "rendered"))
+    auto = platform.setting("AUTO_APPROVE", "").lower() == "true"
+    # Unattended, only approved plans count: plans held for a fact-check must not stop the daily video.
+    waiting = len(queue.with_status("approved", "rendered") if auto else queue.with_status("draft", "approved", "rendered"))
+    generation_failed = False
     if waiting < args.min_drafts:
         logging.info("%d plans waiting (minimum %d); planning %d more", waiting, args.min_drafts, args.count)
-        _generate(platform, queue, args.count, "", True, claude)
-    if platform.setting("AUTO_APPROVE", "").lower() == "true":
+        try:
+            _generate(platform, queue, args.count, "", True, claude, unattended=auto)
+        except Exception as e:  # still make what is already approved; the run ends red below
+            logging.error("Planning failed: %s", e)
+            generation_failed = True
+    if auto:
         for item in queue.with_status("draft"):
             # Only plans with nothing to verify are made without a human look.
             if not item.get("fact_check") and not plans.problems(platform, item):
@@ -176,13 +184,13 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
     item = (queue.with_status("rendered") or [None])[0] or queue.next_approved()
     if item is None:
         logging.info("No approved plans waiting.")
-        return 0
-    return cmd_make(platform, queue, argparse.Namespace(id=item["id"]), hf, client, assemble)
+        return int(generation_failed)
+    return cmd_make(platform, queue, argparse.Namespace(id=item["id"]), hf, client, assemble) or int(generation_failed)
 
 
-def _generate(platform, queue, count, theme, use_web, client=None):
+def _generate(platform, queue, count, theme, use_web, client=None, unattended=False):
     profile = load_profile()
-    new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client)
+    new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client, unattended)
     for plan in new:
         problems = plans.problems(platform, plan)
         if problems:  # one automatic attempt to fix it before it reaches the queue

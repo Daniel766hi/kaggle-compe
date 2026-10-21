@@ -78,7 +78,7 @@ def load_profile(path=None):
         return f.read()
 
 
-def generate_ideas(profile, count, theme="", avoid=(), use_web=True, client=None):
+def generate_ideas(profile, count, theme="", avoid=(), use_web=True, client=None, unattended=False):
     """Return `count` ideas, each with ready-to-publish post text."""
     request = [f"Today is {date.today():%d %B %Y}. Suggest {count} post ideas and write each one out."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
@@ -86,6 +86,12 @@ def generate_ideas(profile, count, theme="", avoid=(), use_web=True, client=None
         request.append("Search the web for recent news or data worth reacting to before you write.")
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
+    if unattended:
+        request.append(
+            "These are published automatically, without the owner reviewing them. Prefer ideas that are "
+            "fully supported by the profile or by sources you found. Anything that would still need checking "
+            "must be listed in fact_check; those are held back for the owner."
+        )
     tools = [WEB_SEARCH] if use_web else []
     return ask(client, _system(profile), "\n\n".join(request), IDEAS_SCHEMA, tools)["ideas"]
 

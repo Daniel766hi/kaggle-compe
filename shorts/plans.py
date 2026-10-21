@@ -85,13 +85,19 @@ class VideoQueue(PostQueue):
         return {k: concept[k] for k in ("shots", "voiceover", "caption")}
 
 
-def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None):
+def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None, unattended=False):
     request = [f"Today is {date.today():%d %B %Y}. Plan {count} videos."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
     if use_web:
         request.append("Search the web for recent news or data worth reacting to before you plan.")
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
+    if unattended:
+        request.append(
+            "These are published automatically, without the owner reviewing them. Prefer ideas that are "
+            "fully supported by the profile or by sources you found. Anything that would still need checking "
+            "must be listed in fact_check; those are held back for the owner."
+        )
     tools = [WEB_SEARCH] if use_web else []
     return ask(client, _system(platform, profile), "\n\n".join(request), CONCEPTS_SCHEMA, tools)["concepts"]
 

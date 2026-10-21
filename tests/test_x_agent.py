@@ -149,3 +149,27 @@ def test_posted_items_cannot_be_approved_again(tmp_path):
     cli.cmd_post(q, SimpleNamespace(dry_run=False), XClient(FakeSession()))
     with pytest.raises(SystemExit):
         cli.cmd_set_status(q, SimpleNamespace(ids=[1], status="approved"))
+
+
+def test_held_fact_check_drafts_dont_stop_unattended_posting(tmp_path, monkeypatch):
+    monkeypatch.setenv("X_AUTO_APPROVE", "true")
+    monkeypatch.setattr(brain, "load_profile", lambda: "profile")
+    q = PostQueue(tmp_path / "q.json")
+    for _ in range(5):  # enough held drafts to fill the minimum on their own
+        q.add({**IDEA, "fact_check": "check the figure"})
+    claude = FakeClaude(message([text_block({"ideas": [IDEA]})]))
+    session = FakeSession()
+    assert cli.cmd_autopilot(q, SimpleNamespace(min_drafts=3, count=1, dry_run=False), XClient(session), claude) == 0
+    assert session.payloads == [{"text": "Haze is back."}]
+    assert "published automatically" in claude.requests[0]["messages"][0]["content"]
+
+
+def test_failed_generation_still_posts_what_is_approved(tmp_path, monkeypatch):
+    monkeypatch.setenv("X_AUTO_APPROVE", "true")
+    monkeypatch.setattr(brain, "load_profile", lambda: "profile")
+    q = PostQueue(tmp_path / "q.json")
+    q.add(IDEA, status="approved")
+    session = FakeSession()
+    broken = FakeClaude()  # no responses left: the request fails
+    assert cli.cmd_autopilot(q, SimpleNamespace(min_drafts=3, count=1, dry_run=False), XClient(session), broken) == 1
+    assert q.get(1)["status"] == "posted"

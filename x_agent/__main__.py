@@ -157,21 +157,28 @@ def cmd_post(queue, args, client=None):
 
 
 def cmd_autopilot(queue, args, x_client=None, claude=None):
-    waiting = len(queue.with_status("draft", "approved"))
+    auto = os.environ.get("X_AUTO_APPROVE", "").lower() == "true"
+    # Unattended, only approved posts count: drafts held for a fact-check must not stop the daily post.
+    waiting = len(queue.with_status("approved") if auto else queue.with_status("draft", "approved"))
+    generation_failed = False
     if waiting < args.min_drafts:
-        logging.info("%d drafts waiting (minimum %d); generating %d ideas", waiting, args.min_drafts, args.count)
-        _generate(queue, args.count, "", True, claude)
-    if os.environ.get("X_AUTO_APPROVE", "").lower() == "true":
+        logging.info("%d posts waiting (minimum %d); generating %d ideas", waiting, args.min_drafts, args.count)
+        try:
+            _generate(queue, args.count, "", True, claude, unattended=auto)
+        except Exception as e:  # still publish what is already approved; the run ends red below
+            logging.error("Generating ideas failed: %s", e)
+            generation_failed = True
+    if auto:
         for item in queue.with_status("draft"):
             # Only drafts with nothing to verify are published without a human look.
             if not item.get("fact_check") and not text.problems(item["posts"]):
                 queue.set_status(item["id"], "approved", approved_by="autopilot")
-    return cmd_post(queue, args, x_client)
+    return cmd_post(queue, args, x_client) or int(generation_failed)
 
 
-def _generate(queue, count, theme, use_web, client=None):
+def _generate(queue, count, theme, use_web, client=None, unattended=False):
     profile = brain.load_profile()
-    ideas = brain.generate_ideas(profile, count, theme, queue.recent_hooks(), use_web, client)
+    ideas = brain.generate_ideas(profile, count, theme, queue.recent_hooks(), use_web, client, unattended)
     for idea in ideas:
         problems = text.problems(idea["posts"])
         if problems:  # one automatic attempt to fix length before it reaches the queue

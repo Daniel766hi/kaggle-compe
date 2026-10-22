@@ -90,3 +90,13 @@ def test_utilization_is_one_on_the_capacity_line():
     on_line = A0 * (1 - v / S0)
     assert np.allclose(utilization(v, on_line, A0, S0), 1.0)
     assert utilization(5.0, 0.0, A0, S0) == pytest.approx(0.5)  # cruising at half top speed
+
+
+def test_turn_rate_wraps_and_respects_sequences():
+    from nfl_bdb2027.movement import turn_rate
+    frames = pd.DataFrame({"k": [1, 1, 1, 2, 2, 2], "t": [0, 0.1, 0.2, 0, 0.1, 0.2],
+                           "dir": [350.0, 0.0, 10.0, 90.0, 80.0, 70.0]})
+    w = turn_rate(frames, ["k"])
+    assert np.isnan(w[0]) and np.isnan(w[2]) and np.isnan(w[3])
+    assert w[1] == pytest.approx(np.deg2rad(20) / 0.2)  # 350 -> 10 crosses north
+    assert w[4] == pytest.approx(-np.deg2rad(20) / 0.2)

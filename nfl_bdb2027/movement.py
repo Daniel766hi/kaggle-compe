@@ -179,3 +179,22 @@ def utilization(s, acc, A0, S0):
     a / a_max(v), which blows up near top speed.
     """
     return np.asarray(acc, dtype=float) / A0 + np.asarray(s, dtype=float) / S0
+
+
+def turn_rate(frames, keys, direction="dir", time="t"):
+    """Heading change per second (rad/s, signed: positive = turning clockwise) within sequences.
+
+    Central difference of the motion direction, wrapped to (-180, 180]; frames at sequence edges or
+    after a time gap get NaN. Multiplying by speed gives centripetal (sideways) acceleration.
+    """
+    key = frames[keys].ne(frames[keys].shift()).any(axis=1).cumsum().to_numpy()
+    d = frames[direction].to_numpy(dtype=float)
+    t = frames[time].to_numpy(dtype=float)
+    same_prev = np.r_[False, key[1:] == key[:-1]]
+    same_next = np.r_[key[:-1] == key[1:], False]
+    d_next, d_prev = np.r_[d[1:], np.nan], np.r_[np.nan, d[:-1]]
+    t_next, t_prev = np.r_[t[1:], np.nan], np.r_[np.nan, t[:-1]]
+    delta = (d_next - d_prev + 180) % 360 - 180
+    span = t_next - t_prev
+    ok = same_prev & same_next & (np.abs(span - 2 * DT) < 0.02)
+    return np.where(ok, np.deg2rad(delta) / span, np.nan)

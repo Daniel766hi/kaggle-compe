@@ -75,6 +75,14 @@ NOTEBOOKS = {
         "inline": ["nfl_bdb2027/movement.py", "nfl_bdb2027/build_features.py"],
         "tags": ["sports", "american football", "data visualization"],
     },
+    "nfl-bdb-2027-turning": {
+        "source": "notebooks/nfl_bdb2027_turning_engine.py",
+        "title": "Bend, Don't Brake: The Turning Engine",
+        "datasets": [],
+        "competitions": ["nfl-big-data-bowl-2027"],
+        "inline": ["nfl_bdb2027/movement.py", "nfl_bdb2027/build_features.py"],
+        "tags": ["sports", "american football", "data visualization"],
+    },
 }
 
 

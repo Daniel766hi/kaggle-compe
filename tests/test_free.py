@@ -74,6 +74,8 @@ class FakeOllama:
 @pytest.fixture(autouse=True)
 def free_setup(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    monkeypatch.delenv("STOCK_SITE", raising=False)
     monkeypatch.delenv("AI_PROVIDER", raising=False)
     monkeypatch.delenv("VIDEO_SOURCE", raising=False)
     for key in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"):
@@ -119,7 +121,7 @@ def test_stock_plans_ask_for_search_queries():
     concepts, _ = plans.schemas()
     shot = concepts["properties"]["concepts"]["items"]["properties"]["shots"]["items"]
     assert set(shot["properties"]) == {"search_query", "on_screen_text"}
-    assert "real stock videos from Pexels" in plans._system(TIKTOK, "profile")
+    assert "real stock videos from a free stock site" in plans._system(TIKTOK, "profile")
 
 
 class FakePexels:
@@ -267,3 +269,42 @@ def test_on_screen_text_works_with_a_colon_in_the_font_path(tmp_path, monkeypatc
 
     video = render.assemble([{"video_url": "a"}], tmp_path / "out", texts=["hello"], seconds=1, audio=True, download=short)
     assert render.probe(video)["streams"]["video"]["height"] == 1920
+
+
+class FakePixabay:
+    def __init__(self, hits):
+        self.hits, self.calls = hits, []
+
+    def get(self, url, params, headers, timeout):
+        self.calls.append((url, params, headers))
+        return FakeResponse({"total": len(self.hits), "hits": self.hits})
+
+
+def pixabay_hit(hit_id, user, duration=12):
+    return {
+        "id": hit_id, "duration": duration, "user": user, "pageURL": f"https://pixabay.com/videos/{hit_id}/",
+        "videos": {"large": {"url": f"https://cdn/{hit_id}/4k.mp4", "height": 2160},
+                   "medium": {"url": f"https://cdn/{hit_id}/1080.mp4", "height": 1080},
+                   "small": {"url": f"https://cdn/{hit_id}/720.mp4", "height": 720}},
+    }  # fmt: skip
+
+
+def test_pixabay_is_used_when_its_key_is_set(monkeypatch):
+    monkeypatch.setenv("PIXABAY_API_KEY", "px")
+    monkeypatch.setenv("PEXELS_API_KEY", "pk")  # Pixabay wins: Pexels has paused new keys
+    assert render.stock_site() == "pixabay"
+    pixabay = FakePixabay([pixabay_hit(1, "goatlover", duration=3), pixabay_hit(2, "catcam"), pixabay_hit(3, "dogday")])
+    clips = render.render_stock({**STOCK_PLAN, "shots": STOCK_PLAN["shots"][:2]}, 5, pixabay)
+    assert [c["video_url"] for c in clips] == ["https://cdn/2/1080.mp4", "https://cdn/3/1080.mp4"]  # 1 is too short
+    url, params, headers = pixabay.calls[0]
+    assert url == "https://pixabay.com/api/videos/" and params["key"] == "px" and params["q"] == "cat on desk"
+    assert "python-requests" not in headers["User-Agent"]  # Cloudflare challenges the default one
+    assert render.credits(clips) == "Clips from Pixabay: catcam, dogday"
+
+
+def test_without_any_stock_key_the_message_points_to_pixabay(monkeypatch):
+    monkeypatch.delenv("PIXABAY_API_KEY", raising=False)
+    monkeypatch.delenv("PEXELS_API_KEY", raising=False)
+    monkeypatch.delenv("STOCK_SITE", raising=False)
+    with pytest.raises(SystemExit, match="PIXABAY_API_KEY"):
+        render.stock_site()

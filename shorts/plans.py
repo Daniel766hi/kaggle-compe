@@ -37,7 +37,7 @@ Profile:
 
 VISUALS = {
     "stock": (
-        "The clips are real stock videos from Pexels, one found with your search query for each shot; "
+        "The clips are real stock videos from a free stock site, one found with your search query for each shot; "
         "the joke comes from your on-screen text over the clip.",
         """\
 - Each shot's search_query is 2 to 5 plain words naming one animal doing one visible thing, like

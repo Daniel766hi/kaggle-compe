@@ -1,7 +1,7 @@
 """Turn a video plan into an mp4: one clip per shot, joined, with on-screen text and audio.
 
-Clips come from Pexels stock videos (free: a PEXELS_API_KEY from pexels.com/api, clips free to
-use, creators credited in the caption) or from Higgsfield (paid: image per shot, then an animated
+Clips come from free stock videos, creators credited in the caption: Pixabay (PIXABAY_API_KEY from
+pixabay.com/api/docs) or Pexels (PEXELS_API_KEY; Pexels has paused new keys). Or from Higgsfield (paid: image per shot, then an animated
 clip; model IDs can be swapped with HIGGSFIELD_IMAGE_MODEL / HIGGSFIELD_VIDEO_MODEL). A plan is only
 rendered after it is approved.
 """
@@ -25,6 +25,10 @@ FONTS = (
 )
 MUSIC_TYPES = {".mp3", ".m4a", ".aac", ".wav"}
 PEXELS_SEARCH = "https://api.pexels.com/videos/search"
+PIXABAY_SEARCH = "https://pixabay.com/api/videos/"
+STOCK_SITES = {"pixabay": ("PIXABAY_API_KEY", "Pixabay"), "pexels": ("PEXELS_API_KEY", "Pexels")}
+# Pixabay sits behind Cloudflare, which challenges Python's default user agent.
+USER_AGENT = "Mozilla/5.0 (compatible; AI-Office/1.0; +https://github.com/Daniel766hi/kaggle-compe)"
 
 
 class RenderError(RuntimeError):
@@ -45,38 +49,46 @@ def render(item, seconds, hf=None):
     return clips
 
 
+def stock_site():
+    """Which free stock site to search: STOCK_SITE, or whichever key is set (Pixabay first)."""
+    chosen = (os.environ.get("STOCK_SITE") or "").strip().lower()
+    if chosen in STOCK_SITES:
+        return chosen
+    for site, (env, _) in STOCK_SITES.items():
+        if os.environ.get(env):
+            return site
+    raise SystemExit("Set PIXABAY_API_KEY (free: log in at pixabay.com, then open pixabay.com/api/docs).")
+
+
 def render_stock(item, seconds, session=None):
-    """Find a free Pexels clip for every shot. Returns the clip records, with credits, for the queue."""
-    key = os.environ.get("PEXELS_API_KEY")
+    """Find a free stock clip for every shot. Returns the clip records, with credits, for the queue."""
+    site = stock_site()
+    env, name = STOCK_SITES[site]
+    key = os.environ.get(env)
     if not key:
-        raise SystemExit("Set PEXELS_API_KEY (free: pexels.com/api, 'Your API key').")
+        raise SystemExit(f"Set {env} to use {name} clips.")
     session = session or requests.Session()
+    search = _search_pixabay if site == "pixabay" else _search_pexels
     used, clips = set(), []
     for i, shot in enumerate(item["shots"], 1):
         query = shot["search_query"]
-        logging.info("Shot %d/%d: finding a clip for %r", i, len(item["shots"]), query)
-        video = None
-        for params in ({"orientation": "portrait"}, {}):  # vertical clips first, then any (cropped to fit)
-            found = _pexels(session, key, {"query": query, "per_page": 15, **params})
-            video = next((v for v in found if v["id"] not in used and v.get("duration", 0) >= seconds), None)
-            if video:
-                break
-        if video is None:
+        logging.info("Shot %d/%d: finding a %s clip for %r", i, len(item["shots"]), name, query)
+        found = (c for c in search(session, key, query) if c["id"] not in used and c["duration"] >= seconds)
+        clip = next(found, None)
+        if clip is None:
             raise RenderError(f"No stock clip found for {query!r}. Revise the plan with a simpler search.")
-        used.add(video["id"])
-        clips.append({
-            "video_url": _best_file(video["video_files"])["link"],
-            "source": video["url"],
-            "credit": video["user"]["name"],
-            "query": query,
-        })  # fmt: skip
+        used.add(clip["id"])
+        clips.append({"video_url": clip["url"], "source": clip["page"], "credit": clip["credit"], "site": name, "query": query})
     return clips
 
 
 def credits(clips):
     """The caption line that credits stock clip creators ('' for AI clips)."""
     names = list(dict.fromkeys(c["credit"] for c in clips if c.get("credit")))
-    return f"Clips from Pexels: {', '.join(names)}" if names else ""
+    if not names:
+        return ""
+    site = next((c.get("site") for c in clips if c.get("site")), "Pexels")
+    return f"Clips from {site}: {', '.join(names)}"
 
 
 def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, download=None, ffmpeg=None):
@@ -174,20 +186,49 @@ def _ff_path(path):
     return Path(path).as_posix().replace(":", "\\:")
 
 
-def _pexels(session, key, params):
-    resp = session.get(PEXELS_SEARCH, params=params, headers={"Authorization": key}, timeout=60)
-    if resp.status_code >= 400:
-        raise RenderError(f"Pexels search failed: HTTP {resp.status_code} {resp.text[:200]}")
-    return resp.json().get("videos", [])
+def _search_pexels(session, key, query):
+    """Candidate clips from Pexels: vertical ones first, then any orientation (cropped to fit)."""
+    for extra in ({"orientation": "portrait"}, {}):
+        resp = session.get(PEXELS_SEARCH, params={"query": query, "per_page": 15, **extra},
+                           headers={"Authorization": key}, timeout=60)  # fmt: skip
+        if resp.status_code >= 400:
+            raise RenderError(f"Pexels search failed: HTTP {resp.status_code} {resp.text[:200]}")
+        for video in resp.json().get("videos", []):
+            yield {
+                "id": video["id"], "duration": video.get("duration", 0), "url": _best_pexels_file(video["video_files"])["link"],
+                "page": video["url"], "credit": video["user"]["name"],
+            }  # fmt: skip
 
 
-def _best_file(files):
+def _best_pexels_file(files):
     """The smallest mp4 that is still at least 1280 px tall, or the largest one there is."""
     mp4 = [f for f in files if f.get("file_type") == "video/mp4" and f.get("link")]
     if not mp4:
         raise RenderError("Pexels returned no mp4 file for that clip")
     tall = sorted((f for f in mp4 if (f.get("height") or 0) >= 1280), key=lambda f: f["height"])
     return tall[0] if tall else max(mp4, key=lambda f: f.get("height") or 0)
+
+
+def _search_pixabay(session, key, query):
+    """Candidate clips from Pixabay (landscape mostly; cropped to fill the vertical frame)."""
+    params = {"key": key, "q": query, "per_page": 20, "safesearch": "true"}
+    resp = session.get(PIXABAY_SEARCH, params=params, headers={"User-Agent": USER_AGENT}, timeout=60)
+    if resp.status_code >= 400:
+        raise RenderError(f"Pixabay search failed: HTTP {resp.status_code} {resp.text[:200]}")
+    for hit in resp.json().get("hits", []):
+        size = _best_pixabay_size(hit.get("videos") or {})
+        if size:
+            yield {"id": hit["id"], "duration": hit.get("duration", 0), "url": size["url"],
+                   "page": hit.get("pageURL", ""), "credit": hit.get("user", "")}  # fmt: skip
+
+
+def _best_pixabay_size(videos):
+    """1080p ('medium' usually) is enough for a vertical crop; 4K is a slow download."""
+    for name in ("medium", "large", "small"):
+        size = videos.get(name) or {}
+        if size.get("url"):
+            return size
+    return None
 
 
 def _run(hf, model, arguments):
@@ -209,7 +250,7 @@ def _higgsfield():
 
 
 def _download(url, path):
-    with requests.get(url, stream=True, timeout=120) as resp:
+    with requests.get(url, stream=True, timeout=120, headers={"User-Agent": USER_AGENT}) as resp:
         resp.raise_for_status()
         with open(path, "wb") as f:
             for chunk in resp.iter_content(1 << 20):

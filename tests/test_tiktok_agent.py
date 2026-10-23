@@ -209,4 +209,4 @@ def test_autopilot_plans_auto_approves_safe_ones_and_makes_one(tmp_path, monkeyp
     request = claude.requests[0]
     assert request["output_config"]["format"]["schema"] == plans.schemas()[0]
     assert "TikTok account" in request["system"] and "3 clips of 5 seconds" in request["system"]
-    assert "real stock videos from Pexels" in request["system"]  # the free default
+    assert "real stock videos from a free stock site" in request["system"]  # the free default

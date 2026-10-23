@@ -37,8 +37,9 @@ jobs:
           TIKTOK_AUTO_APPROVE: ${{ vars.TIKTOK_AUTO_APPROVE }}
           TIKTOK_SHOTS: ${{ vars.TIKTOK_SHOTS }}
           TIKTOK_CLIP_SECONDS: ${{ vars.TIKTOK_CLIP_SECONDS }}
-          VIDEO_SOURCE: ${{ vars.VIDEO_SOURCE }} # stock (free Pexels clips, default) or higgsfield
+          VIDEO_SOURCE: ${{ vars.VIDEO_SOURCE }} # stock (free Pixabay/Pexels clips, default) or higgsfield
           AI_PROVIDER: ${{ vars.AI_PROVIDER }} # without an Anthropic key, new plans come from the office on your PC
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           HIGGSFIELD_IMAGE_MODEL: ${{ vars.HIGGSFIELD_IMAGE_MODEL }}
           HIGGSFIELD_VIDEO_MODEL: ${{ vars.HIGGSFIELD_VIDEO_MODEL }}

@@ -13,6 +13,7 @@ A public notebook can only use public datasets.
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -73,6 +74,7 @@ NOTEBOOKS = {
         "datasets": [],
         "competitions": ["nfl-big-data-bowl-2027"],
         "inline": ["nfl_bdb2027/movement.py", "nfl_bdb2027/build_features.py"],
+        "writeup": "bdb2027_writeup/writeup.md",
         "tags": ["sports", "american football", "data visualization"],
     },
     "nfl-bdb-2027-turning": {
@@ -81,6 +83,7 @@ NOTEBOOKS = {
         "datasets": [],
         "competitions": ["nfl-big-data-bowl-2027"],
         "inline": ["nfl_bdb2027/movement.py", "nfl_bdb2027/build_features.py"],
+        "writeup": "bdb2027_writeup2/writeup.md",
         "tags": ["sports", "american football", "data visualization"],
     },
 }
@@ -104,11 +107,30 @@ def inline_modules(nb, paths):
     return nb
 
 
+def prepend_writeup(nb, path):
+    """Put the competition writeup at the top of the notebook as markdown.
+
+    Figure images live in the repo, not on Kaggle, so each image line becomes a pointer to the
+    figure that the code further down draws.
+    """
+    from nbformat.v4 import new_markdown_cell
+
+    text = (ROOT / path).read_text()
+    text = re.sub(r"^!\[(Figure \d+)\]\(.*?\)$", r"> *\1 is drawn by the code below (see the matching section).*",
+                  text, flags=re.M)
+    code_intro = ("---\n# Code: full analysis\n\nEverything below reproduces every number, table and "
+                  "figure in the writeup above from the competition data.")
+    nb.cells[:0] = [new_markdown_cell(text), new_markdown_cell(code_intro)]
+    return nb
+
+
 def build_folder(name, owner, public, folder):
     cfg = NOTEBOOKS[name]
     nb = jupytext.read(ROOT / cfg["source"])
     if cfg.get("inline"):
         nb = inline_modules(nb, cfg["inline"])
+    if cfg.get("writeup"):
+        nb = prepend_writeup(nb, cfg["writeup"])
     nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}
     code_file = f"{slugify(cfg['title'])}.ipynb"
     jupytext.write(nb, folder / code_file)

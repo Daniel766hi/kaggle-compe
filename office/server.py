@@ -12,7 +12,7 @@ import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from . import desks
 
@@ -25,6 +25,7 @@ ACTIONS = {
     "render": "rendering the video",
     "publish": "publishing",
 }
+X_INTENT = "https://x.com/intent/post?text="  # opens X's composer with the text filled in (free)
 
 
 class OfficeApp:
@@ -73,7 +74,9 @@ class OfficeApp:
         out = desks.summary(desk, item, full=True)
         out["desk"] = desk_key
         out["job"] = self.jobs.get(f"{desk_key}:{item_id}", "")
-        out["actions"] = _actions(desk_key, item)
+        out["actions"] = self._actions(desk_key, item)
+        if "share" in out["actions"]:
+            out["share_urls"] = [X_INTENT + quote(post) for post in item["posts"]]
         if desk_key != "x" and desk.video_path(item_id).exists():
             out["video"] = f"/media/{desk_key}/{int(item_id)}.mp4"
         return out
@@ -81,9 +84,9 @@ class OfficeApp:
     def action(self, desk_key, item_id, action):
         agent_key, desk = self.desks[desk_key]
         item = desk.item(item_id)
-        if action not in _actions(desk_key, item):
+        if action not in self._actions(desk_key, item) or action == "share":
             raise ValueError(f"can't {action} #{item_id} while it is {item['status']}")
-        if action in ("approve", "reject"):
+        if action in ("approve", "reject", "mark_posted"):
             getattr(desk, action)(item_id)
             return
         job = f"{desk_key}:{item_id}"
@@ -128,6 +131,12 @@ class OfficeApp:
                 self.office.checkin()
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _actions(self, desk_key, item):
+        actions = _actions(desk_key, item)
+        if desk_key == "x" and "post" in actions and not self.desks["x"][1].api_ready():
+            actions = ["share", "mark_posted", "reject"]  # no paid X API: post it yourself
+        return actions
 
     def media(self, desk_key, item_id):
         _, desk = self.desks[desk_key]

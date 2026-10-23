@@ -6,9 +6,9 @@ give a platform its own file.
 
 ## The channel
 
-Short AI-generated comedy clips of animals in funny, ridiculous moments. The joke is always the
-animal: its absurd confidence, its dramatic overreaction, or a very human situation it handles
-badly. Goal: something people watch twice and send to a friend.
+Short comedy clips of animals in funny, ridiculous moments (free stock footage by default, or AI
+clips). The joke is always the animal: its absurd confidence, its dramatic overreaction, or a very
+human situation it handles badly. Goal: something people watch twice and send to a friend.
 
 ## Format: a three-beat sketch, one beat per shot
 
@@ -16,8 +16,8 @@ badly. Goal: something people watch twice and send to a friend.
 2. **Escalation**: it gets weirder or more serious than it should.
 3. **Punchline**: the ridiculous payoff, a reveal, or a deadpan reaction.
 
-Each shot is one image animated into a clip, so every beat must read as a single clear moment
-with a single clear action.
+Each shot is one short clip, so every beat must read as a single clear moment with a single clear
+action.
 
 ## Ideas to mix
 
@@ -39,10 +39,10 @@ with a single clear action.
   someone might copy with a real pet.
 - No real people, celebrities, brands or logos.
 - Family-friendly: no gore, nothing sexual, no jokes at the expense of groups of people.
-- Look: photorealistic, bright natural light, the animal large and central, cinematic close-ups.
+- Look: bright and clear, the animal large and central, close-ups.
 
 ## Voice
 
 - English, simple and punchy. Bahasa Indonesia is fine for a joke aimed at Indonesians.
 - On-screen text is deadpan and meme-like: a few words per shot, with the punchline in the last one.
-- Caption: one funny line plus 3 to 5 hashtags, including #funnyanimals and #aivideo.
+- Caption: one funny line plus 3 to 5 hashtags, including #funnyanimals.

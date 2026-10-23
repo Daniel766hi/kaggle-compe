@@ -27,7 +27,8 @@
   header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
   button:hover { border-color: var(--muted); }
-  button.primary { background: var(--you); border-color: var(--you); color: #fff; }
+  button.primary, a.button.primary { background: var(--you); border-color: var(--you); color: #fff; }
+  a.button { display: inline-block; text-decoration: none; border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
   button.danger { color: var(--bad); }
   button:disabled { opacity: .5; cursor: default; }
   main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; flex: 1; min-height: 0; }
@@ -124,12 +125,13 @@ const CHIPS = {
 };
 const DESK_NAMES = { x: "X", tiktok: "TikTok", instagram: "Instagram" };
 const LABELS = { approve: "Approve", reject: "Reject", post: "Post to X now", render: "Render preview",
+                 share: "Open in X", mark_posted: "I posted it",
                  publish: { tiktok: "Send to TikTok inbox", instagram: "Publish Reel" } };
 const CONFIRM = {
   post: "Post this to X now? It will be public.",
-  publish: { tiktok: "Render (if needed, uses Higgsfield credits) and send to your TikTok inbox?",
-             instagram: "Render (if needed, uses Higgsfield credits) and publish this Reel? It will be public." },
-  render: "Render this video? It uses Higgsfield credits.",
+  publish: { tiktok: "Render it (if needed) and send it to your TikTok inbox?",
+             instagram: "Render it (if needed) and publish this Reel? It will be public." },
+  mark_posted: "Mark this as posted? Do it after you've posted it in X.",
 };
 let state = { agents: [] }, current = null, lastId = 0, seen = {};
 
@@ -192,7 +194,7 @@ async function loadCard(el) {
     let body = `<div class="top"><span>${DESK_NAMES[desk]} #${it.id}</span><span class="pill ${it.status}">${it.status}</span>${it.job ? `<span>⏳ ${esc(it.job)}…</span>` : ""}</div>`;
     body += `<div class="hook">${esc(it.hook)}</div>`;
     if (it.posts) body += it.posts.map((p, i) => `<blockquote>${it.posts.length > 1 ? `<span class="muted">${i + 1}/${it.posts.length}</span> ` : ""}${esc(p)}</blockquote>`).join("");
-    if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.image_prompt)}</span></li>`).join("")}</ol>`;
+    if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
     if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
     if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>`;
     if (it.fact_check) body += `<div class="note warn">Check before approving: ${esc(it.fact_check)}</div>`;
@@ -201,8 +203,10 @@ async function loadCard(el) {
     if (it.url) body += `<div><a href="${esc(it.url)}" target="_blank" rel="noopener">Open the post ↗</a></div>`;
     if (it.actions.length && !it.job) {
       body += `<div class="buttons">${it.actions.map((act) => {
+        if (act === "share") return it.share_urls.map((u, i) =>
+          `<a class="button primary" href="${esc(u)}" target="_blank" rel="noopener">${it.share_urls.length > 1 ? `Open post ${i + 1} in X` : "Open in X"}</a>`).join("");
         const label = typeof LABELS[act] === "object" ? LABELS[act][desk] : LABELS[act];
-        const cls = act === "reject" ? "danger" : act === "approve" ? "" : "primary";
+        const cls = act === "reject" ? "danger" : ["post", "render", "publish"].includes(act) ? "primary" : "";
         return `<button class="${cls}" data-act="${act}">${esc(label)}</button>`;
       }).join("")}</div>`;
     }

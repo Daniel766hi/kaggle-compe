@@ -40,13 +40,19 @@ def caption_with_disclosure(caption):
     return caption if re.search(r"\bai\b", caption, re.IGNORECASE) else f"{caption}\n\n{AI_DISCLOSURE}"
 
 
+def final_caption(item):
+    """Stock clips: credit their creators. AI clips: say the visuals are AI-made."""
+    credit = render.credits(item.get("clips", []))
+    return f"{item['caption']}\n\n{credit}" if credit else caption_with_disclosure(item["caption"])
+
+
 def _publish(client, video, item):
     info = render.probe(video)  # check Instagram's Reels requirements before spending an upload
     if not 3 <= info["duration"] <= 15 * 60:
         raise instagram.InstagramError(f"video is {info['duration']:.1f} s; Reels must be 3 s to 15 min")
     if info["streams"].get("audio", {}).get("codec_name") != "aac":
         raise instagram.InstagramError("video needs an AAC audio track")
-    return client.publish_reel(video, caption_with_disclosure(item["caption"]))
+    return client.publish_reel(video, final_caption(item))
 
 
 def _done(item):

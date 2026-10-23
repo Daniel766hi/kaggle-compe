@@ -17,7 +17,7 @@ With no arguments the command is read from TIKTOK_AGENT_COMMAND (used by the Git
 
 import sys
 
-from shorts import cli
+from shorts import cli, render
 
 from . import tiktok
 
@@ -27,9 +27,15 @@ def _publish(client, video, item):
 
 
 def _done(item):
+    credit = render.credits(item.get("clips", []))
+    if credit:  # stock clips: credit their creators
+        return (
+            f"#{item['id']} is in your TikTok inbox. Open TikTok, add a sound, paste the caption and post:\n\n"
+            f"{item['caption']}\n\n{credit}"
+        )
     return (
-        f"#{item['id']} is in your TikTok inbox. Open TikTok, add sound and text, turn on the\n"
-        f"AI-generated content label, paste the caption and post:\n\n{item['caption']}"
+        f"#{item['id']} is in your TikTok inbox. Open TikTok, add a sound, turn on the AI-generated\n"
+        f"content label, paste the caption and post:\n\n{item['caption']}"
     )
 
 
@@ -67,14 +73,18 @@ PLATFORM = cli.Platform(
     title="TikTok",
     env="TIKTOK",
     finish=(
-        "The owner reviews every plan, then finishes the video in the TikTok app (on-screen text, "
-        "voiceover or text-to-speech, sound) and posts it."
+        "The owner reviews every plan. The rendered video, with each shot's on-screen text burned in, "
+        "lands in the owner's TikTok inbox, where they add a sound and post it, so the on-screen text "
+        "must tell the story. Keep it to 12 words per shot or fewer, plain text without emoji. The "
+        "voiceover is a script the owner may record later."
     ),
     published_status="sent",
     publish=_publish,
     client=tiktok.TikTokClient.from_env,
     errors=(tiktok.TikTokError,),
     done=_done,
+    burn_text=True,
+    screen_words=12,
     extra_commands=_extra_commands,
 )
 

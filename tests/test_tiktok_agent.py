@@ -92,7 +92,7 @@ class FakeUploader:
         return "v_inbox_1"
 
 
-def fake_assemble(clips, out_dir):
+def fake_assemble(clips, out_dir, **options):
     return out_dir / "video.mp4"
 
 
@@ -207,5 +207,6 @@ def test_autopilot_plans_auto_approves_safe_ones_and_makes_one(tmp_path, monkeyp
     assert cli.cmd_autopilot(PLATFORM, q, args, claude, FakeHiggsfield(), uploader, fake_assemble) == 0
     assert [i["status"] for i in q.items] == ["sent", "draft"]
     request = claude.requests[0]
-    assert request["output_config"]["format"]["schema"] == plans.CONCEPTS_SCHEMA
-    assert "TikTok account" in request["system"] and "3 AI-generated clips of 5 seconds" in request["system"]
+    assert request["output_config"]["format"]["schema"] == plans.schemas()[0]
+    assert "TikTok account" in request["system"] and "3 clips of 5 seconds" in request["system"]
+    assert "real stock videos from Pexels" in request["system"]  # the free default

@@ -1,7 +1,13 @@
-"""Claude plans short videos: hook, shots for Higgsfield, on-screen text, voiceover and caption."""
+"""The AI plans short videos: hook, shots, on-screen text, voiceover and caption.
 
+Shots are either free stock clips from Pexels found by a search query (VIDEO_SOURCE=stock, the
+default) or AI clips made with Higgsfield from an image and a motion prompt (VIDEO_SOURCE=higgsfield).
+"""
+
+import os
 from datetime import date
 
+import llm
 from x_agent.brain import WEB_SEARCH, ask
 from x_agent.queue import PostQueue
 
@@ -10,9 +16,8 @@ MAX_HASHTAGS = 30  # Instagram rejects captions with more
 WORDS_PER_SECOND = 2.5  # comfortable voiceover pace
 
 RULES = """\
-You plan short vertical videos for the {platform} account described in the profile below. Each video is {shots} AI-generated clips of {seconds} seconds ({total} seconds in total),
-made with Higgsfield: first an image from your image prompt, then a clip that animates it from
-your motion prompt. {finish}
+You plan short vertical videos for the {platform} account described in the profile below. Each
+video is {shots} clips of {seconds} seconds ({total} seconds in total). {visuals} {finish}
 
 Rules:
 - Never invent facts. Statistics, quotes, dates and claims about the world must come from a
@@ -20,12 +25,7 @@ Rules:
   owner must be supported by the profile; don't add achievements, numbers or experiences.
 - If the owner should check something before publishing, say exactly what in "fact_check".
   Otherwise leave it empty.
-- Image prompts describe a single 9:16 vertical scene: subject, setting, light, style. They
-  must not ask for any text, numbers, charts with values, logos or brand names (image models
-  render these badly), and never show a real, identifiable person. Use people only as anonymous
-  figures (hands, silhouettes, backs, crowds).
-- Motion prompts describe one clear action of the subject (the beat of the joke, if it is one)
-  and, at most, one simple camera movement.
+{visual_rules}
 - All words go in "on_screen_text" (a few words per shot) and "voiceover". The first shot's
   on-screen text is the hook and must make someone stop scrolling within two seconds.
 - The voiceover is at most {words} words so it fits the video when read at a natural pace.
@@ -35,45 +35,70 @@ Rules:
 Profile:
 {profile}"""
 
-SHOT = {
-    "type": "object",
-    "properties": {
-        "image_prompt": {"type": "string"},
-        "motion_prompt": {"type": "string"},
-        "on_screen_text": {"type": "string"},
-    },
-    "required": ["image_prompt", "motion_prompt", "on_screen_text"],
-    "additionalProperties": False,
+VISUALS = {
+    "stock": (
+        "The clips are real stock videos from Pexels, one found with your search query for each shot; "
+        "the joke comes from your on-screen text over the clip.",
+        """\
+- Each shot's search_query is 2 to 5 plain words naming one animal doing one visible thing, like
+  "cat knocking cup off table", "goat standing on rock" or "dog wearing sunglasses". Common,
+  concrete scenes find good clips. No people, brands or anything a stock site wouldn't have.
+- Write the on-screen text so the joke still works if the clip only roughly matches the query.""",
+    ),
+    "higgsfield": (
+        "The clips are AI-generated with Higgsfield: first an image from your image prompt, then a "
+        "clip that animates it from your motion prompt.",
+        """\
+- Image prompts describe a single 9:16 vertical scene: subject, setting, light, style. They
+  must not ask for any text, numbers, charts with values, logos or brand names (image models
+  render these badly), and never show a real, identifiable person. Use people only as anonymous
+  figures (hands, silhouettes, backs, crowds).
+- Motion prompts describe one clear action of the subject (the beat of the joke, if it is one)
+  and, at most, one simple camera movement.""",
+    ),
 }
-PLAN_FIELDS = {
-    "shots": {"type": "array", "items": SHOT},
-    "voiceover": {"type": "string"},
-    "caption": {"type": "string"},
-    "sources": {"type": "array", "items": {"type": "string"}, "description": "URLs backing factual claims"},
-    "fact_check": {"type": "string", "description": "What the owner must verify first; empty if nothing"},
+SHOT_FIELDS = {
+    "stock": {"search_query": {"type": "string"}},
+    "higgsfield": {"image_prompt": {"type": "string"}, "motion_prompt": {"type": "string"}},
 }
-CONCEPT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "pillar": {"type": "string", "description": "Content pillar from the profile"},
-        "hook": {"type": "string", "description": "The idea in one line"},
-        **PLAN_FIELDS,
-    },
-    "required": ["pillar", "hook", *PLAN_FIELDS],
-    "additionalProperties": False,
-}
-CONCEPTS_SCHEMA = {
-    "type": "object",
-    "properties": {"concepts": {"type": "array", "items": CONCEPT_SCHEMA}},
-    "required": ["concepts"],
-    "additionalProperties": False,
-}
-REVISION_SCHEMA = {
-    "type": "object",
-    "properties": PLAN_FIELDS,
-    "required": list(PLAN_FIELDS),
-    "additionalProperties": False,
-}
+
+
+def video_source():
+    source = (os.environ.get("VIDEO_SOURCE") or "stock").strip().lower()
+    if source not in VISUALS:
+        raise ValueError(f"VIDEO_SOURCE must be one of {', '.join(VISUALS)}, not {source!r}")
+    return source
+
+
+def schemas(source=None):
+    """(all concepts, one revision) JSON schemas for the given video source."""
+    fields = {**SHOT_FIELDS[source or video_source()], "on_screen_text": {"type": "string"}}
+    shot = {"type": "object", "properties": fields, "required": list(fields), "additionalProperties": False}
+    plan_fields = {
+        "shots": {"type": "array", "items": shot},
+        "voiceover": {"type": "string"},
+        "caption": {"type": "string"},
+        "sources": {"type": "array", "items": {"type": "string"}, "description": "URLs backing factual claims"},
+        "fact_check": {"type": "string", "description": "What the owner must verify first; empty if nothing"},
+    }
+    concept = {
+        "type": "object",
+        "properties": {
+            "pillar": {"type": "string", "description": "Content pillar from the profile"},
+            "hook": {"type": "string", "description": "The idea in one line"},
+            **plan_fields,
+        },
+        "required": ["pillar", "hook", *plan_fields],
+        "additionalProperties": False,
+    }
+    concepts = {
+        "type": "object",
+        "properties": {"concepts": {"type": "array", "items": concept}},
+        "required": ["concepts"],
+        "additionalProperties": False,
+    }
+    revision = {"type": "object", "properties": plan_fields, "required": list(plan_fields), "additionalProperties": False}
+    return concepts, revision
 
 
 class VideoQueue(PostQueue):
@@ -88,6 +113,7 @@ class VideoQueue(PostQueue):
 def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None, unattended=False):
     request = [f"Today is {date.today():%d %B %Y}. Plan {count} videos."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
+    use_web = use_web and (client is not None or llm.web_search_available())
     if use_web:
         request.append("If it helps, search the web for recent news or trends worth reacting to before you plan.")
     if avoid:
@@ -99,13 +125,13 @@ def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=
             "must be listed in fact_check; those are held back for the owner."
         )
     tools = [WEB_SEARCH] if use_web else []
-    return ask(client, _system(platform, profile), "\n\n".join(request), CONCEPTS_SCHEMA, tools)["concepts"]
+    return ask(client, _system(platform, profile), "\n\n".join(request), schemas()[0], tools)["concepts"]
 
 
 def revise(platform, profile, item, feedback, client=None):
     plan = {k: item[k] for k in ("shots", "voiceover", "caption", "sources", "fact_check")}
     request = f"Idea: {item['hook']}\n\nCurrent plan (JSON): {plan}\n\nRewrite it. Feedback: {feedback}"
-    return ask(client, _system(platform, profile), request, REVISION_SCHEMA)
+    return ask(client, _system(platform, profile), request, schemas()[1])
 
 
 def problems(platform, item):
@@ -134,7 +160,10 @@ def _max_words(shots, seconds):
 
 def _system(platform, profile):
     shots, seconds = platform.shots, platform.seconds
+    visuals, visual_rules = VISUALS[video_source()]
     return RULES.format(
+        visuals=visuals,
+        visual_rules=visual_rules,
         platform=platform.title,
         shots=shots,
         seconds=seconds,

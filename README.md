@@ -240,6 +240,35 @@ the account must be linked to a Page, and it's also why the video doesn't need t
 anywhere. If Meta changes the API version, set `INSTAGRAM_GRAPH_VERSION`
 (default `v26.0`).
 
+## Run it for free
+
+Everything can run without paying for anything:
+
+| Part | Free option | Paid option (optional) |
+|---|---|---|
+| The agents' AI | **Ollama**: a local model on your computer (default when `ANTHROPIC_API_KEY` isn't set) | Claude: `ANTHROPIC_API_KEY` |
+| Video clips | **Pexels** stock clips, creators credited in the caption (`VIDEO_SOURCE=stock`, the default) | Higgsfield AI clips: `VIDEO_SOURCE=higgsfield` and `HF_KEY` |
+| Posting to X | **Open in X**: the office opens X with the post filled in, you press Post, then *I posted it* | X API keys (X charges per post) |
+| TikTok, Instagram | Their posting APIs are free | |
+| Daily runs | GitHub Actions is free for public repos | |
+
+Setup:
+1. **Ollama:** install it from ollama.com and open it. Then run `ollama pull qwen3:8b` once.
+   That's about a 5 GB download and needs 16 GB of RAM. On 8 GB of RAM, use `qwen3:4b` and set
+   `OLLAMA_MODEL=qwen3:4b`. Keep the Ollama app running while you use the office.
+2. **Pexels:** sign up at pexels.com/api and copy *Your API key*. Set `PEXELS_API_KEY` on your
+   computer, and add it as a GitHub secret for the daily video runs.
+
+What changes when it's free:
+- **Weaker drafts, no web search.** A local model writes slower and weaker drafts than Claude, and
+  it can't search the web, so ideas come from your profile files. Review drafts a little more
+  carefully.
+- **New drafts come from the office.** Ollama runs on your computer, not on GitHub's servers. The
+  daily workflows skip writing new ideas and still publish the videos you approved. Approve in
+  the office, then click *Sync with GitHub*.
+- **Clips are real stock footage, not AI.** The Reel caption credits the Pexels creators instead
+  of saying "made with AI".
+
 ## AI Office: chat with your content team
 
 `office/` is a small web app for your own computer. Your content agents sit at desks there, and
@@ -254,7 +283,8 @@ you can chat with each of them. They also message you when something needs you.
 
 ```
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=...        # plus X_*, HF_KEY, TIKTOK_*, INSTAGRAM_* to post from the office
+ollama pull qwen3:8b                # once; see "Run it for free" below
+export PEXELS_API_KEY=...           # free; plus TIKTOK_*, INSTAGRAM_* to publish from the office
 python -m office                    # opens http://127.0.0.1:8765
 ```
 
@@ -265,8 +295,8 @@ python -m office                    # opens http://127.0.0.1:8765
   out, a finished video. Unread messages show as badges, a pop-up, and a browser notification
   when the tab is in the background.
 - **Only you approve and publish.** The agents can read, draft, revise and reject. Approve,
-  *Post to X now*, *Render preview* and *Publish* are buttons on the cards, and they ask for
-  confirmation before anything public or paid happens.
+  *Open in X* / *Post to X now*, *Render preview* and *Publish* are buttons on the cards, and
+  they ask for confirmation before anything public happens.
 - **Sync with GitHub** pulls what the scheduled runs changed and pushes your approvals and edits to
   `content/`, so the daily workflows use them.
 
@@ -307,6 +337,7 @@ tiktok_agent/
   tiktok.py        TikTok login (OAuth) and upload to your inbox
 instagram_agent/
   instagram.py     Instagram Graph API: resumable Reel upload, publish, quota, account setup
+llm.py             which AI thinks: a free local model (Ollama) or Claude
 office/            the AI Office web app (python -m office)
   team.py          the four agents: who they are and their tools
   chat.py          conversations with Claude, check-ins (agents messaging you)

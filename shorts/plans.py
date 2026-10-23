@@ -43,6 +43,9 @@ VISUALS = {
 - Each shot's search_query is 2 to 5 plain words naming one animal doing one visible thing, like
   "cat knocking cup off table", "goat standing on rock" or "dog wearing sunglasses". Common,
   concrete scenes find good clips. No people, brands or anything a stock site wouldn't have.
+- The three shots of a video are three different scenes with three different queries. Vary the
+  animal from video to video: dogs, goats, ducks, parrots, horses, cows, monkeys, penguins,
+  hamsters and more, not only cats.
 - Write the on-screen text so the joke still works if the clip only roughly matches the query.""",
     ),
     "higgsfield": (
@@ -110,7 +113,7 @@ class VideoQueue(PostQueue):
         return {k: concept[k] for k in ("shots", "voiceover", "caption")}
 
 
-def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None, unattended=False):
+def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=None, unattended=False, searches=()):
     request = [f"Today is {date.today():%d %B %Y}. Plan {count} videos."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
     use_web = use_web and (client is not None or llm.web_search_available())
@@ -118,6 +121,16 @@ def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=
         request.append("If it helps, search the web for recent news or trends worth reacting to before you plan.")
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
+    if video_source() == "stock":
+        request.append(
+            f"Give each of the {count} videos a different animal, and every shot its own search query "
+            "(three different scenes, not the same clip three times)."
+        )
+        if searches:
+            request.append(
+                "Recent videos already used these clip searches. Pick other animals and scenes, so the "
+                "channel doesn't keep showing the same footage:\n" + "\n".join(f"- {q}" for q in searches)
+            )
     if unattended:
         request.append(
             "These are published automatically, without the owner reviewing them. Prefer ideas that are "
@@ -126,6 +139,12 @@ def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=
         )
     tools = [WEB_SEARCH] if use_web else []
     return ask(client, _system(platform, profile), "\n\n".join(request), schemas()[0], tools)["concepts"]
+
+
+def recent_searches(items, n=30):
+    """The stock-clip searches of the latest videos, newest last."""
+    queries = [s["search_query"] for it in items[-12:] for s in it.get("shots", []) if s.get("search_query")]
+    return list(dict.fromkeys(queries))[-n:]
 
 
 def revise(platform, profile, item, feedback, client=None):

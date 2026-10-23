@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shutil
+import time
 import subprocess
 from types import SimpleNamespace
 
@@ -142,12 +143,19 @@ def clip(video_id, name, duration=10, files=None):
     return {"id": video_id, "duration": duration, "url": f"https://www.pexels.com/video/{video_id}/", "user": {"name": name}, "video_files": files}
 
 
+class FirstPick:
+    """Makes the random clip choice predictable in tests: always the best match."""
+
+    def choice(self, options):
+        return options[0]
+
+
 def test_stock_clips_are_found_credited_and_never_reused(monkeypatch):
     monkeypatch.setenv("PEXELS_API_KEY", "pk")
     pexels = FakePexels([clip(1, "Ana"), clip(2, "Budi", duration=2), clip(3, "Citra"), clip(4, "Ana")])
-    clips = render.render_stock(STOCK_PLAN, 5, pexels)
+    clips = render.render_stock(STOCK_PLAN, 5, pexels, rng=FirstPick())
     assert [c["video_url"] for c in clips] == ["https://p/1/hd.mp4", "https://p/3/hd.mp4", "https://p/4/hd.mp4"]
-    assert pexels.calls[0] == ({"query": "cat on desk", "per_page": 15, "orientation": "portrait"}, {"Authorization": "pk"})
+    assert pexels.calls[0] == ({"query": "cat on desk", "per_page": 40, "orientation": "portrait"}, {"Authorization": "pk"})
     assert render.credits(clips) == "Clips from Pexels: Ana, Citra"
 
 
@@ -155,7 +163,7 @@ def test_stock_falls_back_to_any_orientation_then_explains(monkeypatch):
     monkeypatch.setenv("PEXELS_API_KEY", "pk")
     one_shot = {**STOCK_PLAN, "shots": STOCK_PLAN["shots"][:1]}
     assert render.render_stock(one_shot, 5, FakePexels([], [clip(9, "Dewi")]))[0]["credit"] == "Dewi"
-    with pytest.raises(render.RenderError, match="No stock clip found for 'cat on desk'"):
+    with pytest.raises(render.RenderError, match="No unused stock clip found for 'cat on desk'"):
         render.render_stock(one_shot, 5, FakePexels([], []))
     monkeypatch.delenv("PEXELS_API_KEY")
     with pytest.raises(SystemExit):
@@ -176,7 +184,8 @@ def test_make_uses_stock_clips_for_a_stock_plan(tmp_path, monkeypatch):
     assert cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1), None, FakeUploader(), assemble, pexels) == 0
     assert q.get(1)["status"] == "sent" and len(seen["clips"]) == 3
     assert seen["texts"] == ["New manager, day one", "Performance review", "Meeting cancelled"]
-    assert "Clips from Pexels: N1, N2, N3" in TIKTOK.done(q.get(1))
+    credit = TIKTOK.done(q.get(1)).rsplit("Clips from Pexels: ", 1)[1]
+    assert sorted(credit.split(", ")) == ["N1", "N2", "N3"]
 
 
 def test_reels_credit_stock_clips_instead_of_an_ai_label():
@@ -294,7 +303,7 @@ def test_pixabay_is_used_when_its_key_is_set(monkeypatch):
     monkeypatch.setenv("PEXELS_API_KEY", "pk")  # Pixabay wins: Pexels has paused new keys
     assert render.stock_site() == "pixabay"
     pixabay = FakePixabay([pixabay_hit(1, "goatlover", duration=3), pixabay_hit(2, "catcam"), pixabay_hit(3, "dogday")])
-    clips = render.render_stock({**STOCK_PLAN, "shots": STOCK_PLAN["shots"][:2]}, 5, pixabay)
+    clips = render.render_stock({**STOCK_PLAN, "shots": STOCK_PLAN["shots"][:2]}, 5, pixabay, rng=FirstPick())
     assert [c["video_url"] for c in clips] == ["https://cdn/2/1080.mp4", "https://cdn/3/1080.mp4"]  # 1 is too short
     url, params, headers = pixabay.calls[0]
     assert url == "https://pixabay.com/api/videos/" and params["key"] == "px" and params["q"] == "cat on desk"
@@ -308,3 +317,77 @@ def test_without_any_stock_key_the_message_points_to_pixabay(monkeypatch):
     monkeypatch.delenv("STOCK_SITE", raising=False)
     with pytest.raises(SystemExit, match="PIXABAY_API_KEY"):
         render.stock_site()
+
+
+def test_no_two_videos_show_the_same_clip(tmp_path, monkeypatch):
+    """The bug: every video showed the same cat, because each video started from the top result."""
+    monkeypatch.setenv("PIXABAY_API_KEY", "px")
+    q = TIKTOK.queue(tmp_path / "t.json")
+    for _ in range(3):
+        q.add({**STOCK_PLAN, "shots": [{"search_query": "cat", "on_screen_text": "x"}] * 3}, status="approved")
+    pixabay = FakePixabay([pixabay_hit(i, f"u{i}") for i in range(1, 11)])  # the same results every search
+    for item_id in (1, 2, 3):
+        assert cli.cmd_make(TIKTOK, q, argparse.Namespace(id=item_id), None, FakeUploader(), fake_assemble, pixabay) == 0
+    pages = [c["source"] for it in q.items for c in it["clips"]]
+    assert len(pages) == 9 and len(set(pages)) == 9
+
+
+def test_random_picks_vary_between_runs(monkeypatch):
+    monkeypatch.setenv("PIXABAY_API_KEY", "px")
+    hits = [pixabay_hit(i, f"u{i}") for i in range(1, 30)]
+    one_shot = {**STOCK_PLAN, "shots": STOCK_PLAN["shots"][:1]}
+    picks = {render.render_stock(one_shot, 5, FakePixabay(hits))[0]["source"] for _ in range(20)}
+    assert len(picks) > 3  # not the top result every time
+    assert picks <= {f"https://pixabay.com/videos/{i}/" for i in range(1, render.PICK_FROM + 1)}  # but a good one
+
+
+def test_new_clips_replaces_the_footage_for_free(tmp_path, monkeypatch):
+    monkeypatch.setenv("PIXABAY_API_KEY", "px")
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(STOCK_PLAN, status="approved")
+    pixabay = FakePixabay([pixabay_hit(i, f"u{i}") for i in range(1, 20)])
+    cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1, no_upload=True), None, None, fake_assemble, pixabay)
+    first = {c["source"] for c in q.get(1)["clips"]}
+    cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1, no_upload=True, new_clips=True), None, None, fake_assemble, pixabay)
+    second = {c["source"] for c in q.get(1)["clips"]}
+    assert len(second) == 3 and not first & second
+
+
+def test_plans_ask_for_different_animals_than_recent_videos(monkeypatch):
+    seen = {}
+
+    def fake_json(system, request, schema, session=None):
+        seen["request"] = request
+        return {"concepts": []}
+
+    monkeypatch.setattr(llm, "ollama_json", fake_json)
+    items = [{"shots": [{"search_query": "cat on desk"}, {"search_query": "cat staring"}]}]
+    plans.generate(TIKTOK, "profile", 2, searches=plans.recent_searches(items))
+    assert "different animal" in seen["request"]
+    assert "- cat on desk\n- cat staring" in seen["request"]
+    assert "not only cats" in plans._system(TIKTOK, "profile")
+
+
+def test_office_new_clips_button_swaps_the_footage(tmp_path, monkeypatch):
+    monkeypatch.setenv("PIXABAY_API_KEY", "px")
+    pixabay = FakePixabay([pixabay_hit(i, f"u{i}") for i in range(1, 20)])
+    tiktok = VideoDesk(TIKTOK, tmp_path / "t.json", assemble=fake_assemble, stock=pixabay)
+    team = build_team(XDesk(tmp_path / "x.json"), tiktok, VideoDesk(INSTAGRAM, tmp_path / "i.json"))
+    app = server.OfficeApp(Office(team, tmp_path / "data", engine=OllamaEngine(FakeOllama())))
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(STOCK_PLAN, status="approved")
+    q.save()
+    app.action("tiktok", 1, "render")
+    for _ in range(200):
+        if not app.jobs:
+            break
+        time.sleep(0.02)
+    first = {c["source"] for c in tiktok.item(1)["clips"]}
+    assert app.item("tiktok", 1)["actions"] == ["publish", "new_clips", "reject"]
+    app.action("tiktok", 1, "new_clips")
+    for _ in range(200):
+        if not app.jobs:
+            break
+        time.sleep(0.02)
+    assert not first & {c["source"] for c in tiktok.item(1)["clips"]}
+    assert any("New clips are in" in e["text"] for e in app.office.threads["sari"].feed)

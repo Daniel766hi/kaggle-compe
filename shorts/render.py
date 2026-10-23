@@ -9,6 +9,7 @@ rendered after it is approved.
 import json
 import logging
 import os
+import random
 import subprocess
 import textwrap
 from pathlib import Path
@@ -26,6 +27,7 @@ FONTS = (
 MUSIC_TYPES = {".mp3", ".m4a", ".aac", ".wav"}
 PEXELS_SEARCH = "https://api.pexels.com/videos/search"
 PIXABAY_SEARCH = "https://pixabay.com/api/videos/"
+PICK_FROM = 12  # random pick among this many good matches, so popular clips don't repeat
 STOCK_SITES = {"pixabay": ("PIXABAY_API_KEY", "Pixabay"), "pexels": ("PEXELS_API_KEY", "Pexels")}
 # Pixabay sits behind Cloudflare, which challenges Python's default user agent.
 USER_AGENT = "Mozilla/5.0 (compatible; AI-Office/1.0; +https://github.com/Daniel766hi/kaggle-compe)"
@@ -60,26 +62,40 @@ def stock_site():
     raise SystemExit("Set PIXABAY_API_KEY (free: log in at pixabay.com, then open pixabay.com/api/docs).")
 
 
-def render_stock(item, seconds, session=None):
-    """Find a free stock clip for every shot. Returns the clip records, with credits, for the queue."""
+def render_stock(item, seconds, session=None, exclude=(), rng=None):
+    """Find a free stock clip for every shot. Returns the clip records, with credits, for the queue.
+
+    exclude: clips already used (their page URLs), so no two videos show the same footage.
+    Each shot takes a random pick among the best unused matches, not always the top result.
+    """
     site = stock_site()
     env, name = STOCK_SITES[site]
     key = os.environ.get(env)
     if not key:
         raise SystemExit(f"Set {env} to use {name} clips.")
-    session = session or requests.Session()
+    session, rng = session or requests.Session(), rng or random.Random()
     search = _search_pixabay if site == "pixabay" else _search_pexels
-    used, clips = set(), []
+    used, clips = set(exclude), []
     for i, shot in enumerate(item["shots"], 1):
         query = shot["search_query"]
         logging.info("Shot %d/%d: finding a %s clip for %r", i, len(item["shots"]), name, query)
-        found = (c for c in search(session, key, query) if c["id"] not in used and c["duration"] >= seconds)
-        clip = next(found, None)
-        if clip is None:
-            raise RenderError(f"No stock clip found for {query!r}. Revise the plan with a simpler search.")
-        used.add(clip["id"])
+        candidates = []
+        for clip in search(session, key, query):
+            if clip["page"] not in used and clip["duration"] >= seconds:
+                candidates.append(clip)
+                if len(candidates) == PICK_FROM:
+                    break
+        if not candidates:
+            raise RenderError(f"No unused stock clip found for {query!r}. Revise the plan with a different search.")
+        clip = rng.choice(candidates)
+        used.add(clip["page"])
         clips.append({"video_url": clip["url"], "source": clip["page"], "credit": clip["credit"], "site": name, "query": query})
     return clips
+
+
+def used_clips(items, except_id=None):
+    """Page URLs of every stock clip already in a video, so new videos don't repeat them."""
+    return {c["source"] for it in items if it["id"] != except_id for c in it.get("clips", []) if c.get("source")}
 
 
 def credits(clips):
@@ -189,7 +205,7 @@ def _ff_path(path):
 def _search_pexels(session, key, query):
     """Candidate clips from Pexels: vertical ones first, then any orientation (cropped to fit)."""
     for extra in ({"orientation": "portrait"}, {}):
-        resp = session.get(PEXELS_SEARCH, params={"query": query, "per_page": 15, **extra},
+        resp = session.get(PEXELS_SEARCH, params={"query": query, "per_page": 40, **extra},
                            headers={"Authorization": key}, timeout=60)  # fmt: skip
         if resp.status_code >= 400:
             raise RenderError(f"Pexels search failed: HTTP {resp.status_code} {resp.text[:200]}")
@@ -211,7 +227,7 @@ def _best_pexels_file(files):
 
 def _search_pixabay(session, key, query):
     """Candidate clips from Pixabay (landscape mostly; cropped to fill the vertical frame)."""
-    params = {"key": key, "q": query, "per_page": 20, "safesearch": "true"}
+    params = {"key": key, "q": query, "per_page": 50, "safesearch": "true"}
     resp = session.get(PIXABAY_SEARCH, params=params, headers={"User-Agent": USER_AGENT}, timeout=60)
     if resp.status_code >= 400:
         raise RenderError(f"Pixabay search failed: HTTP {resp.status_code} {resp.text[:200]}")

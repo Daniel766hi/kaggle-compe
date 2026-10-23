@@ -21,6 +21,7 @@ import shlex
 import sys
 
 import llm
+import local_env
 
 from . import brain, text
 from .queue import PostQueue
@@ -30,6 +31,7 @@ WAITING = ("draft", "approved", "failed")
 
 
 def main(argv=None):
+    local_env.load()  # keys saved by the setup script, when run on your computer
     if argv is None:
         argv = sys.argv[1:] or shlex.split(os.environ.get("X_AGENT_COMMAND") or "list")
     args = _parser().parse_args(argv)

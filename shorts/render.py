@@ -21,6 +21,7 @@ WIDTH, HEIGHT = 1080, 1920
 FONTS = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux and GitHub Actions
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",  # macOS
+    "C:/Windows/Fonts/arialbd.ttf",  # Windows
 )
 MUSIC_TYPES = {".mp3", ".m4a", ".aac", ".wav"}
 PEXELS_SEARCH = "https://api.pexels.com/videos/search"
@@ -95,7 +96,7 @@ def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, do
         paths.append(path)
     listing = out_dir / "clips.txt"
     trim = f"outpoint {seconds}\n" if seconds else ""  # stock clips are longer than a shot
-    listing.write_text("".join(f"file '{p.resolve()}'\n{trim}" for p in paths))
+    listing.write_text("".join(f"file '{p.resolve().as_posix()}'\n{trim}" for p in paths))
 
     args = ["-y", "-f", "concat", "-safe", "0", "-i", str(listing)]
     if audio and music:
@@ -161,11 +162,16 @@ def _captions(texts, seconds, out_dir):
         text_file = out_dir / f"text_{i + 1}.txt"
         text_file.write_text(textwrap.fill(text.strip(), 20))  # read from a file: no escaping trouble
         filters.append(
-            f"drawtext=fontfile='{font}':textfile='{text_file}':fontsize=62:fontcolor=white:line_spacing=16"
+            f"drawtext=fontfile='{_ff_path(font)}':textfile='{_ff_path(text_file)}':fontsize=62:fontcolor=white:line_spacing=16"
             f":box=1:boxcolor=black@0.55:boxborderw=30:x=(w-text_w)/2:y=h*0.32-text_h/2"
             f":enable='between(t,{i * seconds},{(i + 1) * seconds})'"
         )
     return filters
+
+
+def _ff_path(path):
+    """A path inside an ffmpeg filter: forward slashes, and the colon of C: escaped (Windows)."""
+    return Path(path).as_posix().replace(":", "\\:")
 
 
 def _pexels(session, key, params):

@@ -6,3 +6,5 @@ venv/
 build/
 kaggle.json
 access_token
+office_data/
+*.json.tmp

@@ -27,7 +27,9 @@ class PostQueue:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.items, indent=2, ensure_ascii=False) + "\n")
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self.items, indent=2, ensure_ascii=False) + "\n")
+        os.replace(tmp, self.path)  # readers never see a half-written file
 
     def add(self, idea, status="draft"):
         item = {

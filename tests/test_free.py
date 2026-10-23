@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ import pytest
 import requests
 
 import llm
+import local_env
 from instagram_agent import __main__ as ig_main
 from instagram_agent.__main__ import PLATFORM as INSTAGRAM
 from office import server
@@ -235,3 +237,33 @@ def test_autopilot_without_ai_still_publishes_what_is_approved(tmp_path, monkeyp
     assert session.payloads == [{"text": "Haze is back."}]
     vq = TIKTOK.queue(tmp_path / "t.json")
     assert cli.cmd_autopilot(TIKTOK, vq, SimpleNamespace(min_drafts=3, count=2), assemble=fake_assemble) == 0
+
+
+def test_keys_saved_by_setup_load_without_overriding_real_secrets(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    local_env.save("PEXELS_API_KEY", "first", env)
+    local_env.save("OLLAMA_MODEL", "qwen3:4b", env)
+    local_env.save("PEXELS_API_KEY", "second", env)  # replaced, not duplicated
+    assert local_env.read(env) == {"OLLAMA_MODEL": "qwen3:4b", "PEXELS_API_KEY": "second"}
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.setenv("PEXELS_API_KEY", "from-github")
+    local_env.load(env)
+    assert os.environ["OLLAMA_MODEL"] == "qwen3:4b" and os.environ["PEXELS_API_KEY"] == "from-github"
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_on_screen_text_works_with_a_colon_in_the_font_path(tmp_path, monkeypatch):
+    # Windows paths look like C:/Windows/Fonts/arialbd.ttf; ffmpeg filters need that colon escaped.
+    fonts = tmp_path / "C:" / "Fonts"
+    fonts.mkdir(parents=True)
+    source = next((f for f in render.FONTS if os.path.exists(f)), None)
+    if source is None:
+        pytest.skip("no font installed")
+    shutil.copy(source, fonts / "font.ttf")
+    monkeypatch.setenv("VIDEO_FONT", str(fonts / "font.ttf"))
+
+    def short(url, path):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=320x480:rate=25:duration=1", str(path)], check=True)
+
+    video = render.assemble([{"video_url": "a"}], tmp_path / "out", texts=["hello"], seconds=1, audio=True, download=short)
+    assert render.probe(video)["streams"]["video"]["height"] == 1920

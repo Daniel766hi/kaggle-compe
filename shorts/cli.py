@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 import llm
+import local_env
 from x_agent.brain import load_profile
 
 from . import plans, render
@@ -55,6 +56,7 @@ class Platform:
 
 
 def main(platform, doc, argv=None):
+    local_env.load()  # keys saved by the setup script, when run on your computer
     if argv is None:
         argv = sys.argv[1:] or shlex.split(platform.setting("AGENT_COMMAND", "list"))
     args = _parser(platform, doc).parse_args(argv)

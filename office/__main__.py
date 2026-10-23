@@ -10,9 +10,11 @@ Claude instead, and X_* keys to post to X from the office (X charges per post).
 
 import argparse
 import logging
+import os
 import webbrowser
 
 import llm
+import local_env
 
 from instagram_agent.__main__ import PLATFORM as INSTAGRAM
 from tiktok_agent.__main__ import PLATFORM as TIKTOK
@@ -24,6 +26,7 @@ from .team import build_team
 
 
 def main(argv=None):
+    local_env.load()  # keys saved by the setup script, when run on your computer
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--checkin-minutes", type=int, default=30, help="how often the team checks for things that need you")
@@ -44,6 +47,8 @@ def main(argv=None):
     else:
         print(f"Ollama isn't running. Install it from https://ollama.com, run `ollama pull {llm.ollama_model()}`,")
         print("keep the Ollama app open, then refresh the office.")
+    if not os.environ.get("PEXELS_API_KEY"):
+        print("No PEXELS_API_KEY yet: video agents can plan, but rendering needs the free key (run the setup script).")
     if not args.no_browser:
         webbrowser.open(url)
     try:

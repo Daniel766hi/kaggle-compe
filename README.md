@@ -252,7 +252,17 @@ Everything can run without paying for anything:
 | TikTok, Instagram | Their posting APIs are free | |
 | Daily runs | GitHub Actions is free for public repos | |
 
-Setup:
+**One-command setup.** In the repo folder, run the script for your system. It installs what's
+missing (Python packages, ffmpeg, Ollama), picks a model that fits your computer's memory and
+downloads it, asks for your free Pexels key (and checks that it works), saves your keys in `.env`
+(never committed), then opens the office:
+
+| System | First time | After that |
+|---|---|---|
+| Windows | right-click `setup.ps1` → *Run with PowerShell* | `start-office.ps1` |
+| macOS / Linux | `bash setup.sh` | `bash start-office.sh` |
+
+Or set it up by hand:
 1. **Ollama:** install it from ollama.com and open it. Then run `ollama pull qwen3:8b` once.
    That's about a 5 GB download and needs 16 GB of RAM. On 8 GB of RAM, use `qwen3:4b` and set
    `OLLAMA_MODEL=qwen3:4b`. Keep the Ollama app running while you use the office.
@@ -338,6 +348,7 @@ tiktok_agent/
 instagram_agent/
   instagram.py     Instagram Graph API: resumable Reel upload, publish, quota, account setup
 llm.py             which AI thinks: a free local model (Ollama) or Claude
+local_env.py       keys saved in .env on your computer (setup.ps1 / setup.sh write it)
 office/            the AI Office web app (python -m office)
   team.py          the four agents: who they are and their tools
   chat.py          conversations with Claude, check-ins (agents messaging you)

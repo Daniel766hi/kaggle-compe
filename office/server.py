@@ -24,6 +24,7 @@ ACTIONS = {
     "post": "posting to X",
     "render": "rendering the video",
     "publish": "publishing",
+    "new_clips": "finding new clips",
 }
 X_INTENT = "https://x.com/intent/post?text="  # opens X's composer with the text filled in (free)
 
@@ -104,6 +105,9 @@ class OfficeApp:
             elif action == "render":
                 desk.render(item_id)
                 self.office.notify(agent_key, f"Your video is rendered. Have a look before it goes out: {tag}")
+            elif action == "new_clips":
+                desk.new_clips(item_id)
+                self.office.notify(agent_key, f"New clips are in. Have another look: {tag}")
             else:
                 item = desk.publish(item_id)
                 where = "is in your TikTok inbox. Add a sound in the app and post it" if item["status"] == "sent" else "is live"
@@ -153,7 +157,8 @@ def _actions(desk_key, item):
     if status == "approved":
         return ["render", "publish", "reject"]
     if status in ("rendered", "failed") and item.get("clips"):  # rendered: publish without paying again
-        return ["publish", "reject"]
+        stock = "search_query" in item["shots"][0]
+        return ["publish", "new_clips", "reject"] if stock else ["publish", "reject"]
     return ["approve", "reject"] if status in ("draft", "failed") else []
 
 

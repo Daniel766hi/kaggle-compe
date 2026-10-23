@@ -140,8 +140,9 @@ class XDesk(Desk):
 class VideoDesk(Desk):
     published = ("sent", "posted")
 
-    def __init__(self, platform, queue_path=None, claude=None, hf=None, client=None, assemble=None):
+    def __init__(self, platform, queue_path=None, claude=None, hf=None, client=None, assemble=None, stock=None):
         super().__init__()
+        self.stock = stock  # the stock-site session (tests pass a fake)
         self.platform, self.queue_path = platform, queue_path
         self.key, self.title = platform.name, platform.title
         self.claude, self.hf, self.client, self.assemble = claude, hf, client, assemble
@@ -154,7 +155,9 @@ class VideoDesk(Desk):
 
     def create_drafts(self, count, theme=""):
         profile = self.platform.profile
-        ideas = plans.generate(self.platform, profile, count, theme, self.queue().recent_hooks(), True, self.claude)
+        q = self.queue()
+        ideas = plans.generate(self.platform, profile, count, theme, q.recent_hooks(), True, self.claude,
+                               searches=plans.recent_searches(q.items))
         for idea in ideas:
             if plans.problems(self.platform, idea):
                 fix = "Fix this: " + "; ".join(plans.problems(self.platform, idea))
@@ -163,12 +166,15 @@ class VideoDesk(Desk):
 
     def revise(self, item_id, feedback):
         item = self.item(item_id)
-        if item.get("clips"):
+        if item.get("clips") and not shorts_cli.is_stock(item):  # paid AI clips are never thrown away
             raise ValueError(f"#{item_id} is already rendered; plan a new video instead")
+        if item["status"] in self.published:
+            raise ValueError(f"#{item_id} is already published; plan a new video instead")
         new = plans.revise(self.platform, self.platform.profile, item, feedback, self.claude)
         with self.lock:
             q = self.queue()
             q.get(item_id).update(new, status="draft")
+            q.get(item_id).pop("clips", None)  # stock clips are found again for the new plan
             q.save()
         return self.item(item_id)
 
@@ -180,15 +186,18 @@ class VideoDesk(Desk):
         """Render if needed, then publish (TikTok inbox or Instagram Reel). Button only."""
         return self._make(item_id, no_upload=False)
 
+    def new_clips(self, item_id):
+        """Stock videos: swap the clips for different free footage and render again. Button only."""
+        return self._make(item_id, no_upload=True, new_clips=True)
+
     def video_path(self, item_id):
         return Path("build") / self.platform.name / str(int(item_id)) / "video.mp4"
 
-    def _make(self, item_id, no_upload):
+    def _make(self, item_id, no_upload, new_clips=False):
         with self.lock:
             q = self.queue()
-            code = shorts_cli.cmd_make(
-                self.platform, q, argparse.Namespace(id=int(item_id), no_upload=no_upload), self.hf, self.client, self.assemble
-            )
+            args = argparse.Namespace(id=int(item_id), no_upload=no_upload, new_clips=new_clips)
+            code = shorts_cli.cmd_make(self.platform, q, args, self.hf, self.client, self.assemble, self.stock)
             q.save()
             item = q.get(item_id)
         if code:

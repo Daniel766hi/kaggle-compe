@@ -100,6 +100,7 @@ def _parser(platform, doc):
     p = sub.add_parser("make", help=f"render an approved plan and publish it to {platform.title}")
     p.add_argument("id", type=int)
     p.add_argument("--no-upload", action="store_true", help="only render, to preview the mp4")
+    p.add_argument("--new-clips", action="store_true", help="stock videos: replace the clips with different ones")
     p.set_defaults(run=cmd_make)
 
     p = sub.add_parser("autopilot", help="top up plans, then make the oldest approved one")
@@ -131,6 +132,7 @@ def cmd_show(platform, queue, args):
 def cmd_revise(platform, queue, args):
     item = _unrendered(queue, args.id)
     item.update(plans.revise(platform, platform.profile, item, args.feedback), status="draft")
+    item.pop("clips", None)  # a stock video gets fresh clips for the new plan
     _print_item(platform, item)
 
 
@@ -148,9 +150,14 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=
     if item["status"] not in ("approved", "rendered", "failed"):
         raise SystemExit(f"#{item['id']} is {item['status']}; approve it first.")
     try:
+        if getattr(args, "new_clips", False) and is_stock(item):  # free: find different footage
+            old = {c["source"] for c in item.pop("clips", []) if c.get("source")}
+        else:
+            old = set()
         if not item.get("clips"):  # never pay for the same render twice
-            if "search_query" in item["shots"][0]:  # a stock plan: free Pexels clips
-                item["clips"] = render.render_stock(item, platform.seconds, pexels)
+            if is_stock(item):  # free stock clips, none already used in another video
+                exclude = render.used_clips(queue.items, except_id=item["id"]) | old
+                item["clips"] = render.render_stock(item, platform.seconds, pexels, exclude)
             else:  # an AI plan: Higgsfield
                 item["clips"] = render.render(item, platform.seconds, hf)
             queue.set_status(item["id"], "rendered", error="")
@@ -204,7 +211,8 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
 
 def _generate(platform, queue, count, theme, use_web, client=None, unattended=False):
     profile = platform.profile
-    new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client, unattended)
+    new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client, unattended,
+                         plans.recent_searches(queue.items))
     for plan in new:
         problems = plans.problems(platform, plan)
         if problems:  # one automatic attempt to fix it before it reaches the queue
@@ -214,9 +222,13 @@ def _generate(platform, queue, count, theme, use_web, client=None, unattended=Fa
     print(f"\nAdded {len(new)} plans. Review them, then: python -m {platform.name}_agent approve <id>")
 
 
+def is_stock(item):
+    return "search_query" in item["shots"][0]
+
+
 def _unrendered(queue, item_id):
     item = queue.get(item_id)
-    if item.get("clips"):
+    if item.get("clips") and not is_stock(item):  # paid AI clips are never thrown away
         raise SystemExit(f"#{item_id} is already rendered; plan a new video instead.")
     return item
 

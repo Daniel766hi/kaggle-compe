@@ -296,6 +296,9 @@ def fetch_hotspots(session, previous, last_day, provinces=None, key=None, budget
         raise RuntimeError(f"no FIRMS data could be downloaded ({len(failed)} chunks failed)")
     filled = [f for f in frames if not f.empty]
     new = pd.concat(filled, ignore_index=True) if filled else pd.DataFrame(columns=HOTSPOTS.column_names)
+    # A 5-day window can reach into today, which only has the first overpasses so far; keep complete
+    # days only (today is fetched in full by a later run).
+    new = new[pd.to_datetime(new["acq_date"]) <= pd.Timestamp(last_day)]
     new["province"] = provinces.lookup(new["longitude"], new["latitude"])
     outside = new["province"].isna()
     new = new[~outside]
@@ -303,6 +306,7 @@ def fetch_hotspots(session, previous, last_day, provinces=None, key=None, budget
              len(new), int(outside.sum()), len(failed))
     if previous is None or previous.empty:
         return new
+    previous = previous[pd.to_datetime(previous["acq_date"]) <= pd.Timestamp(last_day)]  # drop partial days
     # The whole table is returned: previous rows, minus those the new data replaces (same satellite
     # and day: refetched NRT days, and NRT days now covered by the archive), plus the new rows.
     fetched = set(zip(new["satellite"], new["acq_date"]))

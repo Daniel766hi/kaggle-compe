@@ -80,8 +80,22 @@ the dataset they use is public.
 | `indonesia_air_quality.py` | PM2.5 across 31 cities |
 | `indonesia_weather.py` | Rain seasons and warming |
 | `indonesia_fires_and_haze.py` | Worst fire years, the fire calendar, provinces, 2026 vs past seasons, fires vs PM2.5 in nearby cities |
+| `haze_forecast_example.py` | Uses the haze model to forecast tomorrow's PM2.5 for 31 cities |
 | `indonesia_politics_tracker.py` | Protest waves, where protests happen, cabinet reshuffles and unrest before them |
 | `movies_oscars_and_recommender.py` | Best Picture nomination/winner prediction (time-based backtest, blind test on the 2026 ceremony, forecast for 2026 films) and an explainable content-based movie recommender |
+
+## Models
+
+`models/haze_forecast/` holds the [Indonesia Haze: Next-Day PM2.5 Forecast](https://www.kaggle.com/models/danielaijdkx/indonesia-haze-pm25-next-day)
+model (scikit-learn), trained on the air quality, weather and fire hotspot datasets:
+
+```bash
+python models/haze_forecast/train.py DATA_DIR OUT_DIR     # features, time-based test, final fit
+python models/haze_forecast/publish.py OUT_DIR            # model card from the test results, upload
+```
+
+`train.py` prints the test metrics against simple baselines; `publish.py` writes them into the
+model card, so the Kaggle page always matches the uploaded files.
 
 ## Adding a dataset
 

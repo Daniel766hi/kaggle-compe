@@ -129,3 +129,14 @@ def test_wait_for_quota_pauses_until_the_window_resets(monkeypatch):
 def test_wait_for_quota_gives_up_when_the_budget_ends(monkeypatch):
     monkeypatch.setattr(fi, "key_usage", lambda session, key: (4900, 5000))
     assert not fi.wait_for_quota(None, "k", deadline=30, clock=lambda: 0, sleep=lambda s: None)
+
+
+def test_partial_days_after_the_last_complete_day_are_not_published(monkeypatch):
+    fake_firms(monkeypatch, {"VIIRS_SNPP_NRT": [(-2.0, 113.0, "2026-10-03", "0530", "h", 9.0),
+                                                (-2.0, 113.1, "2026-10-04", "0530", "h", 9.0)]})  # "today"
+    previous = pd.DataFrame({  # a partial day published by an earlier run
+        "acq_date": pd.to_datetime(["2026-10-04"]), "acq_datetime": pd.to_datetime(["2026-10-04 05:30"]),
+        "satellite": ["Suomi NPP"], "latitude": [-2.0], "longitude": [113.0], "province": ["Kalimantan Tengah"],
+        "confidence": ["high"], "frp": [5.0], "processing": ["NRT"]})
+    out = fi.fetch_hotspots(None, previous, date(2026, 10, 3), provinces=PROVINCES, key="k", budget_s=60)
+    assert out["acq_date"].max() == pd.Timestamp("2026-10-03")

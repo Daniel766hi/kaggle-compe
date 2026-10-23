@@ -49,6 +49,14 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    "haze-forecast": {
+        "source": "notebooks/haze_forecast_example.py",
+        "title": "Tomorrow's Haze: PM2.5 Forecast for 31 Cities",
+        "datasets": ["indonesia-air-quality-hourly-pm25", "indonesia-daily-weather-31-cities",
+                     "indonesia-fire-hotspots-nasa-firms"],
+        "models": ["indonesia-haze-pm25-next-day/scikitLearn/default/1"],
+        "tags": ["pollution", "environment", "time series analysis", "regression"],
+    },
     "idn-fires": {
         "source": "notebooks/indonesia_fires_and_haze.py",
         "title": "Indonesia's Fire Seasons from Space, and the Haze",
@@ -86,6 +94,7 @@ def build_folder(name, owner, public, folder):
         "enable_gpu": False,
         "enable_internet": False,
         "dataset_sources": [f"{owner}/{d}" for d in cfg["datasets"]],
+        "model_sources": [f"{owner}/{m}" for m in cfg.get("models", [])],
         "keywords": cfg["tags"],
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(metadata, indent=2))

@@ -5,6 +5,7 @@ reachable from the buttons in the office, so nothing goes out without a click fr
 """
 
 import argparse
+import os
 import threading
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from shorts import cli as shorts_cli
 from shorts import plans
 from x_agent import brain, text
 from x_agent.queue import PostQueue
-from x_agent.x_client import XClient, XError, post_url
+from x_agent.x_client import ENV_KEYS, XClient, XError, post_url
 
 WAITING = ("draft", "approved", "rendered", "failed")
 
@@ -81,6 +82,19 @@ class XDesk(Desk):
 
     def problems(self, item):
         return text.problems(item["posts"])
+
+    def api_ready(self):
+        """Posting through X's API costs money; without its keys you post yourself, for free."""
+        return self.x_client is not None or all(os.environ.get(k) for k in ENV_KEYS)
+
+    def mark_posted(self, item_id):
+        """You posted it yourself from the 'Open in X' button."""
+        with self.lock:
+            q = self.queue()
+            if q.get(item_id)["status"] != "approved":
+                raise ValueError(f"#{item_id} must be approved first")
+            q.set_status(item_id, "posted", posted_by="owner", error="")
+            q.save()
 
     def create_drafts(self, count, theme=""):
         profile = brain.load_profile()

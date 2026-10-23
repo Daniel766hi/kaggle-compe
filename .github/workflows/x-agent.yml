@@ -36,6 +36,7 @@ jobs:
           X_AGENT_COMMAND: ${{ inputs.command || 'autopilot' }} # passed as data, never run by the shell
           X_AUTO_APPROVE: ${{ vars.X_AUTO_APPROVE }}
           X_MAX_CHARS: ${{ vars.X_MAX_CHARS }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_SECRET: ${{ secrets.X_API_SECRET }}

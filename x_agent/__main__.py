@@ -20,6 +20,8 @@ import os
 import shlex
 import sys
 
+import llm
+
 from . import brain, text
 from .queue import PostQueue
 from .x_client import XClient, XError, post_url
@@ -161,7 +163,9 @@ def cmd_autopilot(queue, args, x_client=None, claude=None):
     # Unattended, only approved posts count: drafts held for a fact-check must not stop the daily post.
     waiting = len(queue.with_status("approved") if auto else queue.with_status("draft", "approved"))
     generation_failed = False
-    if waiting < args.min_drafts:
+    if waiting < args.min_drafts and claude is None and not llm.available():
+        logging.info("No AI reachable here (%s); only posting what is already approved.", llm.provider())
+    elif waiting < args.min_drafts:
         logging.info("%d posts waiting (minimum %d); generating %d ideas", waiting, args.min_drafts, args.count)
         try:
             _generate(queue, args.count, "", True, claude, unattended=auto)

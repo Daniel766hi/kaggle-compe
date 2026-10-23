@@ -8,11 +8,13 @@ replies and the updates it posts to you on its own.
 import json
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 import anthropic
 
+import llm
 from x_agent.brain import FALLBACK_BETA, MODEL
 
 from . import desks
@@ -38,7 +40,8 @@ class Thread:
     def __init__(self, path):
         self.path = Path(path)
         data = json.loads(self.path.read_text()) if self.path.exists() else {}
-        self.history = data.get("history", [])
+        # what each AI saw and said, kept separately: Claude and a local model use different formats
+        self.histories = data.get("histories") or {"claude": data.get("history", [])}
         self.feed = data.get("feed", [])
         self.read_upto = data.get("read_upto", 0)
         self.pending = data.get("pending", [])  # updates posted since the last conversation turn
@@ -54,20 +57,29 @@ class Thread:
     def unread(self):
         return sum(1 for e in self.feed if e["id"] > self.read_upto and e["from"] != "you")
 
+    @property
+    def history(self):
+        return self.histories.setdefault("claude", [])
+
+    @history.setter
+    def history(self, value):
+        self.histories["claude"] = value
+
     def trim(self):
         """Drop old messages from the front, at a point where a new exchange starts."""
-        while len(self.history) > MAX_HISTORY:
-            cut = next((i for i in range(1, len(self.history)) if _starts_exchange(self.history[i])), None)
-            if cut is None:
-                break
-            del self.history[:cut]
+        for history in self.histories.values():
+            while len(history) > MAX_HISTORY:
+                cut = next((i for i in range(1, len(history)) if _starts_exchange(history[i])), None)
+                if cut is None:
+                    break
+                del history[:cut]
 
     def save(self):
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_name(self.path.name + ".tmp")
             tmp.write_text(json.dumps({
-                "history": self.history, "feed": self.feed, "read_upto": self.read_upto,
+                "histories": self.histories, "feed": self.feed, "read_upto": self.read_upto,
                 "pending": self.pending, "attention": self.attention,
             }, ensure_ascii=False))  # fmt: skip
             tmp.replace(self.path)
@@ -77,9 +89,95 @@ def _starts_exchange(message):
     return message["role"] == "user" and isinstance(message["content"], str)
 
 
+@dataclass
+class Step:
+    texts: list  # what the agent said
+    calls: list  # tools it wants to use: (call id, name, arguments)
+    message: dict  # the assistant message to keep in the history, unchanged
+    note: str = ""
+
+
+class ClaudeEngine:
+    """Claude through the Anthropic API (paid). Its turns are kept exactly as returned."""
+
+    name = "claude"
+
+    def __init__(self, client=None):
+        self.client = client
+
+    def step(self, agent, history):
+        response = (self.client or anthropic.Anthropic()).beta.messages.create(
+            model=MODEL,
+            max_tokens=16000,
+            system=[{"type": "text", "text": agent.system, "cache_control": {"type": "ephemeral"}}],
+            tools=agent.tools,
+            messages=history,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "medium"},
+            cache_control={"type": "ephemeral"},
+            betas=[FALLBACK_BETA],
+            fallbacks="default",
+        )
+        if response.stop_reason == "refusal":
+            sorry = "Sorry, I can't help with that one."
+            return Step([sorry], [], {"role": "assistant", "content": [{"type": "text", "text": sorry}]})
+        message = {"role": "assistant", "content": [b.to_dict(mode="json", exclude_none=True) for b in response.content]}
+        texts = [b.text.strip() for b in response.content if b.type == "text" and b.text.strip()]
+        calls = [(b.id, b.name, b.input) for b in response.content if b.type == "tool_use"]
+        note = "(I got cut off there. Ask me to continue.)" if response.stop_reason == "max_tokens" else ""
+        return Step(texts, calls if response.stop_reason == "tool_use" else [], message, note)
+
+    def results(self, outcomes):
+        blocks = [
+            {"type": "tool_result", "tool_use_id": call_id, "content": content, **({"is_error": True} if error else {})}
+            for call_id, _, content, error in outcomes
+        ]
+        return [{"role": "user", "content": blocks}]
+
+    def explain(self, error):
+        if "authentication" in str(error).lower():
+            return "set ANTHROPIC_API_KEY and restart the office (or leave it unset to use the free local AI)."
+        return f"couldn't reach Claude: {error}"
+
+
+class OllamaEngine:
+    """A free local model through Ollama, running on your own computer."""
+
+    name = "ollama"
+
+    def __init__(self, session=None):
+        self.session = session
+
+    def step(self, agent, history):
+        tools = [
+            {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+            for t in agent.tools
+        ]
+        system = {"role": "system", "content": agent.system}
+        reply = llm.ollama_chat([system, *history], tools=tools, session=self.session)
+        content = llm.strip_thinking(reply.get("content") or "")
+        message = {"role": "assistant", "content": content}
+        calls = []
+        if reply.get("tool_calls"):
+            message["tool_calls"] = reply["tool_calls"]
+            for i, call in enumerate(reply["tool_calls"]):
+                args = call["function"].get("arguments") or {}
+                calls.append((f"call_{i}", call["function"]["name"], json.loads(args) if isinstance(args, str) else args))
+        return Step([content] if content else [], calls, message)
+
+    def results(self, outcomes):
+        return [{"role": "tool", "tool_name": name, "content": content} for _, name, content, _ in outcomes]
+
+    def explain(self, error):
+        return str(error)
+
+
 class Office:
-    def __init__(self, team, data_dir="office_data", claude=None):
-        self.team, self.claude = team, claude
+    def __init__(self, team, data_dir="office_data", claude=None, engine=None):
+        self.team = team
+        if engine is None:
+            engine = ClaudeEngine(claude) if claude is not None or llm.provider() == "claude" else OllamaEngine()
+        self.engine = engine
         self.threads = {key: Thread(Path(data_dir) / f"{key}.json") for key in team}
         self.locks = {key: threading.Lock() for key in team}
         self.status = {key: "" for key in team}  # what each agent is doing right now
@@ -144,7 +242,8 @@ class Office:
 
     # --- the conversation loop ---------------------------------------------------------------
     def _turn(self, key, text, sender=None):
-        agent, thread = self.team[key], self.threads[key]
+        agent, thread, engine = self.team[key], self.threads[key], self.engine
+        history = thread.histories.setdefault(engine.name, [])
         content = f"Message from {sender}:\n{text}" if sender else text
         with thread.lock:
             if thread.pending:
@@ -152,60 +251,36 @@ class Office:
                 content = f"[Office updates]\n{updates}\n\n{content}"
                 thread.pending = []
         thread.trim()
-        thread.history.append({"role": "user", "content": content})
+        history.append({"role": "user", "content": content})
         reply = []
         self.status[key] = "thinking"
         try:
             for _ in range(MAX_STEPS):
-                response = (self.claude or anthropic.Anthropic()).beta.messages.create(
-                    model=MODEL,
-                    max_tokens=16000,
-                    system=[{"type": "text", "text": agent.system, "cache_control": {"type": "ephemeral"}}],
-                    tools=agent.tools,
-                    messages=thread.history,
-                    thinking={"type": "adaptive"},
-                    output_config={"effort": "medium"},
-                    cache_control={"type": "ephemeral"},
-                    betas=[FALLBACK_BETA],
-                    fallbacks="default",
-                )
-                if response.stop_reason == "refusal":
-                    sorry = "Sorry, I can't help with that one."
-                    thread.history.append({"role": "assistant", "content": [{"type": "text", "text": sorry}]})
-                    thread.add("agent", sorry)
-                    reply.append(sorry)
-                    break
-                thread.history.append({"role": "assistant", "content": [b.to_dict(mode="json", exclude_none=True) for b in response.content]})
-                for block in response.content:
-                    if block.type == "text" and block.text.strip():
-                        thread.add("agent", block.text.strip())
-                        reply.append(block.text.strip())
+                step = engine.step(agent, history)
+                history.append(step.message)
+                for text_part in step.texts:
+                    thread.add("agent", text_part)
+                    reply.append(text_part)
+                if step.note:
+                    thread.add("agent", step.note)
                 thread.save()
-                if response.stop_reason == "max_tokens":
-                    thread.add("agent", "(I got cut off there. Ask me to continue.)")
+                if not step.calls:
                     break
-                if response.stop_reason != "tool_use":
-                    break
-                results = []
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
-                    self.status[key] = TOOL_STATUS.get(block.name, "working")
+                outcomes = []
+                for call_id, name, args in step.calls:
+                    self.status[key] = TOOL_STATUS.get(name, "working")
                     try:
-                        results.append({"type": "tool_result", "tool_use_id": block.id, "content": agent.run(block.name, block.input)})
+                        outcomes.append((call_id, name, agent.run(name, args), False))
                     except Exception as e:  # the agent sees the error and can explain or retry
-                        results.append({"type": "tool_result", "tool_use_id": block.id, "content": f"Error: {e}", "is_error": True})
+                        outcomes.append((call_id, name, f"Error: {e}", True))
                     self.status[key] = "thinking"
-                thread.history.append({"role": "user", "content": results})
+                history.extend(engine.results(outcomes))
                 thread.save()
             else:
                 thread.add("agent", "(I stopped after a lot of steps. Tell me how you'd like to continue.)")
-        except Exception as e:  # no API key, network, rate limit... the office keeps running
+        except Exception as e:  # no API key, Ollama not running, network... the office keeps running
             logging.exception("%s's turn failed", agent.name)
-            if "authentication" in str(e).lower():
-                thread.add("system", f"{agent.name} can't reach Claude yet: set ANTHROPIC_API_KEY and restart the office.")
-            else:
-                thread.add("system", f"{agent.name} couldn't reach Claude: {e}")
+            thread.add("system", f"{agent.name} can't think right now: {engine.explain(e)}")
         finally:
             self.status[key] = ""
             thread.save()

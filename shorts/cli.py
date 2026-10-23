@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+import llm
 from x_agent.brain import load_profile
 
 from . import plans, render
@@ -140,13 +141,16 @@ def cmd_set_status(platform, queue, args):
             print(f"  ! {problem}")
 
 
-def cmd_make(platform, queue, args, hf=None, client=None, assemble=None):
+def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=None):
     item = queue.get(args.id)
     if item["status"] not in ("approved", "rendered", "failed"):
         raise SystemExit(f"#{item['id']} is {item['status']}; approve it first.")
     try:
         if not item.get("clips"):  # never pay for the same render twice
-            item["clips"] = render.render(item, platform.seconds, hf)
+            if "search_query" in item["shots"][0]:  # a stock plan: free Pexels clips
+                item["clips"] = render.render_stock(item, platform.seconds, pexels)
+            else:  # an AI plan: Higgsfield
+                item["clips"] = render.render(item, platform.seconds, hf)
             queue.set_status(item["id"], "rendered", error="")
             queue.save()
         options = {}
@@ -169,12 +173,14 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None):
     return 0
 
 
-def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, assemble=None):
+def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, assemble=None, pexels=None):
     auto = platform.setting("AUTO_APPROVE", "").lower() == "true"
     # Unattended, only approved plans count: plans held for a fact-check must not stop the daily video.
     waiting = len(queue.with_status("approved", "rendered") if auto else queue.with_status("draft", "approved", "rendered"))
     generation_failed = False
-    if waiting < args.min_drafts:
+    if waiting < args.min_drafts and claude is None and not llm.available():
+        logging.info("No AI reachable here (%s); only making what is already approved.", llm.provider())
+    elif waiting < args.min_drafts:
         logging.info("%d plans waiting (minimum %d); planning %d more", waiting, args.min_drafts, args.count)
         try:
             _generate(platform, queue, args.count, "", True, claude, unattended=auto)
@@ -190,7 +196,8 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
     if item is None:
         logging.info("No approved plans waiting.")
         return int(generation_failed)
-    return cmd_make(platform, queue, argparse.Namespace(id=item["id"]), hf, client, assemble) or int(generation_failed)
+    made = cmd_make(platform, queue, argparse.Namespace(id=item["id"]), hf, client, assemble, pexels)
+    return made or int(generation_failed)
 
 
 def _generate(platform, queue, count, theme, use_web, client=None, unattended=False):
@@ -216,8 +223,11 @@ def _print_item(platform, item):
     print(f"#{item['id']} [{item['status']}] {item.get('pillar', '')}: {item['hook']}")
     for i, shot in enumerate(item["shots"], 1):
         print(f"  Shot {i}: \"{shot['on_screen_text']}\"")
-        print(f"    image:  {shot['image_prompt']}")
-        print(f"    motion: {shot['motion_prompt']}")
+        if "search_query" in shot:
+            print(f"    clip:   {shot['search_query']}")
+        else:
+            print(f"    image:  {shot['image_prompt']}")
+            print(f"    motion: {shot['motion_prompt']}")
     print(f"  Voiceover: {item['voiceover']}")
     print(f"  Caption: {item['caption']}")
     for problem in plans.problems(platform, item):

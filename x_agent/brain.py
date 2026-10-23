@@ -11,6 +11,8 @@ from datetime import date
 
 import anthropic
 
+import llm
+
 from . import text
 
 MODEL = os.environ.get("X_AGENT_MODEL") or "claude-opus-5-5"
@@ -82,6 +84,7 @@ def generate_ideas(profile, count, theme="", avoid=(), use_web=True, client=None
     """Return `count` ideas, each with ready-to-publish post text."""
     request = [f"Today is {date.today():%d %B %Y}. Suggest {count} post ideas and write each one out."]
     request.append(f"Focus on: {theme}" if theme else "Spread them across the content pillars.")
+    use_web = use_web and (client is not None or llm.web_search_available())
     if use_web:
         request.append("Search the web for recent news or data worth reacting to before you write.")
     if avoid:
@@ -112,7 +115,12 @@ def _system(profile):
 
 
 def ask(client, system, request, schema, tools=()):
-    """One Claude request whose answer must match `schema`; resumes paused web searches."""
+    """One request whose answer must match `schema`; resumes paused web searches.
+
+    Without a client, the free local model answers when it is the chosen AI (see llm.py).
+    """
+    if client is None and llm.provider() == "ollama":
+        return llm.ollama_json(system, request, schema)
     client = client or anthropic.Anthropic()
     messages = [{"role": "user", "content": request}]
     for _ in range(MAX_CONTINUATIONS + 1):

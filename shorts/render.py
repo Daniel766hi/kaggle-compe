@@ -1,8 +1,9 @@
-"""Turn a video plan into an mp4 with Higgsfield: image per shot -> animated clip -> one video.
+"""Turn a video plan into an mp4: one clip per shot, joined, with on-screen text and audio.
 
-Higgsfield bills per generation (video by the second), so a plan is only rendered after it is
-approved. Model IDs are on the model pages at cloud.higgsfield.ai and can be swapped with the
-HIGGSFIELD_IMAGE_MODEL / HIGGSFIELD_VIDEO_MODEL variables.
+Clips come from Pexels stock videos (free: a PEXELS_API_KEY from pexels.com/api, clips free to
+use, creators credited in the caption) or from Higgsfield (paid: image per shot, then an animated
+clip; model IDs can be swapped with HIGGSFIELD_IMAGE_MODEL / HIGGSFIELD_VIDEO_MODEL). A plan is only
+rendered after it is approved.
 """
 
 import json
@@ -22,6 +23,7 @@ FONTS = (
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",  # macOS
 )
 MUSIC_TYPES = {".mp3", ".m4a", ".aac", ".wav"}
+PEXELS_SEARCH = "https://api.pexels.com/videos/search"
 
 
 class RenderError(RuntimeError):
@@ -42,6 +44,40 @@ def render(item, seconds, hf=None):
     return clips
 
 
+def render_stock(item, seconds, session=None):
+    """Find a free Pexels clip for every shot. Returns the clip records, with credits, for the queue."""
+    key = os.environ.get("PEXELS_API_KEY")
+    if not key:
+        raise SystemExit("Set PEXELS_API_KEY (free: pexels.com/api, 'Your API key').")
+    session = session or requests.Session()
+    used, clips = set(), []
+    for i, shot in enumerate(item["shots"], 1):
+        query = shot["search_query"]
+        logging.info("Shot %d/%d: finding a clip for %r", i, len(item["shots"]), query)
+        video = None
+        for params in ({"orientation": "portrait"}, {}):  # vertical clips first, then any (cropped to fit)
+            found = _pexels(session, key, {"query": query, "per_page": 15, **params})
+            video = next((v for v in found if v["id"] not in used and v.get("duration", 0) >= seconds), None)
+            if video:
+                break
+        if video is None:
+            raise RenderError(f"No stock clip found for {query!r}. Revise the plan with a simpler search.")
+        used.add(video["id"])
+        clips.append({
+            "video_url": _best_file(video["video_files"])["link"],
+            "source": video["url"],
+            "credit": video["user"]["name"],
+            "query": query,
+        })  # fmt: skip
+    return clips
+
+
+def credits(clips):
+    """The caption line that credits stock clip creators ('' for AI clips)."""
+    names = list(dict.fromkeys(c["credit"] for c in clips if c.get("credit")))
+    return f"Clips from Pexels: {', '.join(names)}" if names else ""
+
+
 def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, download=None, ffmpeg=None):
     """Download the clips and join them into one 1080x1920 H.264 mp4.
 
@@ -58,7 +94,8 @@ def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, do
         download(clip["video_url"], path)
         paths.append(path)
     listing = out_dir / "clips.txt"
-    listing.write_text("".join(f"file '{p.resolve()}'\n" for p in paths))
+    trim = f"outpoint {seconds}\n" if seconds else ""  # stock clips are longer than a shot
+    listing.write_text("".join(f"file '{p.resolve()}'\n{trim}" for p in paths))
 
     args = ["-y", "-f", "concat", "-safe", "0", "-i", str(listing)]
     if audio and music:
@@ -66,8 +103,8 @@ def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, do
     elif audio:
         args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
     filters = [
-        f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease",
-        f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2",
+        f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase",
+        f"crop={WIDTH}:{HEIGHT}",  # fill the vertical frame; landscape clips lose their sides
         "setsar=1",
         "fps=30",
         *_captions(texts, seconds, out_dir),
@@ -129,6 +166,22 @@ def _captions(texts, seconds, out_dir):
             f":enable='between(t,{i * seconds},{(i + 1) * seconds})'"
         )
     return filters
+
+
+def _pexels(session, key, params):
+    resp = session.get(PEXELS_SEARCH, params=params, headers={"Authorization": key}, timeout=60)
+    if resp.status_code >= 400:
+        raise RenderError(f"Pexels search failed: HTTP {resp.status_code} {resp.text[:200]}")
+    return resp.json().get("videos", [])
+
+
+def _best_file(files):
+    """The smallest mp4 that is still at least 1280 px tall, or the largest one there is."""
+    mp4 = [f for f in files if f.get("file_type") == "video/mp4" and f.get("link")]
+    if not mp4:
+        raise RenderError("Pexels returned no mp4 file for that clip")
+    tall = sorted((f for f in mp4 if (f.get("height") or 0) >= 1280), key=lambda f: f["height"])
+    return tall[0] if tall else max(mp4, key=lambda f: f.get("height") or 0)
 
 
 def _run(hf, model, arguments):

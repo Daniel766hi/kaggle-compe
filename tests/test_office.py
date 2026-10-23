@@ -135,7 +135,8 @@ def test_a_missing_api_key_is_explained_not_crashed(office):
     claude.beta.messages.create = no_key
     assert o.say("raka", "hello") == ""
     assert o.threads["raka"].feed[-1] == {**o.threads["raka"].feed[-1], "from": "system",
-                                          "text": "Raka can't reach Claude yet: set ANTHROPIC_API_KEY and restart the office."}
+                                          "text": "Raka can't think right now: set ANTHROPIC_API_KEY and restart the office "
+                                                  "(or leave it unset to use the free local AI)."}
     assert o.status["raka"] == ""
 
 

@@ -324,8 +324,10 @@ python -m office                    # opens http://127.0.0.1:8765
 - **Only you approve and publish.** The agents can read, draft, revise and reject. Approve,
   *Open in X* / *Post to X now*, *Render preview* and *Publish* are buttons on the cards, and
   they ask for confirmation before anything public happens.
-- **Sync with GitHub** pulls what the scheduled runs changed and pushes your approvals and edits to
-  `content/`, so the daily workflows use them.
+- **Sync with GitHub** pulls what the scheduled runs changed (and any updates to the office) and
+  pushes your approvals and edits to `content/`, so the daily workflows use them. It needs Git and
+  a folder linked to GitHub: the setup scripts install Git and link a folder that came from a ZIP,
+  keeping your `.env`, plans and videos.
 
 Conversations are saved in `office_data/` (not committed). The server only listens on
 127.0.0.1 and refuses requests from other sites, so a web page you visit can't press its buttons.

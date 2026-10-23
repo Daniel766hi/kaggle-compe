@@ -229,3 +229,18 @@ def test_http_only_accepts_local_office_requests(office):
         assert post("/api/checkin", {"X-Office": "1"}) == 200
     finally:
         httpd.shutdown()
+
+
+def test_sync_explains_a_missing_git(monkeypatch):
+    monkeypatch.setattr(server.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="Git isn't installed"):
+        server._git()
+
+
+def test_sync_explains_a_folder_from_a_zip(tmp_path, monkeypatch):
+    if not server.shutil.which("git"):
+        pytest.skip("needs git")
+    monkeypatch.chdir(tmp_path)  # not a git repository, like an unzipped download
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+    with pytest.raises(RuntimeError, match="isn't linked to GitHub"):
+        server._git()

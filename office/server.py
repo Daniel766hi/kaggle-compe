@@ -8,6 +8,7 @@ the office's buttons for you.
 import json
 import logging
 import mimetypes
+import shutil
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -163,21 +164,37 @@ def _actions(desk_key, item):
 
 
 def _git():
+    if not shutil.which("git"):
+        raise RuntimeError(
+            "Git isn't installed on this computer. Run the setup script again (setup.ps1 or setup.sh): "
+            "it installs Git and links this folder to GitHub."
+        )
+
     def run(*args):
         result = subprocess.run(["git", *args], capture_output=True, text=True)
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())
         return result.stdout
 
+    try:
+        run("rev-parse", "--is-inside-work-tree")
+    except RuntimeError:
+        raise RuntimeError(
+            "This folder isn't linked to GitHub (it came from a ZIP). Run the setup script again: "
+            "it links the folder and keeps your keys, plans and videos."
+        ) from None
     run("add", "content")
     changed = run("diff", "--cached", "--name-only").split()
     if changed:
         run("commit", "-m", "Office: update content queues", "--", "content")  # nothing else you staged
+    before = run("rev-parse", "HEAD").strip()
     run("pull", "--rebase", "--autostash")
+    updated = [f for f in run("diff", "--name-only", before, "HEAD").split() if not f.startswith("content/")]
     if changed:
         run("push")
     pushed = f"pushed your changes to {len(changed)} queue file(s)" if changed else "nothing of yours to push"
-    return f"Synced with GitHub: pulled the latest from the scheduled runs, {pushed}."
+    note = " Updates to the office were downloaded too: close it (Ctrl+C) and open it again to use them." if updated else ""
+    return f"Synced with GitHub: pulled the latest from the scheduled runs, {pushed}.{note}"
 
 
 def make_handler(app):

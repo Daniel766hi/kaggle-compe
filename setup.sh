@@ -82,6 +82,30 @@ while [ -z "$key" ]; do
   fi
 done
 
+step "GitHub link (Sync with GitHub, and updates)"
+repo=https://github.com/Daniel766hi/kaggle-compe.git
+if ! have git; then
+  if [ "$(uname)" = Darwin ]; then xcode-select --install 2>/dev/null || true; echo "Install Git (the window that opened), then run this again."
+  elif have apt-get; then sudo apt-get install -y git; fi
+fi
+if have git && [ ! -d .git ]; then
+  # A folder from a ZIP: make it a GitHub copy in place. Your .env, plans, chats and videos stay.
+  git init --quiet
+  git remote add origin "$repo"
+  branch=$(git ls-remote --symref origin HEAD | sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p')
+  git fetch --quiet origin "$branch"
+  git symbolic-ref HEAD "refs/heads/$branch"
+  git reset --quiet --mixed "origin/$branch"
+  # The ZIP may be older than GitHub: take the latest code, keep your own plans in content/.
+  git restore --source=HEAD --worktree -- . ":(exclude)content"
+  git branch --quiet --set-upstream-to="origin/$branch"
+  echo "This folder is now linked to GitHub ($branch)."
+fi
+if have git && [ -d .git ] && [ -z "$(git config user.email || true)" ]; then
+  git config user.name "AI Office"
+  git config user.email "ai-office@users.noreply.github.com"
+fi
+
 step "Starting the AI Office"
 echo "Next time, just run: bash start-office.sh"
 exec "$PY" -m office

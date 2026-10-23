@@ -1,0 +1,59 @@
+name: TikTok agent
+
+on:
+  schedule:
+    - cron: "37 2 * * *" # 09:37 WIB: the day's video lands in your TikTok inbox
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "tiktok_agent command, e.g. 'ideas --count 3', 'approve 2', 'make 2'"
+        required: false
+        default: "autopilot"
+
+permissions:
+  contents: write # commits the updated queue back to the repo
+
+concurrency:
+  group: content-agents # one agent run at a time (X, TikTok, Instagram), so their queue commits never race
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # Turned off until the secrets are in place: set the repo variable TIKTOK_AGENT_ENABLED=true.
+    if: vars.TIKTOK_AGENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # video generation can take several minutes per shot
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Run the agent
+        env:
+          TIKTOK_AGENT_COMMAND: ${{ inputs.command || 'autopilot' }} # passed as data, never run by the shell
+          TIKTOK_AUTO_APPROVE: ${{ vars.TIKTOK_AUTO_APPROVE }}
+          TIKTOK_SHOTS: ${{ vars.TIKTOK_SHOTS }}
+          TIKTOK_CLIP_SECONDS: ${{ vars.TIKTOK_CLIP_SECONDS }}
+          VIDEO_SOURCE: ${{ vars.VIDEO_SOURCE }} # stock (free Pexels clips, default) or higgsfield
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }} # without an Anthropic key, new plans come from the office on your PC
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          HIGGSFIELD_IMAGE_MODEL: ${{ vars.HIGGSFIELD_IMAGE_MODEL }}
+          HIGGSFIELD_VIDEO_MODEL: ${{ vars.HIGGSFIELD_VIDEO_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HF_KEY: ${{ secrets.HF_KEY }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+        run: python -m tiktok_agent
+      - name: Save the queue
+        if: always() # keep rendered clips and upload ids even when a later step failed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add content/tiktok_queue.json
+          git diff --cached --quiet || git commit -m "TikTok agent: update video queue"
+          git pull --rebase
+          git push

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Office</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --panel: #ffffff; --ink: #1f2328; --muted: #6b7280; --line: #e5e1d8;
+    --you: #2563eb; --you-ink: #ffffff; --bubble: #f1efe9; --warn: #b45309; --warn-bg: #fef3c7;
+    --bad: #b91c1c; --bad-bg: #fee2e2; --good: #047857; --good-bg: #d1fae5; --floor: #ece8df;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a; --panel: #1d2024; --ink: #e8eaed; --muted: #9aa0a6; --line: #2e3237;
+      --you: #3b82f6; --bubble: #262a2f; --warn: #fbbf24; --warn-bg: #3a2f12; --bad: #f87171;
+      --bad-bg: #3b1717; --good: #34d399; --good-bg: #10302a; --floor: #1a1c20;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+         height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
+  button:hover { border-color: var(--muted); }
+  button.primary, a.button.primary { background: var(--you); border-color: var(--you); color: #fff; }
+  a.button { display: inline-block; text-decoration: none; border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
+  button.danger { color: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; flex: 1; min-height: 0; }
+  #floor { background: var(--floor); padding: 16px; overflow-y: auto; border-right: 1px solid var(--line); }
+  #floor h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  .desk { display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 10px; cursor: pointer; box-shadow: var(--shadow); }
+  .desk.active { outline: 2px solid var(--you); }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; background: var(--bubble); border: 3px solid var(--c); position: relative; }
+  .dot { position: absolute; right: -2px; bottom: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--panel); background: #9ca3af; }
+  .dot.busy { background: #f59e0b; animation: pulse 1s infinite; }
+  .dot.needs { background: #ef4444; }
+  .dot.idle { background: #22c55e; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .desk .name { font-weight: 600; }
+  .desk .role, .desk .last { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .desk .meta { min-width: 0; }
+  .badge { background: var(--bad); color: #fff; border-radius: 999px; font-size: 12px; padding: 1px 8px; font-weight: 600; }
+  #chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+  #chat-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  #chat-head .avatar { width: 40px; height: 40px; font-size: 20px; }
+  #back { display: none; }
+  #messages { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: min(680px, 88%); padding: 9px 13px; border-radius: 14px; background: var(--bubble); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.you { align-self: flex-end; background: var(--you); color: var(--you-ink); border-bottom-right-radius: 4px; }
+  .msg.agent { align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.system { align-self: center; background: none; color: var(--muted); font-size: 13px; }
+  .msg .from { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .msg.you .from { color: rgba(255,255,255,.8); }
+  .msg a { color: inherit; }
+  .time { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .msg.you .time { color: rgba(255,255,255,.75); }
+  .typing { align-self: flex-start; color: var(--muted); font-size: 13px; font-style: italic; }
+  .card { white-space: normal; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; box-shadow: var(--shadow); }
+  .card .top { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .pill { border-radius: 999px; padding: 1px 8px; font-size: 12px; background: var(--bubble); color: var(--ink); }
+  .pill.approved, .pill.rendered { background: var(--good-bg); color: var(--good); }
+  .pill.posted, .pill.sent { background: var(--good-bg); color: var(--good); }
+  .pill.failed, .pill.rejected { background: var(--bad-bg); color: var(--bad); }
+  .card .hook { font-weight: 600; margin-bottom: 6px; }
+  .card blockquote { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--line); white-space: pre-wrap; }
+  .card ol { margin: 6px 0; padding-left: 20px; }
+  .card .muted { color: var(--muted); font-size: 13px; }
+  .note { border-radius: 8px; padding: 6px 10px; margin: 6px 0; font-size: 13px; }
+  .note.warn { background: var(--warn-bg); color: var(--warn); }
+  .note.bad { background: var(--bad-bg); color: var(--bad); }
+  .card .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .card video { width: 100%; max-width: 260px; border-radius: 10px; display: block; margin-top: 6px; background: #000; }
+  #composer { border-top: 1px solid var(--line); padding: 10px 12px; }
+  #chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  #chips button { font-size: 13px; padding: 3px 10px; border-radius: 999px; }
+  #composer form { display: flex; gap: 8px; }
+  textarea { flex: 1; resize: none; font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 42px; max-height: 160px; }
+  #empty { margin: auto; text-align: center; color: var(--muted); max-width: 420px; padding: 24px; }
+  #toast { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+  .toast { background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 12px; padding: 10px 14px; max-width: 320px; cursor: pointer; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    #chat { display: none; }
+    body.chatting #floor { display: none; }
+    body.chatting #chat { display: flex; }
+    #back { display: inline-block; }
+    header h1 small { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏢 AI Office <small>your content team</small></h1>
+  <button id="checkin" title="Ask everyone to check their queues now">Check in</button>
+  <button id="sync" title="Pull the scheduled runs' changes and push your approvals">Sync with GitHub</button>
+</header>
+<main>
+  <section id="floor"><h2>Office floor</h2><div id="desks"></div></section>
+  <section id="chat">
+    <div id="chat-head" hidden>
+      <button id="back" aria-label="Back to the office floor">←</button>
+      <div class="avatar" id="head-avatar"></div>
+      <div><div class="name" id="head-name" style="font-weight:600"></div><div class="role" id="head-role" style="color:var(--muted);font-size:13px"></div></div>
+    </div>
+    <div id="messages"><div id="empty">Pick someone on the office floor to start chatting.<br><br>They'll also message you here when something needs you: drafts to review, a finished video, a post that didn't go out.</div></div>
+    <div id="composer" hidden>
+      <div id="chips"></div>
+      <form id="form"><textarea id="input" rows="1" placeholder="Message…"></textarea><button class="primary" id="send">Send</button></form>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const CHIPS = {
+  maya: ["What needs me today?", "Plan this week's content", "Ask everyone to draft 2 ideas"],
+  raka: ["What's waiting for me?", "Draft 3 posts", "Make #1 shorter"],
+  sari: ["What's waiting for me?", "Draft 2 animal sketches", "Something with a cat"],
+  bima: ["What's waiting for me?", "Draft 2 animal sketches", "Something set in Indonesia"],
+};
+const DESK_NAMES = { x: "X", tiktok: "TikTok", instagram: "Instagram" };
+const LABELS = { approve: "Approve", reject: "Reject", post: "Post to X now", render: "Render preview",
+                 share: "Open in X", mark_posted: "I posted it",
+                 publish: { tiktok: "Send to TikTok inbox", instagram: "Publish Reel" } };
+const CONFIRM = {
+  post: "Post this to X now? It will be public.",
+  publish: { tiktok: "Render it (if needed) and send it to your TikTok inbox?",
+             instagram: "Render it (if needed) and publish this Reel? It will be public." },
+  mark_posted: "Mark this as posted? Do it after you've posted it in X.",
+};
+let state = { agents: [] }, current = null, lastId = 0, seen = {};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const api = async (path, body) => {
+  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Office": "1" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+};
+const agent = (key) => state.agents.find((a) => a.key === key);
+const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+function toast(text, key) {
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = text;
+  el.onclick = () => { if (key) open(key); el.remove(); };
+  $("toast").appendChild(el);
+  setTimeout(() => el.remove(), 7000);
+}
+
+function renderDesks() {
+  $("desks").innerHTML = state.agents.map((a) => {
+    const dot = a.status ? "busy" : a.needs ? "needs" : "idle";
+    const line = a.status ? `${a.status}…` : a.last ? a.last.text.replace(/\[\[\w+:\d+\]\]/g, "📄") : "Free to chat";
+    return `<div class="desk ${a.key === current ? "active" : ""}" data-key="${a.key}" style="--c:${a.color}">
+      <div class="avatar">${a.emoji}<span class="dot ${dot}"></span></div>
+      <div class="meta"><div class="name">${esc(a.name)}</div><div class="role">${esc(a.role)}</div><div class="last">${esc(line)}</div></div>
+      <div>${a.unread && a.key !== current ? `<span class="badge">${a.unread}</span>` : ""}</div></div>`;
+  }).join("");
+  document.querySelectorAll(".desk").forEach((d) => (d.onclick = () => open(d.dataset.key)));
+  const unread = state.agents.reduce((n, a) => n + (a.key === current ? 0 : a.unread), 0);
+  document.title = unread ? `(${unread}) AI Office` : "AI Office";
+}
+
+function format(text) {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/\[\[(x|tiktok|instagram):(\d+)\]\]/g, '<div class="card" data-desk="$1" data-id="$2"><span class="muted">Loading #$2…</span></div>')
+    .replace(/(<\/div>)\s+(?=<div class="card")/g, "$1").replace(/:\s+(?=<div class="card")/g, ":");
+}
+
+function addMessage(e) {
+  const a = agent(current);
+  const el = document.createElement("div");
+  const kind = e.from === "you" ? "you" : e.from === "system" ? "system" : "agent";
+  el.className = `msg ${kind}`;
+  const who = e.from === "you" ? "You" : e.from === "agent" ? a.name : e.from === "system" ? "" : `${agent(e.from)?.name || e.from} → ${a.name}`;
+  el.innerHTML = (who && kind !== "system" ? `<div class="from">${esc(who)}</div>` : "") + format(e.text) + `<div class="time">${timeOf(e.time)}</div>`;
+  $("messages").insertBefore(el, $("typing"));
+  el.querySelectorAll(".card").forEach(loadCard);
+}
+
+async function loadCard(el) {
+  try {
+    const it = await api(`/api/item/${el.dataset.desk}/${el.dataset.id}`);
+    const desk = it.desk;
+    let body = `<div class="top"><span>${DESK_NAMES[desk]} #${it.id}</span><span class="pill ${it.status}">${it.status}</span>${it.job ? `<span>⏳ ${esc(it.job)}…</span>` : ""}</div>`;
+    body += `<div class="hook">${esc(it.hook)}</div>`;
+    if (it.posts) body += it.posts.map((p, i) => `<blockquote>${it.posts.length > 1 ? `<span class="muted">${i + 1}/${it.posts.length}</span> ` : ""}${esc(p)}</blockquote>`).join("");
+    if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
+    if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
+    if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>`;
+    if (it.fact_check) body += `<div class="note warn">Check before approving: ${esc(it.fact_check)}</div>`;
+    if (it.problems) body += `<div class="note bad">${it.problems.map(esc).join("<br>")}</div>`;
+    if (it.error) body += `<div class="note bad">${esc(it.error)}</div>`;
+    if (it.url) body += `<div><a href="${esc(it.url)}" target="_blank" rel="noopener">Open the post ↗</a></div>`;
+    if (it.actions.length && !it.job) {
+      body += `<div class="buttons">${it.actions.map((act) => {
+        if (act === "share") return it.share_urls.map((u, i) =>
+          `<a class="button primary" href="${esc(u)}" target="_blank" rel="noopener">${it.share_urls.length > 1 ? `Open post ${i + 1} in X` : "Open in X"}</a>`).join("");
+        const label = typeof LABELS[act] === "object" ? LABELS[act][desk] : LABELS[act];
+        const cls = act === "reject" ? "danger" : ["post", "render", "publish"].includes(act) ? "primary" : "";
+        return `<button class="${cls}" data-act="${act}">${esc(label)}</button>`;
+      }).join("")}</div>`;
+    }
+    el.innerHTML = body;
+    el.dataset.job = it.job ? "1" : "";
+    el.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => act(el, b.dataset.act)));
+  } catch (err) {
+    el.innerHTML = `<span class="muted">#${el.dataset.id}: ${esc(err.message)}</span>`;
+  }
+}
+
+async function act(el, action) {
+  const desk = el.dataset.desk;
+  const q = typeof CONFIRM[action] === "object" ? CONFIRM[action][desk] : CONFIRM[action];
+  if (q && !confirm(q)) return;
+  el.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  try { await api(`/api/action/${desk}/${el.dataset.id}`, { action }); }
+  catch (err) { toast(err.message); }
+  refreshCards(desk, el.dataset.id);
+}
+
+function refreshCards(desk, id) {
+  document.querySelectorAll(`.card[data-desk="${desk}"][data-id="${id}"]`).forEach(loadCard);
+}
+
+async function open(key) {
+  current = key; lastId = 0;
+  document.body.classList.add("chatting");
+  const a = agent(key);
+  $("chat-head").hidden = false; $("composer").hidden = false;
+  $("head-avatar").textContent = a.emoji; $("head-avatar").style.setProperty("--c", a.color);
+  $("head-name").textContent = a.name; $("head-role").textContent = a.role;
+  $("messages").innerHTML = '<div class="typing" id="typing" hidden></div>';
+  $("chips").innerHTML = (CHIPS[key] || []).map((c) => `<button type="button">${esc(c)}</button>`).join("");
+  $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => send(b.textContent)));
+  renderDesks();
+  await pollFeed();
+  $("input").focus();
+}
+
+async function pollFeed() {
+  if (!current) return;
+  const key = current;
+  const entries = await api(`/api/feed/${key}?after=${lastId}`);
+  if (key !== current) return;
+  entries.forEach(addMessage);
+  if (entries.length) {
+    lastId = entries[entries.length - 1].id;
+    $("messages").scrollTop = $("messages").scrollHeight;
+    api(`/api/read/${key}`, { upto: lastId }).catch(() => {});
+  }
+  const a = agent(key);
+  $("typing").hidden = !a.status;
+  $("typing").textContent = a.status ? `${a.name} is ${a.status}…` : "";
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text || !current) return;
+  $("input").value = "";
+  try { await api(`/api/chat/${current}`, { text }); }
+  catch (err) { toast(err.message); }
+  await tick();
+}
+
+async function tick() {
+  try {
+    const prev = state;
+    state = await api("/api/state");
+    for (const a of state.agents) {
+      const before = prev.agents.find((p) => p.key === a.key);
+      if (before && a.last && (!before.last || a.last.id > before.last.id) && a.last.from !== "you" && a.key !== current) {
+        const text = `${a.emoji} ${a.name}: ${a.last.text.replace(/\[\[\w+:(\d+)\]\]/g, "#$1").slice(0, 140)}`;
+        toast(text, a.key);
+        if (document.hidden && window.Notification && Notification.permission === "granted") new Notification(`${a.name} (${a.role})`, { body: a.last.text.replace(/\[\[\w+:(\d+)\]\]/g, "#$1").slice(0, 200) });
+      }
+    }
+    $("sync").disabled = state.syncing;
+    renderDesks();
+    await pollFeed();
+    document.querySelectorAll('.card[data-job="1"]').forEach(loadCard);
+  } catch (err) { console.warn(err); }
+}
+
+$("form").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
+$("input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("input").value); } };
+$("input").oninput = () => { $("input").style.height = "auto"; $("input").style.height = Math.min($("input").scrollHeight, 160) + "px"; };
+$("back").onclick = () => { current = null; document.body.classList.remove("chatting"); renderDesks(); };
+$("checkin").onclick = async () => { await api("/api/checkin", {}).catch((e) => toast(e.message)); tick(); };
+$("sync").onclick = async () => { await api("/api/sync", {}).then(() => toast("Syncing with GitHub… Maya will tell you when it's done.")).catch((e) => toast(e.message)); };
+if (window.Notification && Notification.permission === "default") document.addEventListener("click", () => Notification.requestPermission(), { once: true });
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

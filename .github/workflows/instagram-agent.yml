@@ -1,0 +1,62 @@
+name: Instagram agent
+
+on:
+  schedule:
+    - cron: "7 11 * * *" # 18:07 WIB: the day's Reel goes live in the evening
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "instagram_agent command, e.g. 'ideas --count 3', 'approve 2', 'make 2', 'quota'"
+        required: false
+        default: "autopilot"
+
+permissions:
+  contents: write # commits the updated queue back to the repo
+
+concurrency:
+  group: content-agents # one agent run at a time (X, TikTok, Instagram), so their queue commits never race
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # Turned off until the secrets are in place: set the repo variable INSTAGRAM_AGENT_ENABLED=true.
+    if: vars.INSTAGRAM_AGENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # video generation can take several minutes per shot
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Install ffmpeg and the on-screen text font
+        run: |
+          if ! command -v ffmpeg || [ ! -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf ]; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+          fi
+      - name: Run the agent
+        env:
+          INSTAGRAM_AGENT_COMMAND: ${{ inputs.command || 'autopilot' }} # passed as data, never run by the shell
+          INSTAGRAM_AUTO_APPROVE: ${{ vars.INSTAGRAM_AUTO_APPROVE }}
+          INSTAGRAM_SHOTS: ${{ vars.INSTAGRAM_SHOTS }}
+          INSTAGRAM_CLIP_SECONDS: ${{ vars.INSTAGRAM_CLIP_SECONDS }}
+          VIDEO_SOURCE: ${{ vars.VIDEO_SOURCE }} # stock (free Pexels clips, default) or higgsfield
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }} # without an Anthropic key, new plans come from the office on your PC
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          HIGGSFIELD_IMAGE_MODEL: ${{ vars.HIGGSFIELD_IMAGE_MODEL }}
+          HIGGSFIELD_VIDEO_MODEL: ${{ vars.HIGGSFIELD_VIDEO_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HF_KEY: ${{ secrets.HF_KEY }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+        run: python -m instagram_agent
+      - name: Save the queue
+        if: always() # keep rendered clips and what was posted even when a later step failed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add content/instagram_queue.json
+          git diff --cached --quiet || git commit -m "Instagram agent: update Reels queue"
+          git pull --rebase
+          git push

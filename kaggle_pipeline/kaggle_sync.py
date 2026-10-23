@@ -131,7 +131,7 @@ def wait_until_ready(api, ref, timeout_s=600, poll_s=15):
         time.sleep(poll_s)
 
 
-def update_settings(api, folder, ref, attempts=3, pause_s=60):
+def update_settings(api, folder, ref, attempts=3, pause_s=60, make_public=False):
     """Apply what a version upload doesn't: file and column descriptions, sources,
     update frequency and cover image (all read from the folder's dataset-metadata.json).
 
@@ -148,7 +148,7 @@ def update_settings(api, folder, ref, attempts=3, pause_s=60):
     meta_path = Path(folder) / "dataset-metadata.json"
     meta = json.loads(meta_path.read_text())
     # Kaggle omits false booleans from this response, so a missing flag means public.
-    meta["isPrivate"] = bool(current.get("isPrivate", False))
+    meta["isPrivate"] = False if make_public else bool(current.get("isPrivate", False))
     # The settings call only accepts the license under the name Kaggle stored it as
     # (e.g. "Attribution 4.0 International (CC BY 4.0)", not "CC-BY-4.0"); reuse it.
     if current.get("licenses"):

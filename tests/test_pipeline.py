@@ -358,3 +358,10 @@ def test_update_settings_accepts_an_empty_reply(tmp_path):
     api = FakeSettingsApi({"isPrivate": False}, fail="empty reply")
     kaggle_sync.update_settings(api, tmp_path, REF, pause_s=0)
     assert api.updates == 1 and api.sent is not None
+
+
+def test_update_settings_can_make_a_dataset_public(tmp_path):
+    (tmp_path / "dataset-metadata.json").write_text("{}")
+    api = FakeSettingsApi({"isPrivate": True})
+    kaggle_sync.update_settings(api, tmp_path, REF, make_public=True)
+    assert api.sent["isPrivate"] is False

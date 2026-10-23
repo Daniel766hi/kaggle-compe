@@ -240,6 +240,39 @@ the account must be linked to a Page, and it's also why the video doesn't need t
 anywhere. If Meta changes the API version, set `INSTAGRAM_GRAPH_VERSION`
 (default `v26.0`).
 
+## AI Office: chat with your content team
+
+`office/` is a small web app for your own computer. Your content agents sit at desks there, and
+you can chat with each of them. They also message you when something needs you.
+
+| Desk | Who | What they do |
+|---|---|---|
+| 🧭 | **Maya**, Head of Content | Sees every queue, plans, and hands work to the others |
+| ✍️ | **Raka**, X writer | Drafts and revises posts from `x_agent/profile.md` |
+| 🎬 | **Sari**, TikTok producer | Plans funny animal sketches from `shorts/profile.md` |
+| 📸 | **Bima**, Instagram Reels producer | The same, for Reels |
+
+```
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY=...        # plus X_*, HF_KEY, TIKTOK_*, INSTAGRAM_* to post from the office
+python -m office                    # opens http://127.0.0.1:8765
+```
+
+- **You chat with them.** Ask "what needs me today?", "draft 3 posts about supply chains" or "make
+  #4 funnier". Items appear as cards in the chat.
+- **They chat you.** Every 30 minutes (`--checkin-minutes`), and after each job, the producers
+  check their queues and message you about anything new: drafts to review, a post that didn't go
+  out, a finished video. Unread messages show as badges, a pop-up, and a browser notification
+  when the tab is in the background.
+- **Only you approve and publish.** The agents can read, draft, revise and reject. Approve,
+  *Post to X now*, *Render preview* and *Publish* are buttons on the cards, and they ask for
+  confirmation before anything public or paid happens.
+- **Sync with GitHub** pulls what the scheduled runs changed and pushes your approvals and edits to
+  `content/`, so the daily workflows use them.
+
+Conversations are saved in `office_data/` (not committed). The server only listens on
+127.0.0.1 and refuses requests from other sites, so a web page you visit can't press its buttons.
+
 ## Code layout
 
 ```
@@ -274,6 +307,12 @@ tiktok_agent/
   tiktok.py        TikTok login (OAuth) and upload to your inbox
 instagram_agent/
   instagram.py     Instagram Graph API: resumable Reel upload, publish, quota, account setup
+office/            the AI Office web app (python -m office)
+  team.py          the four agents: who they are and their tools
+  chat.py          conversations with Claude, check-ins (agents messaging you)
+  desks.py         queue work behind each desk; approve/publish only from buttons
+  server.py        local web server and JSON API
+  static/          the office page
 assets/music/      your royalty-free tracks for Reels (optional)
 tests/             offline tests with synthetic API payloads
 ```

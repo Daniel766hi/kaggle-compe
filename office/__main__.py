@@ -4,7 +4,7 @@
     python -m office --port 9000 --checkin-minutes 15 --no-browser
 
 Free by default: the agents think with a local model through Ollama (see llm.py), videos use free
-Pexels clips (PEXELS_API_KEY), and X posts open in X for you to post. Set ANTHROPIC_API_KEY to use
+stock clips (PIXABAY_API_KEY, or PEXELS_API_KEY), and X posts open in X for you to post. Set ANTHROPIC_API_KEY to use
 Claude instead, and X_* keys to post to X from the office (X charges per post).
 """
 
@@ -47,8 +47,8 @@ def main(argv=None):
     else:
         print(f"Ollama isn't running. Install it from https://ollama.com, run `ollama pull {llm.ollama_model()}`,")
         print("keep the Ollama app open, then refresh the office.")
-    if not os.environ.get("PEXELS_API_KEY"):
-        print("No PEXELS_API_KEY yet: video agents can plan, but rendering needs the free key (run the setup script).")
+    if not (os.environ.get("PIXABAY_API_KEY") or os.environ.get("PEXELS_API_KEY")):
+        print("No PIXABAY_API_KEY yet: video agents can plan, but rendering needs the free key (run the setup script).")
     if not args.no_browser:
         webbrowser.open(url)
     try:

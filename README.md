@@ -261,14 +261,14 @@ Everything can run without paying for anything:
 | Part | Free option | Paid option (optional) |
 |---|---|---|
 | The agents' AI | **Ollama**: a local model on your computer (default when `ANTHROPIC_API_KEY` isn't set) | Claude: `ANTHROPIC_API_KEY` |
-| Video clips | **Pexels** stock clips, creators credited in the caption (`VIDEO_SOURCE=stock`, the default) | Higgsfield AI clips: `VIDEO_SOURCE=higgsfield` and `HF_KEY` |
+| Video clips | **Pixabay** stock clips, creators credited in the caption (`VIDEO_SOURCE=stock`, the default; a Pexels key works too, but Pexels has paused new keys) | Higgsfield AI clips: `VIDEO_SOURCE=higgsfield` and `HF_KEY` |
 | Posting to X | **Open in X**: the office opens X with the post filled in, you press Post, then *I posted it* | X API keys (X charges per post) |
 | TikTok, Instagram | Their posting APIs are free | |
 | Daily runs | GitHub Actions is free for public repos | |
 
 **One-command setup.** In the repo folder, run the script for your system. It installs what's
 missing (Python packages, ffmpeg, Ollama), picks a model that fits your computer's memory and
-downloads it, asks for your free Pexels key (and checks that it works), saves your keys in `.env`
+downloads it, asks for your free Pixabay key (and checks that it works), saves your keys in `.env`
 (never committed), then opens the office:
 
 | System | First time | After that |
@@ -280,7 +280,8 @@ Or set it up by hand:
 1. **Ollama:** install it from ollama.com and open it. Then run `ollama pull qwen3:8b` once.
    That's about a 5 GB download and needs 16 GB of RAM. On 8 GB of RAM, use `qwen3:4b` and set
    `OLLAMA_MODEL=qwen3:4b`. Keep the Ollama app running while you use the office.
-2. **Pexels:** sign up at pexels.com/api and copy *Your API key*. Set `PEXELS_API_KEY` on your
+2. **Pixabay:** sign up at pixabay.com, then open pixabay.com/api/docs. Your key is shown under
+   *Parameters → key (required)*. Set `PIXABAY_API_KEY` on your
    computer, and add it as a GitHub secret for the daily video runs.
 
 What changes when it's free:
@@ -290,7 +291,7 @@ What changes when it's free:
 - **New drafts come from the office.** Ollama runs on your computer, not on GitHub's servers. The
   daily workflows skip writing new ideas and still publish the videos you approved. Approve in
   the office, then click *Sync with GitHub*.
-- **Clips are real stock footage, not AI.** The Reel caption credits the Pexels creators instead
+- **Clips are real stock footage, not AI.** The Reel caption credits the clip creators instead
   of saying "made with AI".
 
 ## AI Office: chat with your content team

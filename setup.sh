@@ -4,7 +4,7 @@
 #   bash setup.sh
 #
 # It installs (only what's missing): ffmpeg, Ollama and a free local AI model sized for this
-# computer, plus the Python packages in .venv. It asks for your free Pexels key, saves keys in
+# computer, plus the Python packages in .venv. It asks for your free Pixabay key, saves keys in
 # .env (never committed), and opens the office. Safe to run again; it skips what's already done.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -58,22 +58,26 @@ echo "This computer has ${ram_gb} GB of RAM: using $model (download once, a few 
 ollama pull "$model"
 "$PY" -m local_env set OLLAMA_MODEL "$model"
 
-step "Pexels (free stock video clips)"
-key=$("$PY" -m local_env get PEXELS_API_KEY)
+step "Pixabay (free stock video clips)"
+key=$("$PY" -m local_env get PIXABAY_API_KEY)
+[ -n "$key" ] || key=$("$PY" -m local_env get PEXELS_API_KEY)  # an older Pexels key still works
 while [ -z "$key" ]; do
-  echo "Opening pexels.com/api: sign up (free), then copy 'Your API key'."
-  (open https://www.pexels.com/api/ 2>/dev/null || xdg-open https://www.pexels.com/api/ 2>/dev/null || true)
-  read -r -p "Paste your Pexels API key (or press Enter to skip for now): " key
+  echo "Opening Pixabay: sign up or log in (free). Then open pixabay.com/api/docs and find"
+  echo "'key (required)' under Parameters: your key is shown right there (green text)."
+  for url in https://pixabay.com/accounts/register/ "https://pixabay.com/api/docs/#api_search_videos"; do
+    (open "$url" 2>/dev/null || xdg-open "$url" 2>/dev/null || true)
+  done
+  read -r -p "Paste your Pixabay API key (or press Enter to skip for now): " key
   if [ -z "$key" ]; then echo "Skipped. Video rendering needs it; run this script again any time."; break; fi
-  if curl -fsS -H "Authorization: $key" "https://api.pexels.com/videos/search?query=cat&per_page=1" >/dev/null; then
-    "$PY" -m local_env set PEXELS_API_KEY "$key"
+  if curl -fsS "https://pixabay.com/api/videos/?key=$key&q=cat&per_page=3" >/dev/null; then
+    "$PY" -m local_env set PIXABAY_API_KEY "$key"
     echo "Key works and is saved in .env"
     if have gh && gh auth status >/dev/null 2>&1; then
       read -r -p "Also save it as a GitHub secret for the daily video runs? (y/n) " yes
-      [ "$yes" = y ] && printf '%s' "$key" | gh secret set PEXELS_API_KEY
+      [ "$yes" = y ] && printf '%s' "$key" | gh secret set PIXABAY_API_KEY
     fi
   else
-    echo "Pexels didn't accept that key. Copy it again from pexels.com/api."
+    echo "Pixabay didn't accept that key. Copy it again from pixabay.com/api/docs."
     key=""
   fi
 done

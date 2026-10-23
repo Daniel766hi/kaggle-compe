@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1
 #
 # It installs (only what's missing): Python, ffmpeg, Ollama and a free local AI model sized for
-# this computer. It asks for your free Pexels key, saves keys in .env (never committed), and
+# this computer. It asks for your free Pixabay key, saves keys in .env (never committed), and
 # opens the office. Safe to run again; it skips what's already done.
 
 # "Continue": tools like winget and ollama print progress to stderr, which "Stop" would treat as a
@@ -69,25 +69,28 @@ Write-Host "This computer has $ramGB GB of RAM: using $model (download once, a f
 & $ollama pull $model; Check "Downloading $model"
 & $venvPython -m local_env set OLLAMA_MODEL $model
 
-Step "Pexels (free stock video clips)"
-$key = & $venvPython -m local_env get PEXELS_API_KEY
+Step "Pixabay (free stock video clips)"
+$key = & $venvPython -m local_env get PIXABAY_API_KEY
+if (-not $key) { $key = & $venvPython -m local_env get PEXELS_API_KEY }  # an older Pexels key still works
 while (-not $key) {
-    Write-Host "Opening pexels.com/api: sign up (free), then copy 'Your API key'."
-    Start-Process "https://www.pexels.com/api/"
-    $key = (Read-Host "Paste your Pexels API key (or press Enter to skip for now)").Trim()
+    Write-Host "Opening Pixabay: sign up or log in (free). Then open pixabay.com/api/docs and find"
+    Write-Host "'key (required)' under Parameters: your key is shown right there (green text)."
+    Start-Process "https://pixabay.com/accounts/register/"
+    Start-Process "https://pixabay.com/api/docs/#api_search_videos"
+    $key = (Read-Host "Paste your Pixabay API key (or press Enter to skip for now)").Trim()
     if (-not $key) { Write-Host "Skipped. Video rendering needs it; run this script again any time."; break }
     try {
-        Invoke-RestMethod "https://api.pexels.com/videos/search?query=cat&per_page=1" -Headers @{ Authorization = $key } -ErrorAction Stop | Out-Null
-        & $venvPython -m local_env set PEXELS_API_KEY $key
+        Invoke-RestMethod "https://pixabay.com/api/videos/?key=$key&q=cat&per_page=3" -ErrorAction Stop | Out-Null
+        & $venvPython -m local_env set PIXABAY_API_KEY $key
         Write-Host "Key works and is saved in .env" -ForegroundColor Green
         $ghStatus = if (Have gh) { try { "$(gh auth status 2>&1)" } catch { "" } } else { "" }
         if ($ghStatus -match "Logged in") {
             if ((Read-Host "Also save it as a GitHub secret for the daily video runs? (y/n)") -eq "y") {
-                $key | gh secret set PEXELS_API_KEY
+                $key | gh secret set PIXABAY_API_KEY
             }
         }
     } catch {
-        Write-Host "Pexels didn't accept that key. Copy it again from pexels.com/api." -ForegroundColor Yellow
+        Write-Host "Pixabay didn't accept that key. Copy it again from pixabay.com/api/docs." -ForegroundColor Yellow
         $key = $null
     }
 }

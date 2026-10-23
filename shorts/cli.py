@@ -164,9 +164,11 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=
             queue.save()
         options = {}
         if platform.burn_text:
-            music = render.pick_music(platform.setting("MUSIC", "assets/music"), item["id"])
+            # Your own tracks in assets/music first; otherwise a tune made for this video. "none": silent.
+            setting = platform.setting("MUSIC", "assets/music")
+            music = "none" if setting.lower() == "none" else render.pick_music(setting, item["id"])
             texts = [s["on_screen_text"] for s in item["shots"]]
-            options = dict(texts=texts, seconds=platform.seconds, audio=True, music=music)
+            options = dict(texts=texts, seconds=platform.seconds, audio=True, music=music, seed=item["id"])
         video = (assemble or render.assemble)(item["clips"], Path("build") / platform.name / str(item["id"]), **options)
         if getattr(args, "no_upload", False):
             print(f"Rendered #{item['id']}: {video}")

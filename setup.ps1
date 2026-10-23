@@ -3,7 +3,7 @@
 # In the repo folder, right-click this file > "Run with PowerShell", or in PowerShell:
 #   powershell -ExecutionPolicy Bypass -File .\setup.ps1
 #
-# It installs (only what's missing): Python, ffmpeg, Ollama and a free local AI model sized for
+# It installs (only what's missing): Python, ffmpeg, Git, Ollama and a free local AI model sized for
 # this computer. It asks for your free Pixabay key, saves keys in .env (never committed), and
 # opens the office. Safe to run again; it skips what's already done.
 
@@ -93,6 +93,31 @@ while (-not $key) {
         Write-Host "Pixabay didn't accept that key. Copy it again from pixabay.com/api/docs." -ForegroundColor Yellow
         $key = $null
     }
+}
+
+Step "GitHub link (Sync with GitHub, and updates)"
+$repo = "https://github.com/Daniel766hi/kaggle-compe.git"
+if (-not (Have git)) { WingetInstall "Git.Git"; RefreshPath }
+if (-not (Have git)) { Write-Host "Git installed; it will be found after you reopen PowerShell. Run this script again then." }
+elseif (-not (Test-Path ".git")) {
+    # A folder from a ZIP: make it a GitHub copy in place. Your .env, plans, chats and videos stay.
+    git init --quiet
+    git remote add origin $repo
+    $branch = (git ls-remote --symref origin HEAD | Select-String "ref: refs/heads/(\S+)").Matches[0].Groups[1].Value
+    git fetch --quiet origin $branch; Check "Downloading from GitHub"
+    git symbolic-ref HEAD "refs/heads/$branch"
+    git reset --quiet --mixed "origin/$branch"
+    # The ZIP may be older than GitHub: take the latest code, keep your own plans in content/.
+    git restore --source=HEAD --worktree -- . ":(exclude)content"
+    git branch --quiet --set-upstream-to="origin/$branch"
+    Write-Host "This folder is now linked to GitHub ($branch)." -ForegroundColor Green
+}
+if ((Have git) -and (Test-Path ".git") -and -not (git config user.email)) {
+    git config user.name "AI Office"
+    git config user.email "ai-office@users.noreply.github.com"
+}
+if (Test-Path ".git") {
+    Write-Host "'Sync with GitHub' in the office now works. The first time it pushes, a GitHub login window opens: sign in."
 }
 
 Step "Starting the AI Office"

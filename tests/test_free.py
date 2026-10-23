@@ -204,7 +204,7 @@ def test_long_landscape_stock_clips_are_trimmed_and_fill_the_frame(tmp_path):
                             seconds=1, audio=True, download=landscape)  # fmt: skip
     info = render.probe(video)
     assert (info["streams"]["video"]["width"], info["streams"]["video"]["height"]) == (1080, 1920)
-    assert 1.9 < info["duration"] < 2.3  # 2 shots x 1 s, not 2 x 3 s
+    assert 1.7 < info["duration"] < 1.85  # 2 shots x 1 s minus a 0.25 s crossfade, not 2 x 3 s
 
 
 def test_office_chats_through_ollama_with_tools(tmp_path):
@@ -391,3 +391,33 @@ def test_office_new_clips_button_swaps_the_footage(tmp_path, monkeypatch):
         time.sleep(0.02)
     assert not first & {c["source"] for c in tiktok.item(1)["clips"]}
     assert any("New clips are in" in e["text"] for e in app.office.threads["sari"].feed)
+
+
+def test_every_video_gets_its_own_original_music(tmp_path):
+    from shorts import music
+
+    a, b, again = (music.make_track(tmp_path / f"{n}.wav", 6, seed) for n, seed in (("a", 1), ("b", 2), ("again", 1)))
+    assert a.read_bytes() == again.read_bytes()  # the same video always gets the same tune
+    assert a.read_bytes() != b.read_bytes()  # different videos get different tunes
+    info = render.probe(a) if shutil.which("ffprobe") else {"duration": 6.5}
+    assert 6 <= info["duration"] <= 7
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_videos_crossfade_and_carry_music_by_default(tmp_path):
+    def clip(url, path):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25", "-t", "4", str(path)], check=True)
+
+    video = render.assemble([{"video_url": "a"}, {"video_url": "b"}, {"video_url": "c"}], tmp_path / "out",
+                            texts=["one", "two", "three"], seconds=2, audio=True, seed=7, download=clip)  # fmt: skip
+    info = render.probe(video)
+    assert (tmp_path / "out" / "music.wav").exists()  # no tracks given: an original tune was made
+    assert info["streams"]["audio"]["codec_name"] == "aac"
+    assert 5.1 < info["duration"] < 5.3  # 3 x 2 s minus two 0.4 s crossfades
+    volume = subprocess.run(["ffmpeg", "-i", str(video), "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True)
+    assert float(volume.stderr.split("mean_volume: ")[1].split(" dB")[0]) > -40  # actually audible, not silence
+
+
+def test_balanced_caption_lines():
+    assert render.balanced_lines("New manager, day one") == ["New manager,", "day one"]
+    assert render.balanced_lines("Meeting cancelled") == ["Meeting cancelled"]

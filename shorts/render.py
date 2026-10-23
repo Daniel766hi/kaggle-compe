@@ -16,6 +16,8 @@ from pathlib import Path
 
 import requests
 
+from .music import make_track
+
 IMAGE_MODEL = os.environ.get("HIGGSFIELD_IMAGE_MODEL") or "bytedance/seedream/v4/text-to-image"
 VIDEO_MODEL = os.environ.get("HIGGSFIELD_VIDEO_MODEL") or "kling-video/v3.0-turbo/image-to-video"
 WIDTH, HEIGHT = 1080, 1920
@@ -27,6 +29,8 @@ FONTS = (
 MUSIC_TYPES = {".mp3", ".m4a", ".aac", ".wav"}
 PEXELS_SEARCH = "https://api.pexels.com/videos/search"
 PIXABAY_SEARCH = "https://pixabay.com/api/videos/"
+FADE = 0.4  # seconds of crossfade between shots
+LEAD_IN = 0.8  # start this far into a stock clip: many open on a still frame
 PICK_FROM = 12  # random pick among this many good matches, so popular clips don't repeat
 STOCK_SITES = {"pixabay": ("PIXABAY_API_KEY", "Pixabay"), "pexels": ("PEXELS_API_KEY", "Pexels")}
 # Pixabay sits behind Cloudflare, which challenges Python's default user agent.
@@ -107,12 +111,14 @@ def credits(clips):
     return f"Clips from {site}: {', '.join(names)}"
 
 
-def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, download=None, ffmpeg=None):
-    """Download the clips and join them into one 1080x1920 H.264 mp4.
+def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, download=None, ffmpeg=None, seed=0):
+    """Download the clips and join them into one smooth 1080x1920 H.264 mp4.
 
-    texts: on-screen text burned in, one per clip, each shown for `seconds`.
-    audio: add an AAC track, `music` (looped and cut to length) or silence. Without it the
-    video has no audio, for platforms where a sound is added in the app.
+    Each clip starts a moment in (stock footage often opens on a still frame), fills the vertical
+    frame, and crossfades into the next. texts: on-screen text, one per clip, fading in and out.
+    audio: add an AAC track: `music` (a file, looped and cut to length) or, without one, an original
+    tune made for this video (shorts/music.py). Without audio the video is silent, for platforms
+    where a sound is added in the app.
     """
     download, ffmpeg = download or _download, ffmpeg or _ffmpeg
     out_dir = Path(out_dir)
@@ -122,29 +128,49 @@ def assemble(clips, out_dir, texts=(), seconds=None, audio=False, music=None, do
         path = out_dir / f"shot_{i}.mp4"
         download(clip["video_url"], path)
         paths.append(path)
-    listing = out_dir / "clips.txt"
-    trim = f"outpoint {seconds}\n" if seconds else ""  # stock clips are longer than a shot
-    listing.write_text("".join(f"file '{p.resolve().as_posix()}'\n{trim}" for p in paths))
+    seconds = seconds or min(_duration(p) for p in paths)
+    fade = round(min(FADE, seconds / 4), 2) if len(paths) > 1 else 0
+    total = len(paths) * seconds - (len(paths) - 1) * fade
 
-    args = ["-y", "-f", "concat", "-safe", "0", "-i", str(listing)]
-    if audio and music:
-        args += ["-stream_loop", "-1", "-i", str(music)]
-    elif audio:
-        args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
-    filters = [
-        f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase",
-        f"crop={WIDTH}:{HEIGHT}",  # fill the vertical frame; landscape clips lose their sides
-        "setsar=1",
-        "fps=30",
-        *_captions(texts, seconds, out_dir),
-    ]
-    args += ["-vf", ",".join(filters), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    args, chains = ["-y"], []
+    for i, path in enumerate(paths):
+        length = _duration(path)
+        start = round(min(LEAD_IN, max(0.0, length - seconds - fade)), 2)  # skip a still opening frame
+        args += ["-ss", str(start), "-t", str(seconds + fade), "-i", str(path)]
+        chains.append(
+            f"[{i}:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT},setsar=1,"
+            f"fps=30,format=yuv420p,eq=saturation=1.06:contrast=1.03,"
+            f"tpad=stop_mode=clone:stop_duration={seconds + fade},trim=duration={seconds + fade},setpts=PTS-STARTPTS[v{i}]"
+        )
+    last = "v0"
+    for i in range(1, len(paths)):
+        offset = round(i * (seconds - fade), 3)
+        chains.append(f"[{last}][v{i}]xfade=transition=fade:duration={fade}:offset={offset}[x{i}]")
+        last = f"x{i}"
+    captions = _captions(texts, seconds, out_dir, fade)
+    chains.append(f"[{last}]trim=duration={total}{',' if captions else ''}{','.join(captions)}[video]")
+
     if audio:
-        args += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-shortest"]
+        if music == "none":
+            args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+        else:
+            if not music:
+                music = out_dir / "music.wav"
+                make_track(music, total, seed)
+            args += ["-stream_loop", "-1", "-i", str(music)]
+        fade_out = min(1.5, total / 4)
+        chains.append(
+            f"[{len(paths)}:a]atrim=duration={total},asetpts=PTS-STARTPTS,lowpass=f=9000,"
+            f"afade=t=in:d=0.3,afade=t=out:st={round(total - fade_out, 3)}:d={round(fade_out, 3)},volume=0.9[audio]"
+        )
+    args += ["-filter_complex", ";".join(chains), "-map", "[video]"]
+    args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30"]
+    if audio:
+        args += ["-map", "[audio]", "-c:a", "aac", "-b:a", "128k", "-ar", "48000"]
     else:
         args += ["-an"]
     video = out_dir / "video.mp4"
-    ffmpeg([*args, "-movflags", "+faststart", str(video)])
+    ffmpeg([*args, "-t", str(total), "-movflags", "+faststart", str(video)])
     return video
 
 
@@ -176,25 +202,47 @@ def probe(path):
     }
 
 
-def _captions(texts, seconds, out_dir):
-    """drawtext filters: each text centred a little above the middle, clear of the app's buttons."""
+def _captions(texts, seconds, out_dir, fade=0):
+    """drawtext filters: bold white text with a dark outline, centred a little above the middle
+    (clear of the app's buttons), each line centred, fading in and out over its own shot."""
     if not texts:
         return []
     font = os.environ.get("VIDEO_FONT") or next((f for f in FONTS if os.path.exists(f)), None)
     if not font:
         raise RenderError("No font for on-screen text; install fonts-dejavu-core or set VIDEO_FONT to a .ttf file.")
+    size, gap = 68, 86  # font size and line height in pixels
     filters = []
     for i, text in enumerate(texts):
         if not text.strip():
             continue
-        text_file = out_dir / f"text_{i + 1}.txt"
-        text_file.write_text(textwrap.fill(text.strip(), 20))  # read from a file: no escaping trouble
-        filters.append(
-            f"drawtext=fontfile='{_ff_path(font)}':textfile='{_ff_path(text_file)}':fontsize=62:fontcolor=white:line_spacing=16"
-            f":box=1:boxcolor=black@0.55:boxborderw=30:x=(w-text_w)/2:y=h*0.32-text_h/2"
-            f":enable='between(t,{i * seconds},{(i + 1) * seconds})'"
-        )
+        begin = round(i * (seconds - fade) + (0.15 if i == 0 else fade / 2), 3)
+        end = round((i + 1) * (seconds - fade) + fade / 2 - 0.1, 3)
+        alpha = f"if(lt(t,{begin}+0.25),(t-{begin})/0.25,if(gt(t,{end}-0.25),({end}-t)/0.25,1))"
+        lines = balanced_lines(text.strip())
+        for n, line in enumerate(lines):
+            text_file = out_dir / f"text_{i + 1}_{n + 1}.txt"
+            text_file.write_text(line, encoding="utf-8")  # read from a file: no escaping trouble
+            y = f"h*0.30-{len(lines) * gap // 2}+{n * gap}"
+            filters.append(
+                f"drawtext=fontfile='{_ff_path(font)}':textfile='{_ff_path(text_file)}':fontsize={size}:fontcolor=white"
+                f":borderw=7:bordercolor=black@0.85:shadowx=0:shadowy=4:shadowcolor=black@0.4"
+                f":x=(w-text_w)/2:y={y}:alpha='{alpha}':enable='between(t,{begin},{end})'"
+            )
     return filters
+
+
+def balanced_lines(text, width=18):
+    """Wrap text into as few lines as fit `width`, with the lines about equally long."""
+    count = len(textwrap.wrap(text, width)) or 1
+    for w in range(max(1, -(-len(text) // count)), width + 1):  # narrowest width that keeps the count
+        lines = textwrap.wrap(text, w)
+        if len(lines) <= count:
+            return lines
+    return textwrap.wrap(text, width)
+
+
+def _duration(path):
+    return probe(path)["duration"]
 
 
 def _ff_path(path):

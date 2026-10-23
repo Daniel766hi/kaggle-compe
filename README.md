@@ -162,8 +162,9 @@ change the channel; `TIKTOK_PROFILE` / `INSTAGRAM_PROFILE` can point a platform 
    a motion prompt and on-screen text for each), a voiceover script and a caption.
 2. **Approve:** you check the plan. Nothing is rendered before approval, because Higgsfield
    charges credits for every generation.
-3. **Render:** Higgsfield makes an image for each shot (Seedream 4), animates it (Kling 3.0 Turbo,
-   5 s), and ffmpeg joins the clips into a silent 1080x1920 mp4 (15 s by default).
+3. **Render:** each shot gets a clip (free stock footage, or Higgsfield AI clips), and ffmpeg makes
+   a 1080x1920 mp4 of about 14 s: soft crossfades between shots, the on-screen text fading in and
+   out, and background music (your tracks in `assets/music/`, or an original tune made for the video).
 4. **Inbox:** the video is uploaded to your TikTok inbox as a draft. In the app, add a sound or
    voiceover and the on-screen text, turn on the AI-generated content label, paste the caption and
    post.
@@ -213,8 +214,9 @@ that Instagram's API has **no drafts**: a Reel goes live as soon as it is publis
 finishes each video before uploading it.
 - The on-screen text for each shot is burned into the video. Claude keeps it to 12 words or
   fewer, because there is no voiceover.
-- An AAC audio track is added: a track from `assets/music/` (royalty-free only, see the README
-  there), or silence.
+- Music is added: a track from `assets/music/` if you put any there (royalty-free only, see the
+  README there), or otherwise an original tune made for that video (`shorts/music.py`), different
+  for each video and free of any licence. `INSTAGRAM_MUSIC=none` makes it silent.
 - The caption ends with "Visuals made with AI." unless it already mentions AI.
 - Before uploading, the agent checks the Reels requirements: H.264 at 1080x1920, AAC audio,
   3 s to 15 min, at most 300 MB. It also checks that the daily API publishing limit isn't reached.

@@ -197,8 +197,9 @@ def test_assemble_makes_a_reel_instagram_accepts(tmp_path, with_music):
     assert info["streams"]["video"]["codec_name"] == "h264"
     assert (info["streams"]["video"]["width"], info["streams"]["video"]["height"]) == (1080, 1920)
     assert info["streams"]["audio"]["codec_name"] == "aac" and info["streams"]["audio"]["sample_rate"] == "48000"
-    assert 1.9 < info["duration"] < 2.2  # looped music is cut to the video's length
-    assert (tmp_path / "out" / "text_1.txt").read_text() == "Why does the haze\ncome back every\nyear?"
+    assert 1.7 < info["duration"] < 1.85  # 2 x 1 s with a crossfade; looped music is cut to fit
+    lines = [(tmp_path / "out" / f"text_1_{n}.txt").read_text() for n in (1, 2, 3)]
+    assert lines == ["Why does the", "haze come back", "every year?"]  # balanced, one file per centred line
 
 
 def test_a_platform_can_use_its_own_profile(tmp_path, monkeypatch):

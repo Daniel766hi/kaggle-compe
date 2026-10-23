@@ -134,7 +134,7 @@ def test_assemble_joins_clips_into_vertical_mp4(tmp_path):
     )  # fmt: skip
     info = json.loads(probe.stdout)
     assert info["streams"] == [{"codec_name": "h264", "width": 1080, "height": 1920}]
-    assert 1.9 < float(info["format"]["duration"]) < 2.2
+    assert 1.7 < float(info["format"]["duration"]) < 1.85  # 2 x 1 s with a crossfade
 
 
 def test_chunk_plan_follows_tiktok_rules():

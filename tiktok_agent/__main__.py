@@ -30,11 +30,12 @@ def _done(item):
     credit = render.credits(item.get("clips", []))
     if credit:  # stock clips: credit their creators
         return (
-            f"#{item['id']} is in your TikTok inbox. Open TikTok, add a sound, paste the caption and post:\n\n"
+            f"#{item['id']} is in your TikTok inbox, with music. Open TikTok (swap in a trending sound if you like),\n"
+            f"paste the caption and post:\n\n"
             f"{item['caption']}\n\n{credit}"
         )
     return (
-        f"#{item['id']} is in your TikTok inbox. Open TikTok, add a sound, turn on the AI-generated\n"
+        f"#{item['id']} is in your TikTok inbox, with music. Open TikTok, turn on the AI-generated\n"
         f"content label, paste the caption and post:\n\n{item['caption']}"
     )
 
@@ -74,7 +75,7 @@ PLATFORM = cli.Platform(
     env="TIKTOK",
     finish=(
         "The owner reviews every plan. The rendered video, with each shot's on-screen text burned in, "
-        "lands in the owner's TikTok inbox, where they add a sound and post it, so the on-screen text "
+        "lands in the owner's TikTok inbox with background music, where they post it, so the on-screen text "
         "must tell the story. Keep it to 12 words per shot or fewer, plain text without emoji. The "
         "voiceover is a script the owner may record later."
     ),

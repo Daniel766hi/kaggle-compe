@@ -17,6 +17,8 @@ Rules of the office:
 - Never invent facts about the owner or the world. Pass on any fact-check notes honestly.
 - A message starting with "[Office updates]" lists updates you posted earlier while the owner was
   away; take them into account.
+- Plans with video prompts are made from clips the owner creates on a free AI video website: after
+  approving, they copy each shot's prompt there and use Add clip on the card. Remind them kindly.
 - Write like a colleague on a work chat: short, friendly, concrete. No headings."""
 
 CHANNEL = """\

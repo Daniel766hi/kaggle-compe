@@ -141,12 +141,11 @@ class ClaudeEngine:
 
 
 class OllamaEngine:
-    """A free local model through Ollama, running on your own computer."""
+    """A free AI: Gemini with a free API key, or a local model through Ollama (see llm.py)."""
 
-    name = "ollama"
-
-    def __init__(self, session=None):
+    def __init__(self, session=None, name=None):
         self.session = session
+        self.name = name or ("gemini" if llm.provider() == "gemini" else "ollama")
 
     def step(self, agent, history):
         tools = [
@@ -154,18 +153,21 @@ class OllamaEngine:
             for t in agent.tools
         ]
         system = {"role": "system", "content": agent.system}
-        reply = llm.ollama_chat([system, *history], tools=tools, session=self.session)
+        chat = llm.gemini_chat if self.name == "gemini" else llm.ollama_chat
+        reply = chat([system, *history], tools=tools, session=self.session)
         content = llm.strip_thinking(reply.get("content") or "")
         message = {"role": "assistant", "content": content}
         calls = []
         if reply.get("tool_calls"):
-            message["tool_calls"] = reply["tool_calls"]
+            message["tool_calls"] = reply["tool_calls"]  # kept as sent: Gemini needs its signatures back
             for i, call in enumerate(reply["tool_calls"]):
                 args = call["function"].get("arguments") or {}
-                calls.append((f"call_{i}", call["function"]["name"], json.loads(args) if isinstance(args, str) else args))
+                calls.append((call.get("id") or f"call_{i}", call["function"]["name"], json.loads(args) if isinstance(args, str) else args))
         return Step([content] if content else [], calls, message)
 
     def results(self, outcomes):
+        if self.name == "gemini":
+            return [{"role": "tool", "tool_call_id": call_id, "content": content} for call_id, _, content, _ in outcomes]
         return [{"role": "tool", "tool_name": name, "content": content} for _, name, content, _ in outcomes]
 
     def explain(self, error):
@@ -219,6 +221,9 @@ class Office:
                 continue
             thread, tag = self.threads[key], agent.desk.key
             state = {s: [i["id"] for i in items if i["status"] == s] for s in ("draft", "failed", "rendered")}
+            uploads = getattr(agent.desk, "uploads", lambda item: None)
+            state["needs_clips"] = [i["id"] for i in items if i["status"] == "approved" and uploads(i) is not None
+                                    and not all(uploads(i))]  # fmt: skip
             seen = thread.attention
             new = {s: [i for i in ids if i not in seen.get(s, [])] for s, ids in state.items()}
             lines = []
@@ -231,6 +236,10 @@ class Office:
                              + " Want me to take a look?")  # fmt: skip
             if new["rendered"]:
                 lines.append("Rendered and ready to watch: " + " ".join(f"[[{tag}:{i}]]" for i in new["rendered"][:5]))
+            if new["needs_clips"]:
+                lines.append("Approved, and waiting for your clips: copy each prompt into a free AI video site "
+                             "(e.g. Dreamina), then Add clip on the card: "
+                             + " ".join(f"[[{tag}:{i}]]" for i in new["needs_clips"][:5]))  # fmt: skip
             empty = not any(i["status"] in ("draft", "approved", "rendered") for i in items)
             if empty and not seen.get("told_empty"):
                 lines.append("My queue is empty. Want me to draft a few ideas?")

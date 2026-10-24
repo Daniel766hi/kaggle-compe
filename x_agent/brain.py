@@ -119,8 +119,8 @@ def ask(client, system, request, schema, tools=()):
 
     Without a client, the free local model answers when it is the chosen AI (see llm.py).
     """
-    if client is None and llm.provider() == "ollama":
-        return llm.ollama_json(system, request, schema)
+    if client is None and llm.provider() != "claude":
+        return llm.json_answer(system, request, schema)
     client = client or anthropic.Anthropic()
     messages = [{"role": "user", "content": request}]
     for _ in range(MAX_CONTINUATIONS + 1):

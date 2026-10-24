@@ -1,6 +1,7 @@
 """The free setup: a local model through Ollama, Pexels stock clips, posting to X by hand."""
 
 import argparse
+import base64
 import json
 import os
 import shutil
@@ -23,7 +24,7 @@ from office import server
 from office.chat import Office, OllamaEngine
 from office.desks import VideoDesk, XDesk
 from office.team import build_team
-from shorts import cli, plans, render
+from shorts import cli, images, plans, render
 from tiktok_agent.__main__ import PLATFORM as TIKTOK
 from x_agent import __main__ as x_cli
 from x_agent import brain
@@ -83,6 +84,8 @@ def free_setup(monkeypatch):
     monkeypatch.delenv("STOCK_SITE", raising=False)
     monkeypatch.delenv("AI_PROVIDER", raising=False)
     monkeypatch.delenv("VIDEO_SOURCE", raising=False)
+    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "DASHSCOPE_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
     for key in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"):
         monkeypatch.delenv(key, raising=False)
 
@@ -97,7 +100,7 @@ def test_the_free_local_model_is_the_default_without_a_claude_key(monkeypatch):
 
 def test_ollama_answers_in_the_requested_json_shape():
     session = FakeOllama({"role": "assistant", "content": '<think>hmm</think>{"ideas": []}'})
-    assert llm.ollama_json("system", "request", {"type": "object"}, session) == {"ideas": []}
+    assert llm.json_answer("system", "request", {"type": "object"}, session) == {"ideas": []}
     body = session.bodies[0]
     assert body["model"] == "qwen3:8b" and body["format"] == {"type": "object"} and body["stream"] is False
     assert body["messages"][0] == {"role": "system", "content": "system"}
@@ -105,7 +108,7 @@ def test_ollama_answers_in_the_requested_json_shape():
 
 def test_ollama_not_running_is_explained():
     with pytest.raises(llm.LLMError, match="isn't running"):
-        llm.ollama_json("s", "r", {}, FakeOllama(down=True))
+        llm.json_answer("s", "r", {}, FakeOllama(down=True))
     assert llm.available(FakeOllama(down=True)) is False
 
 
@@ -116,7 +119,7 @@ def test_ideas_use_the_local_model_and_skip_web_search(monkeypatch):
         seen.update(request=request, schema=schema)
         return {"ideas": [IDEA]}
 
-    monkeypatch.setattr(llm, "ollama_json", fake_json)
+    monkeypatch.setattr(llm, "json_answer", fake_json)
     assert brain.generate_ideas("profile", 1) == [IDEA]
     assert "search the web" not in seen["request"].lower()
     assert seen["schema"] == brain.IDEAS_SCHEMA
@@ -364,7 +367,7 @@ def test_plans_ask_for_different_animals_than_recent_videos(monkeypatch):
         seen["request"] = request
         return {"concepts": []}
 
-    monkeypatch.setattr(llm, "ollama_json", fake_json)
+    monkeypatch.setattr(llm, "json_answer", fake_json)
     items = [{"shots": [{"search_query": "cat on desk"}, {"search_query": "cat staring"}]}]
     plans.generate(TIKTOK, "profile", 2, searches=plans.recent_searches(items))
     assert "different animal" in seen["request"]
@@ -441,7 +444,7 @@ UPLOAD_PLAN = {
 
 
 def test_upload_plans_ask_for_video_prompts():
-    assert set(plans.schemas("upload")[0]["properties"]["ideas"]["items"]["properties"]["shots"]["items"]["required"]) == {
+    assert set(plans.schemas("upload")[0]["properties"]["concepts"]["items"]["properties"]["shots"]["items"]["required"]) == {
         "video_prompt", "on_screen_text"}  # fmt: skip
 
 
@@ -536,3 +539,222 @@ def test_office_add_clip_buttons_then_render(tmp_path, monkeypatch):
     item = app.item("tiktok", 1)
     assert item["status"] == "rendered" and item.get("video"), item
     assert item["actions"] == ["render", "publish", "reject"]  # replace a clip and render again
+
+
+# --- Gemini: the free cloud brain -------------------------------------------------------------
+
+
+class FakeGemini:
+    """Stands in for requests against Gemini's OpenAI-compatible API."""
+
+    def __init__(self, *messages, statuses=()):
+        self.messages, self.statuses, self.calls = list(messages), list(statuses), []
+
+    def post(self, url, json, headers, timeout):
+        self.calls.append({"url": url, "body": json, "headers": headers})
+        status = self.statuses.pop(0) if self.statuses else 200
+        if status != 200:
+            return FakeResponse({"error": {"message": "slow down"}}, status)
+        return FakeResponse({"choices": [{"message": self.messages.pop(0)}]})
+
+
+def test_a_gemini_key_makes_gemini_the_free_brain(monkeypatch):
+    assert llm.provider() == "ollama"
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    assert llm.provider() == "gemini" and llm.available()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "a-key")
+    assert llm.provider() == "claude"
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    assert llm.provider() == "gemini"
+
+
+def test_gemini_answers_in_json_and_waits_out_its_rate_limit(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    session = FakeGemini({"role": "assistant", "content": '```json\n{"ideas": []}\n```'}, statuses=[429])
+    schema = {"type": "object", "properties": {"ideas": {"type": "array"}}, "required": ["ideas"], "additionalProperties": False}
+    assert llm.json_answer("system", "request", schema, session) == {"ideas": []}
+    call = session.calls[-1]
+    assert len(session.calls) == 2 and call["url"].endswith("/v1beta/openai/chat/completions")
+    assert call["headers"]["Authorization"] == "Bearer g-key" and call["body"]["model"] == "gemini-flash-latest"
+    sent = call["body"]["response_format"]["json_schema"]["schema"]
+    assert "additionalProperties" not in sent and sent["required"] == ["ideas"]
+
+
+def test_gemini_explains_a_used_up_free_limit(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    session = FakeGemini(statuses=[429, 429, 429, 429])
+    with pytest.raises(llm.LLMError, match="free limit"):
+        llm.gemini_chat([{"role": "user", "content": "hi"}], session=session, sleep=lambda s: None)
+
+
+def test_office_chats_through_gemini_with_tools(tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    call = {"id": "fc_1", "type": "function", "function": {"name": "list_items", "arguments": '{"status": "waiting"}'},
+            "extra_content": {"google": {"thought_signature": "sig"}}}  # fmt: skip
+    session = FakeGemini({"role": "assistant", "content": None, "tool_calls": [call]},
+                         {"role": "assistant", "content": "Nothing waiting yet."})  # fmt: skip
+    team = build_team(XDesk(tmp_path / "x.json"), VideoDesk(TIKTOK, tmp_path / "t.json"), VideoDesk(INSTAGRAM, tmp_path / "i.json"))
+    office = Office(team, tmp_path / "data", engine=OllamaEngine(session))
+    assert office.engine.name == "gemini"
+    assert office.say("raka", "anything waiting?") == "Nothing waiting yet."
+    history = office.threads["raka"].histories["gemini"]
+    assert history[1]["tool_calls"][0]["extra_content"] == {"google": {"thought_signature": "sig"}}  # sent back as is
+    assert history[2]["role"] == "tool" and history[2]["tool_call_id"] == "fc_1"
+    second = session.calls[1]["body"]
+    assert [m["role"] for m in second["messages"]] == ["system", "user", "assistant", "tool"]
+
+
+# --- AI pictures: free FLUX images on Cloudflare, brought to life ----------------------------
+
+PICTURE_PLAN = {
+    **STOCK_PLAN,
+    "shots": [
+        {"image_prompt": "A chubby orange tabby cat wearing a tiny blue necktie sits behind a desk",
+         "action": "the cat squints at the camera", "camera": "zoom_in", "on_screen_text": "New manager, day one"},
+        {"image_prompt": "A chubby orange tabby cat wearing a tiny blue necktie stares at a laptop",
+         "action": "the cat leans closer", "camera": "pan_right", "on_screen_text": "Performance review"},
+        {"image_prompt": "A chubby orange tabby cat wearing a tiny blue necktie asleep on a keyboard",
+         "action": "the cat's ear twitches", "camera": "zoom_out", "on_screen_text": "Meeting cancelled"},
+    ],
+}  # fmt: skip
+
+
+def picture_bytes(tmp_path):
+    path = tmp_path / "drawn.png"
+    if not path.exists():
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=768x1344",
+                        "-frames:v", "1", str(path)], check=True)  # fmt: skip
+    return path.read_bytes()
+
+
+class FakePictures:
+    model = "@cf/black-forest-labs/flux-2-klein-4b"
+
+    def __init__(self, data):
+        self.data, self.calls = data, []
+
+    def generate(self, prompt, reference=None):
+        self.calls.append((prompt, reference))
+        return self.data
+
+
+class FakeCloudflare:
+    def __init__(self, status=200, text=None):
+        self.status, self.text, self.calls = status, text, []
+
+    def post(self, url, headers, timeout, files=None, json=None):
+        self.calls.append({"url": url, "headers": headers, "files": files, "json": json})
+        if self.status != 200:
+            resp = FakeResponse({}, self.status)
+            resp.text = self.text or ""
+            return resp
+        return FakeResponse({"result": {"image": base64.b64encode(b"PNGDATA").decode()}, "success": True})
+
+
+def test_cloudflare_draws_a_vertical_picture_with_a_reference():
+    session = FakeCloudflare()
+    pictures = images.CloudflareImages("acc", "tok", session)
+    assert pictures.generate("a goat in a hard hat", reference=b"REF") == b"PNGDATA"
+    call = session.calls[0]
+    assert call["url"] == "https://api.cloudflare.com/client/v4/accounts/acc/ai/run/@cf/black-forest-labs/flux-2-klein-4b"
+    assert call["headers"]["Authorization"] == "Bearer tok"
+    assert call["files"]["prompt"] == (None, "a goat in a hard hat") and call["files"]["width"] == (None, "768")
+    assert call["files"]["input_image_0"][1] == b"REF"
+
+
+def test_cloudflare_explains_the_daily_free_limit():
+    session = FakeCloudflare(400, '{"errors":[{"code":4006,"message":"you have used up your daily free allocation"}]}')
+    with pytest.raises(render.RenderError, match="07:00 WIB"):
+        images.CloudflareImages("acc", "tok", session).generate("a duck")
+
+
+def test_pictures_are_the_default_once_cloudflare_is_set_up(monkeypatch):
+    assert plans.video_source() == "stock"
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
+    assert plans.video_source() == "images"
+    shot = plans.schemas()[0]["properties"]["concepts"]["items"]["properties"]["shots"]["items"]
+    assert shot["required"] == ["image_prompt", "action", "camera", "on_screen_text"]
+    assert "word for word" in plans._system(TIKTOK, "profile")
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_pictures_become_smooth_moving_shots_of_the_same_animal(tmp_path):
+    fake = FakePictures(picture_bytes(tmp_path))
+    clips = images.render_pictures(PICTURE_PLAN, 2, tmp_path / "out", fake)
+    assert fake.calls[0][1] is None and fake.calls[1][1] and fake.calls[1][1] == fake.calls[2][1]  # shot 1 is the model
+    assert [c["source"] for c in clips] == ["ai-picture:picture_1.png", "ai-picture:picture_2.png", "ai-picture:picture_3.png"]
+    info = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height,nb_frames",
+                           "-of", "csv=p=0", clips[0]["video_url"]], capture_output=True, text=True).stdout.strip()  # fmt: skip
+    assert info == f"1080,1920,{int(round((2 + render.FADE) * 30))}"
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_wan_animates_the_pictures_and_falls_back_to_camera_moves(tmp_path, monkeypatch):
+    class BrokeWan:
+        def __init__(self):
+            self.calls = 0
+
+        def animate(self, picture, prompt, seconds):
+            self.calls += 1
+            raise render.RenderError("free quota used up")
+
+    wan = BrokeWan()
+    clips = images.render_pictures(PICTURE_PLAN, 1, tmp_path / "out", FakePictures(picture_bytes(tmp_path)), wan=wan)
+    assert wan.calls == 1 and all(c["source"].startswith("ai-picture:") for c in clips)
+
+    class GoodWan:
+        def animate(self, picture, prompt, seconds):
+            return str(tmp_path / "out" / "moving_1.mp4")  # any finished clip
+
+    clips = images.render_pictures(PICTURE_PLAN, 1, tmp_path / "again", FakePictures(picture_bytes(tmp_path)), wan=GoodWan())
+    assert [c["source"] for c in clips] == ["wan:picture_1.png", "wan:picture_2.png", "wan:picture_3.png"]
+
+
+def test_wan_task_is_created_and_polled():
+    class FakeDashScope:
+        def __init__(self):
+            self.posts, self.gets = [], 0
+
+        def post(self, url, headers, json, timeout):
+            self.posts.append((url, headers, json))
+            return FakeResponse({"output": {"task_id": "t1", "task_status": "PENDING"}})
+
+        def get(self, url, headers, timeout):
+            self.gets += 1
+            status = "SUCCEEDED" if self.gets > 1 else "RUNNING"
+            return FakeResponse({"output": {"task_status": status, "video_url": "https://wan.example/clip.mp4"}})
+
+    session = FakeDashScope()
+    wan = images.Wan("d-key", session, sleep=lambda s: None)
+    assert wan.animate(b"PNG", "the cat squints", 5) == "https://wan.example/clip.mp4"
+    url, headers, body = session.posts[0]
+    assert url.endswith("/api/v1/services/aigc/video-generation/video-synthesis") and headers["X-DashScope-Async"] == "enable"
+    assert body["input"]["img_url"].startswith("data:image/png;base64,") and body["parameters"]["duration"] == 5
+
+
+def test_make_draws_a_picture_plan_and_new_pictures_are_free(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(PICTURE_PLAN, status="approved")
+    drawn = []
+
+    def render_pictures(item, seconds, folder, pictures):
+        drawn.append(folder)
+        return [{"video_url": f"{folder}/moving_{n}.mp4", "source": f"ai-picture:picture_{n}.png"} for n in (1, 2, 3)]
+
+    monkeypatch.setattr(images, "render_pictures", render_pictures)
+    seen = {}
+
+    def assemble(clips, out_dir, **options):
+        seen.update(options, clips=clips)
+        return out_dir / "video.mp4"
+
+    args = argparse.Namespace(id=1, no_upload=True)
+    assert cli.cmd_make(TIKTOK, q, args, None, FakeUploader(), assemble) == 0
+    assert drawn == [cli.Path("build/tiktok/1/pictures")] and q.get(1)["status"] == "rendered"
+    assert server._actions("tiktok", q.get(1)) == ["publish", "new_clips", "reject"]
+    cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1, no_upload=True, new_clips=True), None, FakeUploader(), assemble)
+    assert len(drawn) == 2  # drawn again, for free
+    assert "Visuals made with AI." in ig_main.final_caption(q.get(1))

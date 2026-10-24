@@ -1,6 +1,8 @@
 """The AI plans short videos: hook, shots, on-screen text, voiceover and caption.
 
-Shots are free stock clips found by a search query (VIDEO_SOURCE=stock, the default), AI clips the
+Shots are free AI pictures brought to life with camera moves (VIDEO_SOURCE=images, the default
+once a free Cloudflare account is set up, see shorts/images.py), free stock clips found by a
+search query (VIDEO_SOURCE=stock, the default otherwise), AI clips the
 owner makes on a free AI video website from a video prompt and adds to the office
 (VIDEO_SOURCE=upload), or AI clips made with Higgsfield from an image and a motion prompt
 (VIDEO_SOURCE=higgsfield, paid).
@@ -10,6 +12,7 @@ import os
 from datetime import date
 
 import llm
+from shorts import images
 from x_agent.brain import WEB_SEARCH, ask
 from x_agent.queue import PostQueue
 
@@ -38,6 +41,28 @@ Profile:
 {profile}"""
 
 VISUALS = {
+    "images": (
+        "Each shot is one AI-generated picture made from your image prompt, brought to life with a slow camera "
+        "move (and, when available, animated by an AI video model from your action line).",
+        """\
+- The joke must read in a still picture: a ridiculous situation, a clear facial expression, a
+  silly prop or pose. Think "a goat in a hard hat inspecting a construction site", not "a goat
+  slowly realising something".
+- Pick one animal star per video and describe it the same way, word for word, at the start of
+  every image_prompt (for example "A chubby orange tabby cat wearing a tiny blue necktie"), so it
+  looks like the same animal in every shot. Vary the star from video to video: dogs, goats, ducks,
+  capybaras, parrots, horses, cows, monkeys, penguins, hamsters, not only cats.
+- Each image_prompt stands on its own: the star, what it is doing in this shot, the setting, the
+  light, then "photorealistic photo, shot on a phone, vertical composition, the animal fills the
+  frame". Three shots, three different moments of one little story.
+- Never ask for text, letters, signs, screens with words, logos, brands or real, identifiable
+  people in the picture (image models draw them badly). People only as hands, backs or blurred
+  background figures.
+- action: one short sentence of what moves in the shot (for animation), like "the cat slowly
+  turns its head toward the camera and squints".
+- camera: zoom_in to reveal a face or a detail, zoom_out for the punchline that shows the whole
+  ridiculous scene, pan_left, pan_right or pan_up to travel across a wide scene.""",
+    ),
     "upload": (
         "The owner makes each clip on a free AI video website by pasting your video prompt for that shot "
         "(a 5-second vertical clip), then adds the clips to the office.",
@@ -74,6 +99,11 @@ VISUALS = {
     ),
 }
 SHOT_FIELDS = {
+    "images": {
+        "image_prompt": {"type": "string"},
+        "action": {"type": "string"},
+        "camera": {"type": "string", "enum": ["zoom_in", "zoom_out", "pan_left", "pan_right", "pan_up"]},
+    },
     "upload": {"video_prompt": {"type": "string"}},
     "stock": {"search_query": {"type": "string"}},
     "higgsfield": {"image_prompt": {"type": "string"}, "motion_prompt": {"type": "string"}},
@@ -81,7 +111,8 @@ SHOT_FIELDS = {
 
 
 def video_source():
-    source = (os.environ.get("VIDEO_SOURCE") or "stock").strip().lower()
+    default = "images" if images.configured() else "stock"
+    source = (os.environ.get("VIDEO_SOURCE") or default).strip().lower()
     if source not in VISUALS:
         raise ValueError(f"VIDEO_SOURCE must be one of {', '.join(VISUALS)}, not {source!r}")
     return source
@@ -135,6 +166,8 @@ def generate(platform, profile, count, theme="", avoid=(), use_web=True, client=
         request.append("If it helps, search the web for recent news or trends worth reacting to before you plan.")
     if avoid:
         request.append("Already used, don't repeat these:\n" + "\n".join(f"- {h}" for h in avoid))
+    if video_source() == "images":
+        request.append("Give each of the videos a different animal star.")
     if video_source() == "stock":
         request.append(
             f"Give each of the {count} videos a different animal, and every shot its own search query "

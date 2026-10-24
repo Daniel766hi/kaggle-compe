@@ -244,3 +244,79 @@ def test_sync_explains_a_folder_from_a_zip(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
     with pytest.raises(RuntimeError, match="isn't linked to GitHub"):
         server._git()
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def test_phones_must_log_in_and_the_qr_link_logs_them_in(office):
+    from office import phone
+
+    o, _ = office()
+    app = server.OfficeApp(o)
+    app.password = "s3cret"
+    app.links = [{"label": "Phone on the same Wi-Fi", "url": "http://192.168.1.5:8765/?key=k"}]
+    httpd = server.serve(app, port=0, checkin_minutes=60)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    opener = urllib.request.build_opener(NoRedirect)
+    phone_headers = {"X-Forwarded-For": "100.64.0.9", "Host": "abc.trycloudflare.com"}  # relayed by the tunnel
+
+    def get(path, headers=None):
+        try:
+            resp = opener.open(urllib.request.Request(base + path, headers=headers or {}))
+            return resp.status, resp.headers, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers, e.read()
+
+    try:
+        assert get("/api/state")[0] == 200  # the computer itself needs no password
+        assert json.loads(get("/api/phone")[2])["links"][0]["qr"].startswith("<?xml")
+        status, headers, _ = get("/", phone_headers)
+        assert status == 303 and headers["Location"] == "/login"
+        assert get("/api/state", phone_headers)[0] == 401
+        assert json.loads(get("/api/phone", {**phone_headers, "Cookie": "x=1"})[2]) == {"error": "log in first"}
+        assert b"office password" in get("/login", phone_headers)[2]
+
+        status, headers, _ = get("/?key=" + phone.login_key("s3cret"), phone_headers)
+        cookie = headers["Set-Cookie"]
+        assert status == 303 and cookie.startswith("office_key=" + phone.login_key("s3cret")) and "HttpOnly" in cookie
+        logged_in = {**phone_headers, "Cookie": cookie.split(";")[0]}
+        assert get("/api/state", logged_in)[0] == 200
+        assert json.loads(get("/api/phone", logged_in)[2]) == {"links": []}  # the login link stays on the computer
+
+        def login(password):
+            req = urllib.request.Request(base + "/login", data=f"password={password}".encode(), method="POST", headers=phone_headers)
+            try:
+                return opener.open(req)
+            except urllib.error.HTTPError as e:
+                return e
+
+        assert login("wrong").headers["Location"] == "/login?wrong=1"
+        right = login("s3cret")
+        assert right.headers["Location"] == "/" and right.headers["Set-Cookie"].startswith("office_key=")
+        post = urllib.request.Request(base + "/api/checkin", data=b"{}", method="POST", headers={**phone_headers, "X-Office": "1"})
+        with pytest.raises(urllib.error.HTTPError) as e:
+            opener.open(post)
+        assert e.value.code == 403
+        post.add_header("Cookie", cookie.split(";")[0])
+        assert opener.open(post).status == 200
+    finally:
+        httpd.shutdown()
+
+
+def test_the_cards_show_the_ai_pictures(office, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    o, _ = office()
+    q = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    q.add(PLAN)
+    q.save()
+    app = server.OfficeApp(o)
+    folder = tmp_path / "build" / "tiktok" / "1" / "pictures"
+    folder.mkdir(parents=True)
+    (folder / "picture_1.png").write_bytes(b"PNG")
+    assert app.item("tiktok", 1)["pictures"] == ["/media/tiktok/1/picture_1.png"]
+    assert app.picture("tiktok", 1, "picture_1.png").read_bytes() == b"PNG"
+    assert app.picture("tiktok", 1, "../../../.env") is None

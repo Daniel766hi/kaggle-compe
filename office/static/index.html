@@ -78,6 +78,15 @@
   .card .prompt { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; margin: 4px 0; white-space: pre-wrap; }
   .card .shot-buttons { display: flex; gap: 6px; margin-bottom: 6px; }
   .card .shot-buttons button, .card .shot-buttons .button { font-size: 12px; padding: 4px 10px; }
+  .card .pictures { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; }
+  .card .pictures img { height: 120px; border-radius: 8px; display: block; }
+  #phone-panel { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 20; padding: 16px; }
+  #phone-panel[hidden] { display: none; }
+  #phone-panel .sheet { background: var(--panel); color: var(--ink); border-radius: 16px; padding: 20px; max-width: 420px; width: 100%; max-height: 90vh; overflow: auto; }
+  #phone-panel h2 { margin: 0 0 12px; font-size: 18px; }
+  #phone-panel .link { margin-bottom: 14px; }
+  #phone-panel .link svg { width: 220px; height: 220px; display: block; margin: 6px 0; }
+  #phone-panel .link a { word-break: break-all; font-size: 12px; }
   .card video { width: 100%; max-width: 260px; border-radius: 10px; display: block; margin-top: 6px; background: #000; }
   #composer { border-top: 1px solid var(--line); padding: 10px 12px; }
   #chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -102,7 +111,14 @@
   <h1>🏢 AI Office <small>your content team</small></h1>
   <button id="checkin" title="Ask everyone to check their queues now">Check in</button>
   <button id="sync" title="Pull the scheduled runs' changes and push your approvals">Sync with GitHub</button>
+  <button id="phone" title="Open the office on your phone" hidden>📱 Phone</button>
 </header>
+<div id="phone-panel" hidden><div class="sheet">
+  <h2>Open the office on your phone</h2>
+  <div id="phone-links"></div>
+  <p class="muted">Scan with your phone's camera. The link logs your phone in, so keep it to yourself. The computer has to stay on.</p>
+  <button id="phone-close">Close</button>
+</div></div>
 <main>
   <section id="floor"><h2>Office floor</h2><div id="desks"></div></section>
   <section id="chat">
@@ -205,6 +221,8 @@ async function loadCard(el) {
     } else if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
     if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
     if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>`;
+    if (it.pictures) body += `<div class="muted">The AI pictures (tap to save, e.g. for a photo carousel):</div><div class="pictures">${it.pictures.map((u) =>
+      `<a href="${u}" target="_blank" download><img src="${u}?t=${Date.now()}" alt="AI picture" loading="lazy"></a>`).join("")}</div>`;
     if (it.fact_check) body += `<div class="note warn">Check before approving: ${esc(it.fact_check)}</div>`;
     if (it.problems) body += `<div class="note bad">${it.problems.map(esc).join("<br>")}</div>`;
     if (it.error) body += `<div class="note bad">${esc(it.error)}</div>`;
@@ -213,7 +231,7 @@ async function loadCard(el) {
       body += `<div class="buttons">${it.actions.map((act) => {
         if (act === "share") return it.share_urls.map((u, i) =>
           `<a class="button primary" href="${esc(u)}" target="_blank" rel="noopener">${it.share_urls.length > 1 ? `Open post ${i + 1} in X` : "Open in X"}</a>`).join("");
-        const label = typeof LABELS[act] === "object" ? LABELS[act][desk] : LABELS[act];
+        const label = act === "new_clips" && it.pictures ? "New pictures" : typeof LABELS[act] === "object" ? LABELS[act][desk] : LABELS[act];
         const cls = act === "reject" ? "danger" : ["post", "render", "publish"].includes(act) ? "primary" : "";
         return `<button class="${cls}" data-act="${act}">${esc(label)}</button>`;
       }).join("")}</div>`;
@@ -323,6 +341,13 @@ $("input").oninput = () => { $("input").style.height = "auto"; $("input").style.
 $("back").onclick = () => { current = null; document.body.classList.remove("chatting"); renderDesks(); };
 $("checkin").onclick = async () => { await api("/api/checkin", {}).catch((e) => toast(e.message)); tick(); };
 $("sync").onclick = async () => { await api("/api/sync", {}).then(() => toast("Syncing with GitHub… Maya will tell you when it's done.")).catch((e) => toast(e.message)); };
+$("phone").onclick = () => ($("phone-panel").hidden = false);
+$("phone-close").onclick = () => ($("phone-panel").hidden = true);
+api("/api/phone").then(({ links }) => {
+  if (!links.length) return;
+  $("phone-links").innerHTML = links.map((l) => `<div class="link"><b>${esc(l.label)}</b>${l.qr}<a href="${esc(l.url)}">${esc(l.url)}</a></div>`).join("");
+  $("phone").hidden = false;
+}).catch(() => {});
 if (window.Notification && Notification.permission === "default") document.addEventListener("click", () => Notification.requestPermission(), { once: true });
 tick();
 setInterval(tick, 3000);

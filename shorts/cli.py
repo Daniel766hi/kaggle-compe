@@ -13,7 +13,7 @@ import llm
 import local_env
 from x_agent.brain import load_profile
 
-from . import plans, render
+from . import images, plans, render
 from .plans import VideoQueue
 
 WAITING = ("draft", "approved", "rendered", "failed")
@@ -145,7 +145,7 @@ def cmd_set_status(platform, queue, args):
             print(f"  ! {problem}")
 
 
-def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=None):
+def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=None, pictures=None):
     item = queue.get(args.id)
     if item["status"] not in ("approved", "rendered", "failed"):
         raise SystemExit(f"#{item['id']} is {item['status']}; approve it first.")
@@ -157,8 +157,9 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=
             logging.error("#%s: %s", item["id"], item["error"])
             return 1
         item["clips"] = [{"video_url": str(f.resolve()), "source": f"upload:{f.name}"} for f in files]
+        queue.set_status(item["id"], "rendered", error="")
     try:
-        if getattr(args, "new_clips", False) and is_stock(item):  # free: find different footage
+        if getattr(args, "new_clips", False) and is_free(item):  # free: find or draw different visuals
             old = {c["source"] for c in item.pop("clips", []) if c.get("source")}
         else:
             old = set()
@@ -166,6 +167,9 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=
             if is_stock(item):  # free stock clips, none already used in another video
                 exclude = render.used_clips(queue.items, except_id=item["id"]) | old
                 item["clips"] = render.render_stock(item, platform.seconds, pexels, exclude)
+            elif is_pictures(item):  # free AI pictures, brought to life
+                folder = Path("build") / platform.name / str(item["id"]) / "pictures"
+                item["clips"] = images.render_pictures(item, platform.seconds, folder, pictures)
             else:  # an AI plan: Higgsfield
                 item["clips"] = render.render(item, platform.seconds, hf)
             queue.set_status(item["id"], "rendered", error="")
@@ -242,6 +246,16 @@ def is_stock(item):
     return "search_query" in item["shots"][0]
 
 
+def is_pictures(item):
+    """A plan drawn as free AI pictures (VIDEO_SOURCE=images)."""
+    return "camera" in item["shots"][0]
+
+
+def is_free(item):
+    """Visuals that cost nothing to make again."""
+    return is_stock(item) or is_pictures(item)
+
+
 def is_upload(item):
     """A plan whose clips the owner makes on an AI video website and adds to the office."""
     return "video_prompt" in item["shots"][0]
@@ -257,7 +271,7 @@ def has_clips(platform, item):
 
 def _unrendered(queue, item_id):
     item = queue.get(item_id)
-    if item.get("clips") and not is_stock(item):  # paid AI clips are never thrown away
+    if item.get("clips") and not is_free(item):  # paid AI clips are never thrown away
         raise SystemExit(f"#{item_id} is already rendered; plan a new video instead.")
     return item
 
@@ -268,6 +282,9 @@ def _print_item(platform, item):
         print(f"  Shot {i}: \"{shot['on_screen_text']}\"")
         if "search_query" in shot:
             print(f"    clip:   {shot['search_query']}")
+        elif "camera" in shot:
+            print(f"    picture: {shot['image_prompt']}")
+            print(f"    action:  {shot['action']} ({shot['camera'].replace('_', ' ')})")
         elif "video_prompt" in shot:
             print(f"    prompt: {shot['video_prompt']}")
         else:

@@ -102,6 +102,11 @@ model.eval()
 '''
 
 SAVE = base.SAVE.replace("'train_loss': stats.training_loss", "'train_loss': train_loss")
+# A failed run's outputs cannot be attached to other notebooks, so a validation error must not fail it.
+_v = "from adk_submission import validate_directory"
+_i, _j = SAVE.index(_v), SAVE.index("with zipfile.ZipFile")
+SAVE = (SAVE[:_i] + "try:\n" + "".join("    " + l + "\n" for l in SAVE[_i:_j].strip().splitlines())
+        + "except Exception as e:\n    print('VALIDATION FAILED', type(e).__name__, e)\n" + SAVE[_j:])
 
 
 def main():

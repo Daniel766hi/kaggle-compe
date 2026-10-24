@@ -13,7 +13,7 @@ import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import desks
 
@@ -27,6 +27,7 @@ ACTIONS = {
     "publish": "publishing",
     "new_clips": "finding new clips",
 }
+MAX_UPLOAD = 500 * 1024 * 1024
 X_INTENT = "https://x.com/intent/post?text="  # opens X's composer with the text filled in (free)
 
 
@@ -79,6 +80,11 @@ class OfficeApp:
         out["actions"] = self._actions(desk_key, item)
         if "share" in out["actions"]:
             out["share_urls"] = [X_INTENT + quote(post) for post in item["posts"]]
+        uploads = desk.uploads(item) if desk_key != "x" else None
+        if uploads is not None:
+            out["uploads"] = uploads
+            if not all(uploads):  # clips still missing: nothing to render yet
+                out["actions"] = [a for a in out["actions"] if a not in ("render", "publish")]
         if desk_key != "x" and desk.video_path(item_id).exists():
             out["video"] = f"/media/{desk_key}/{int(item_id)}.mp4"
         return out
@@ -143,6 +149,13 @@ class OfficeApp:
             actions = ["share", "mark_posted", "reject"]  # no paid X API: post it yourself
         return actions
 
+    def add_clip(self, desk_key, item_id, shot, data, filename):
+        agent_key, desk = self.desks[desk_key]
+        desk.add_clip(item_id, shot, data, filename)
+        item = desk.item(item_id)
+        if all(desk.uploads(item)) and item["status"] in ("approved", "rendered", "failed"):
+            self.office.notify(agent_key, f"All clips are in for [[{desk_key}:{item_id}]]. Click Render preview to see it.")
+
     def media(self, desk_key, item_id):
         _, desk = self.desks[desk_key]
         return desk.video_path(item_id)
@@ -156,6 +169,8 @@ def _actions(desk_key, item):
             return ["approve", "reject"]
         return ["post", "reject"] if status == "approved" else []
     if status == "approved":
+        return ["render", "publish", "reject"]
+    if "video_prompt" in item["shots"][0] and status in ("rendered", "failed"):  # your clips: re-render freely
         return ["render", "publish", "reject"]
     if status in ("rendered", "failed") and item.get("clips"):  # rendered: publish without paying again
         stock = "search_query" in item["shots"][0]
@@ -242,6 +257,15 @@ def make_handler(app):
                 return self._send(403, {"error": "local office requests only"})
             parts = [p for p in urlparse(self.path).path.split("/") if p]
             length = int(self.headers.get("Content-Length") or 0)
+            if parts[:2] == ["api", "upload"] and len(parts) == 5:  # a video clip, sent as the raw body
+                if length > MAX_UPLOAD:
+                    return self._send(413, {"error": "That clip is too big (over 500 MB)."})
+                try:
+                    data = self.rfile.read(length)
+                    app.add_clip(parts[2], int(parts[3]), int(parts[4]), data, unquote(self.headers.get("X-Filename", "")))
+                    return self._send(200, {"ok": True})
+                except (KeyError, ValueError) as e:
+                    return self._send(400, {"error": str(e)})
             body = json.loads(self.rfile.read(length) or b"{}")
             try:
                 if parts[:2] == ["api", "chat"] and len(parts) == 3:

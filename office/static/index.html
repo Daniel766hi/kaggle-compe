@@ -27,8 +27,8 @@
   header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
   button:hover { border-color: var(--muted); }
-  button.primary, a.button.primary { background: var(--you); border-color: var(--you); color: #fff; }
-  a.button { display: inline-block; text-decoration: none; border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
+  button.primary, a.button.primary, label.button.primary { background: var(--you); border-color: var(--you); color: #fff; }
+  a.button, label.button { display: inline-block; cursor: pointer; text-decoration: none; border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
   button.danger { color: var(--bad); }
   button:disabled { opacity: .5; cursor: default; }
   main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; flex: 1; min-height: 0; }
@@ -75,6 +75,9 @@
   .note.warn { background: var(--warn-bg); color: var(--warn); }
   .note.bad { background: var(--bad-bg); color: var(--bad); }
   .card .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .card .prompt { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 6px 8px; margin: 4px 0; white-space: pre-wrap; }
+  .card .shot-buttons { display: flex; gap: 6px; margin-bottom: 6px; }
+  .card .shot-buttons button, .card .shot-buttons .button { font-size: 12px; padding: 4px 10px; }
   .card video { width: 100%; max-width: 260px; border-radius: 10px; display: block; margin-top: 6px; background: #000; }
   #composer { border-top: 1px solid var(--line); padding: 10px 12px; }
   #chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -194,7 +197,12 @@ async function loadCard(el) {
     let body = `<div class="top"><span>${DESK_NAMES[desk]} #${it.id}</span><span class="pill ${it.status}">${it.status}</span>${it.job ? `<span>⏳ ${esc(it.job)}…</span>` : ""}</div>`;
     body += `<div class="hook">${esc(it.hook)}</div>`;
     if (it.posts) body += it.posts.map((p, i) => `<blockquote>${it.posts.length > 1 ? `<span class="muted">${i + 1}/${it.posts.length}</span> ` : ""}${esc(p)}</blockquote>`).join("");
-    if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
+    if (it.shots && it.uploads) {  // you make these clips on a free AI video website
+      body += `<div class="muted">Make each clip on a free AI video site such as <a href="https://dreamina.capcut.com" target="_blank" rel="noopener">Dreamina</a> (5 s, 9:16): copy the prompt, generate, download, then add it here.</div>`;
+      body += `<ol>${it.shots.map((s, i) => `<li>“${esc(s.on_screen_text)}”<div class="prompt">${esc(s.video_prompt)}</div>
+        <div class="shot-buttons"><button type="button" data-copy="${i}">Copy prompt</button>${it.status === "draft" || !it.actions.length ? "" :
+        `<label class="button ${it.uploads[i] ? "" : "primary"}">${it.uploads[i] ? "Replace clip ✓" : "Add clip"}<input type="file" accept="video/*" data-shot="${i + 1}" hidden></label>`}</div></li>`).join("")}</ol>`;
+    } else if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
     if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
     if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>`;
     if (it.fact_check) body += `<div class="note warn">Check before approving: ${esc(it.fact_check)}</div>`;
@@ -213,6 +221,9 @@ async function loadCard(el) {
     el.innerHTML = body;
     el.dataset.job = it.job ? "1" : "";
     el.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => act(el, b.dataset.act)));
+    el.querySelectorAll("button[data-copy]").forEach((b) => (b.onclick = () => navigator.clipboard.writeText(it.shots[b.dataset.copy].video_prompt)
+      .then(() => toast("Prompt copied. Paste it into the AI video site.")).catch(() => toast("Couldn't copy; select the prompt text instead."))));
+    el.querySelectorAll("input[data-shot]").forEach((f) => (f.onchange = () => f.files[0] && addClip(el, f.dataset.shot, f.files[0])));
   } catch (err) {
     el.innerHTML = `<span class="muted">#${el.dataset.id}: ${esc(err.message)}</span>`;
   }
@@ -225,6 +236,21 @@ async function act(el, action) {
   el.querySelectorAll("button").forEach((b) => (b.disabled = true));
   try { await api(`/api/action/${desk}/${el.dataset.id}`, { action }); }
   catch (err) { toast(err.message); }
+  refreshCards(desk, el.dataset.id);
+}
+
+async function addClip(el, shot, file) {
+  const desk = el.dataset.desk;
+  el.querySelectorAll("button, input").forEach((b) => (b.disabled = true));
+  toast(`Adding the clip for shot ${shot}…`);
+  try {
+    const res = await fetch(`/api/upload/${desk}/${el.dataset.id}/${shot}`, {
+      method: "POST", body: file,
+      headers: { "Content-Type": file.type || "application/octet-stream", "X-Office": "1", "X-Filename": encodeURIComponent(file.name) },
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    toast(`Clip for shot ${shot} added.`);
+  } catch (err) { toast(err.message); }
   refreshCards(desk, el.dataset.id);
 }
 

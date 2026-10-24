@@ -1,7 +1,9 @@
 """The AI plans short videos: hook, shots, on-screen text, voiceover and caption.
 
-Shots are either free stock clips from Pexels found by a search query (VIDEO_SOURCE=stock, the
-default) or AI clips made with Higgsfield from an image and a motion prompt (VIDEO_SOURCE=higgsfield).
+Shots are free stock clips found by a search query (VIDEO_SOURCE=stock, the default), AI clips the
+owner makes on a free AI video website from a video prompt and adds to the office
+(VIDEO_SOURCE=upload), or AI clips made with Higgsfield from an image and a motion prompt
+(VIDEO_SOURCE=higgsfield, paid).
 """
 
 import os
@@ -36,6 +38,17 @@ Profile:
 {profile}"""
 
 VISUALS = {
+    "upload": (
+        "The owner makes each clip on a free AI video website by pasting your video prompt for that shot "
+        "(a 5-second vertical clip), then adds the clips to the office.",
+        """\
+- Each shot's video_prompt stands on its own (the website sees one prompt at a time): one or two
+  sentences naming the animal, what it does, the setting, the light and the camera, ending with
+  "vertical 9:16, photorealistic, 5 seconds". One clear action per shot, so a 5-second clip can
+  show it. Keep the same animal looking the same across the three prompts (same colour, same
+  props) so the shots feel like one scene.
+- Never ask for text, captions, logos, brands or real, identifiable people in the clip.""",
+    ),
     "stock": (
         "The clips are real stock videos from a free stock site, one found with your search query for each shot; "
         "the joke comes from your on-screen text over the clip.",
@@ -61,6 +74,7 @@ VISUALS = {
     ),
 }
 SHOT_FIELDS = {
+    "upload": {"video_prompt": {"type": "string"}},
     "stock": {"search_query": {"type": "string"}},
     "higgsfield": {"image_prompt": {"type": "string"}, "motion_prompt": {"type": "string"}},
 }

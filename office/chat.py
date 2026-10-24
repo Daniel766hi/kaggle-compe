@@ -219,6 +219,9 @@ class Office:
                 continue
             thread, tag = self.threads[key], agent.desk.key
             state = {s: [i["id"] for i in items if i["status"] == s] for s in ("draft", "failed", "rendered")}
+            uploads = getattr(agent.desk, "uploads", lambda item: None)
+            state["needs_clips"] = [i["id"] for i in items if i["status"] == "approved" and uploads(i) is not None
+                                    and not all(uploads(i))]  # fmt: skip
             seen = thread.attention
             new = {s: [i for i in ids if i not in seen.get(s, [])] for s, ids in state.items()}
             lines = []
@@ -231,6 +234,10 @@ class Office:
                              + " Want me to take a look?")  # fmt: skip
             if new["rendered"]:
                 lines.append("Rendered and ready to watch: " + " ".join(f"[[{tag}:{i}]]" for i in new["rendered"][:5]))
+            if new["needs_clips"]:
+                lines.append("Approved, and waiting for your clips: copy each prompt into a free AI video site "
+                             "(e.g. Dreamina), then Add clip on the card: "
+                             + " ".join(f"[[{tag}:{i}]]" for i in new["needs_clips"][:5]))  # fmt: skip
             empty = not any(i["status"] in ("draft", "approved", "rendered") for i in items)
             if empty and not seen.get("told_empty"):
                 lines.append("My queue is empty. Want me to draft a few ideas?")

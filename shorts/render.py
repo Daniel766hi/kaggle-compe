@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -100,6 +101,34 @@ def render_stock(item, seconds, session=None, exclude=(), rng=None):
 def used_clips(items, except_id=None):
     """Page URLs of every stock clip already in a video, so new videos don't repeat them."""
     return {c["source"] for it in items if it["id"] != except_id for c in it.get("clips", []) if c.get("source")}
+
+
+UPLOAD_TYPES = (".mp4", ".mov", ".webm", ".m4v", ".mkv")
+
+
+def uploaded(folder, count):
+    """The clip you added for each shot (a path), or None where one is still missing."""
+    folder = Path(folder)
+    found = []
+    for n in range(1, count + 1):
+        found.append(next((folder / f"shot_{n}{ext}" for ext in UPLOAD_TYPES if (folder / f"shot_{n}{ext}").exists()), None))
+    return found
+
+
+def save_upload(folder, shot, data, filename):
+    """Keep a clip you added for one shot, replacing any earlier one."""
+    ext = Path(filename or "").suffix.lower()
+    if ext not in UPLOAD_TYPES:
+        raise ValueError(f"Add a video file ({', '.join(UPLOAD_TYPES)}), not {filename!r}")
+    if not data:
+        raise ValueError(f"{filename} is empty")
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in UPLOAD_TYPES:
+        (folder / f"shot_{shot}{old}").unlink(missing_ok=True)
+    path = folder / f"shot_{shot}{ext}"
+    path.write_bytes(data)
+    return path
 
 
 def credits(clips):
@@ -314,6 +343,9 @@ def _higgsfield():
 
 
 def _download(url, path):
+    if not url.startswith(("http://", "https://")):  # a clip you added yourself
+        shutil.copyfile(url, path)
+        return
     with requests.get(url, stream=True, timeout=120, headers={"User-Agent": USER_AGENT}) as resp:
         resp.raise_for_status()
         with open(path, "wb") as f:

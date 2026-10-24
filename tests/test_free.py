@@ -6,7 +6,11 @@ import os
 import shutil
 import time
 import subprocess
+import threading
+import urllib.error
+import urllib.request
 from types import SimpleNamespace
+from urllib.parse import quote
 
 import pytest
 import requests
@@ -421,3 +425,114 @@ def test_videos_crossfade_and_carry_music_by_default(tmp_path):
 def test_balanced_caption_lines():
     assert render.balanced_lines("New manager, day one") == ["New manager,", "day one"]
     assert render.balanced_lines("Meeting cancelled") == ["Meeting cancelled"]
+
+
+UPLOAD_PLAN = {
+    **STOCK_PLAN,
+    "shots": [
+        {"video_prompt": "A tabby cat in a tiny tie sits at an office desk, vertical 9:16, photorealistic, 5 seconds",
+         "on_screen_text": "New manager, day one"},
+        {"video_prompt": "The same tabby cat stares at a laptop, vertical 9:16, photorealistic, 5 seconds",
+         "on_screen_text": "Performance review"},
+        {"video_prompt": "The same tabby cat falls asleep on the keyboard, vertical 9:16, photorealistic, 5 seconds",
+         "on_screen_text": "Meeting cancelled"},
+    ],
+}  # fmt: skip
+
+
+def test_upload_plans_ask_for_video_prompts():
+    assert set(plans.schemas("upload")[0]["properties"]["ideas"]["items"]["properties"]["shots"]["items"]["required"]) == {
+        "video_prompt", "on_screen_text"}  # fmt: skip
+
+
+def test_clips_you_add_are_kept_per_shot_and_replaced(tmp_path):
+    folder = tmp_path / "uploads"
+    assert render.uploaded(folder, 3) == [None, None, None]
+    render.save_upload(folder, 2, b"one", "Dreamina clip.MP4")
+    render.save_upload(folder, 2, b"two", "better.mov")  # replaces the first
+    found = render.uploaded(folder, 3)
+    assert found[0] is None and found[1].name == "shot_2.mov" and found[1].read_bytes() == b"two"
+    assert not (folder / "shot_2.mp4").exists()
+    with pytest.raises(ValueError, match="video file"):
+        render.save_upload(folder, 1, b"x", "photo.png")
+    with pytest.raises(ValueError, match="empty"):
+        render.save_upload(folder, 1, b"", "clip.mp4")
+
+
+def test_make_waits_for_your_clips_then_uses_them(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(UPLOAD_PLAN, status="approved")
+    seen = {}
+
+    def assemble(clips, out_dir, **options):
+        seen.update(options, clips=clips)
+        return out_dir / "video.mp4"
+
+    args = argparse.Namespace(id=1)
+    folder = cli.upload_folder(TIKTOK, 1)
+    render.save_upload(folder, 1, b"a", "a.mp4")
+    assert cli.cmd_make(TIKTOK, q, args, None, FakeUploader(), assemble) == 1
+    assert q.get(1)["status"] == "approved" and "shot 2, 3" in q.get(1)["error"] and not seen
+    render.save_upload(folder, 2, b"b", "b.mp4")
+    render.save_upload(folder, 3, b"c", "c.webm")
+    assert cli.cmd_make(TIKTOK, q, args, None, FakeUploader(), assemble) == 0
+    assert q.get(1)["status"] == "sent" and not q.get(1)["error"]
+    assert [c["source"] for c in seen["clips"]] == ["upload:shot_1.mp4", "upload:shot_2.mp4", "upload:shot_3.webm"]
+    assert seen["texts"][0] == "New manager, day one"
+    assert "Visuals made with AI." in ig_main.final_caption(q.get(1))
+
+
+def test_autopilot_skips_plans_still_waiting_for_your_clips(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(llm, "available", lambda: False)
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(UPLOAD_PLAN, status="approved")
+    args = argparse.Namespace(min_drafts=0, count=1)
+    assert cli.cmd_autopilot(TIKTOK, q, args, client=FakeUploader(), assemble=fake_assemble) == 0
+    assert q.get(1)["status"] == "approved" and not q.get(1).get("error")
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_office_add_clip_buttons_then_render(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    tiktok = VideoDesk(TIKTOK, tmp_path / "t.json", client=FakeUploader())
+    team = build_team(XDesk(tmp_path / "x.json"), tiktok, VideoDesk(INSTAGRAM, tmp_path / "i.json"))
+    app = server.OfficeApp(Office(team, tmp_path / "data", engine=OllamaEngine(FakeOllama())))
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(UPLOAD_PLAN)
+    q.save()
+    assert app.item("tiktok", 1)["uploads"] == [False, False, False]
+    app.action("tiktok", 1, "approve")
+    assert app.item("tiktok", 1)["actions"] == ["reject"]  # nothing to render until your clips are in
+    app.office.checkin()
+    assert "waiting for your clips" in app.office.threads["sari"].feed[-1]["text"]
+
+    httpd = server.serve(app, port=0, checkin_minutes=60)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        for shot in (1, 2, 3):
+            path = tmp_path / f"made_{shot}.mp4"
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=360x640:rate=25:duration=2",
+                            str(path)], check=True)  # fmt: skip
+            req = urllib.request.Request(f"{base}/api/upload/tiktok/1/{shot}", data=path.read_bytes(), method="POST",
+                                         headers={"X-Office": "1", "X-Filename": quote(f"Dreamina {shot}.mp4")})  # fmt: skip
+            assert urllib.request.urlopen(req).status == 200
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(urllib.request.Request(f"{base}/api/upload/tiktok/1/4", data=b"x", method="POST",
+                                                          headers={"X-Office": "1", "X-Filename": "a.mp4"}))  # fmt: skip
+        assert e.value.code == 400
+    finally:
+        httpd.shutdown()
+    item = app.item("tiktok", 1)
+    assert item["uploads"] == [True, True, True] and item["actions"] == ["render", "publish", "reject"]
+    assert any("All clips are in" in e["text"] for e in app.office.threads["sari"].feed)
+    app.action("tiktok", 1, "render")
+    for _ in range(1000):
+        if not app.jobs:
+            break
+        time.sleep(0.05)
+    item = app.item("tiktok", 1)
+    assert item["status"] == "rendered" and item.get("video"), item
+    assert item["actions"] == ["render", "publish", "reject"]  # replace a clip and render again

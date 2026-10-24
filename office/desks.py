@@ -10,7 +10,7 @@ import threading
 from pathlib import Path
 
 from shorts import cli as shorts_cli
-from shorts import plans
+from shorts import plans, render
 from x_agent import brain, text
 from x_agent.queue import PostQueue
 from x_agent.x_client import ENV_KEYS, XClient, XError, post_url
@@ -189,6 +189,24 @@ class VideoDesk(Desk):
     def new_clips(self, item_id):
         """Stock videos: swap the clips for different free footage and render again. Button only."""
         return self._make(item_id, no_upload=True, new_clips=True)
+
+    def uploads(self, item):
+        """For plans made from your own clips: which shots have one (True/False), else None."""
+        if not shorts_cli.is_upload(item):
+            return None
+        return [f is not None for f in render.uploaded(shorts_cli.upload_folder(self.platform, item["id"]), len(item["shots"]))]
+
+    def add_clip(self, item_id, shot, data, filename):
+        """Keep the clip you made for one shot of a plan. Button only."""
+        item = self.item(item_id)
+        if not shorts_cli.is_upload(item):
+            raise ValueError(f"#{item_id} doesn't take your own clips")
+        if item["status"] in self.published:
+            raise ValueError(f"#{item_id} is already published")
+        if not 1 <= int(shot) <= len(item["shots"]):
+            raise ValueError(f"#{item_id} has no shot {shot}")
+        with self.lock:
+            return render.save_upload(shorts_cli.upload_folder(self.platform, item_id), int(shot), data, filename)
 
     def video_path(self, item_id):
         return Path("build") / self.platform.name / str(int(item_id)) / "video.mp4"

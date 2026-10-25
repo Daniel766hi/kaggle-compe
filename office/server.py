@@ -213,7 +213,7 @@ def _git():
         )
 
     def run(*args):
-        result = subprocess.run(["git", *args], capture_output=True, text=True)
+        result = subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())
         return result.stdout

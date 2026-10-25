@@ -219,7 +219,7 @@ def probe(path):
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration,size:stream=codec_type,codec_name,width,height,sample_rate",
          "-of", "json", str(path)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )  # fmt: skip
     if out.returncode:
         raise RenderError(f"ffprobe failed: {out.stderr[-300:]}")
@@ -354,6 +354,6 @@ def _download(url, path):
 
 
 def _ffmpeg(args):
-    result = subprocess.run(["ffmpeg", "-loglevel", "error", *args], capture_output=True, text=True)
+    result = subprocess.run(["ffmpeg", "-loglevel", "error", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode:
         raise RenderError(f"ffmpeg failed: {result.stderr[-500:]}")

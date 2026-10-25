@@ -39,7 +39,7 @@ def now():
 class Thread:
     def __init__(self, path):
         self.path = Path(path)
-        data = json.loads(self.path.read_text()) if self.path.exists() else {}
+        data = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
         # what each AI saw and said, kept separately: Claude and a local model use different formats
         self.histories = data.get("histories") or {"claude": data.get("history", [])}
         self.feed = data.get("feed", [])
@@ -81,7 +81,7 @@ class Thread:
             tmp.write_text(json.dumps({
                 "histories": self.histories, "feed": self.feed, "read_upto": self.read_upto,
                 "pending": self.pending, "attention": self.attention,
-            }, ensure_ascii=False))  # fmt: skip
+            }, ensure_ascii=False), encoding="utf-8")  # fmt: skip
             tmp.replace(self.path)
 
 

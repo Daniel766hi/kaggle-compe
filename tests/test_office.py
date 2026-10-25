@@ -3,6 +3,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -320,3 +321,21 @@ def test_the_cards_show_the_ai_pictures(office, tmp_path, monkeypatch):
     assert app.item("tiktok", 1)["pictures"] == ["/media/tiktok/1/picture_1.png"]
     assert app.picture("tiktok", 1, "picture_1.png").read_bytes() == b"PNG"
     assert app.picture("tiktok", 1, "../../../.env") is None
+
+
+def test_saving_never_depends_on_the_computers_default_encoding(tmp_path):
+    # Windows writes text as cp1252 unless told otherwise, which can't hold "→" or emoji.
+    code = f"""
+import sys; sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})
+from office.chat import Thread
+from x_agent.queue import PostQueue
+t = Thread({str(tmp_path / "thread.json")!r}); t.add("agent", "Shot 1 → shot 2 🐐"); t.save(); Thread(t.path)
+q = PostQueue({str(tmp_path / "q.json")!r}); q.add({{"pillar": "p", "hook": "Kambing → kantor 🐐", "posts": ["x"],
+    "sources": [], "fact_check": ""}}); q.save(); PostQueue(q.path)
+"""
+    import subprocess
+    import sys
+
+    result = subprocess.run([sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", code],
+                            capture_output=True, text=True, encoding="utf-8")  # fmt: skip
+    assert result.returncode == 0, result.stderr

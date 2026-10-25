@@ -1,4 +1,4 @@
-# Open the AI Office (after setup.ps1 has run once). Right-click > "Run with PowerShell".
+# Open the AI Office (after setup.ps1 has run once). Easiest: double-click start-office.cmd.
 # On your phone too: set OFFICE_PHONE in .env to wifi or anywhere (setup.ps1 asks), or run
 #   .\start-office.ps1 -Phone      (same Wi-Fi)      .\start-office.ps1 -Anywhere   (anywhere)
 param([switch]$Phone, [switch]$Anywhere)

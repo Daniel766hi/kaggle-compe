@@ -282,7 +282,7 @@ Ollama and a local model that fits your computer's memory instead.
 
 | System | First time | After that |
 |---|---|---|
-| Windows | right-click `setup.ps1` → *Run with PowerShell* | `start-office.ps1` |
+| Windows | right-click `setup.ps1` → *Run with PowerShell* | double-click `start-office.cmd` |
 | macOS / Linux | `bash setup.sh` | `bash start-office.sh` |
 
 Or set it up by hand (`python -m local_env set NAME value` saves a key in `.env`):

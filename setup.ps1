@@ -27,7 +27,7 @@ if (-not (Test-Path "requirements.txt")) {
         Move-Item (Get-ChildItem $unzipped -Directory | Select-Object -First 1).FullName $folder
         Remove-Item $zip, $unzipped -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "The AI Office is in $folder. Next time, run start-office.ps1 from that folder." -ForegroundColor Green
+    Write-Host "The AI Office is in $folder. Next time, double-click start-office.cmd in that folder." -ForegroundColor Green
     & powershell -ExecutionPolicy Bypass -File (Join-Path $folder "setup.ps1")
     exit $LASTEXITCODE
 }
@@ -199,5 +199,5 @@ if (Test-Path ".git") {
 }
 
 Step "Starting the AI Office"
-Write-Host "Next time, just run .\start-office.ps1"
+Write-Host "Next time, just double-click start-office.cmd in this folder."
 & $venvPython -m office

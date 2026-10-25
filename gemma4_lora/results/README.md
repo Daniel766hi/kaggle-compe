@@ -34,3 +34,20 @@ packages installed (`collect_v1_rows.jsonl`).
 
 Caveat: this run used ADK compaction every 15 events; official scoring uses 5 (HARNESS_README 7.2).
 The builder now uses 5.
+
+# Failure analysis of the collected runs (2026-10-25, `gemma4-rft-dryrun`, CPU)
+
+| outcome | runs | tool calls | used all 28 | tests run after last edit | repro commands |
+|---|---|---|---|---|---|
+| resolved | 62 | 19.9 | 29% | 84% | 2.95 |
+| right file, wrong fix | 85 | 23.1 | 51% | 67% | 1.65 |
+| wrong file | 30 | 25.9 | 70% | 47% | 1.93 |
+| no patch | 14 | 26.4 | 79% | 0% | 0.14 |
+
+- File-level localisation is good: 143 / 177 patches touch a file the reference patch edits.
+- Only 3% of run_command calls run pytest (911 grep, 487 python3). The baseline prompt discourages tests
+  ("existing tests may be broken"), written for an environment without the test-only packages.
+- Resolved runs reproduce and re-check more often (correlation only). This motivates `agent/verify36`:
+  reproduce before and after the edit, then run the related existing test file, with 36 tool calls.
+- RFT data: 62 examples (40 tasks), length median 13,982 tokens, 17 longer than 16,384 (cut at the end),
+  39% of tokens trained, 831,772 tokens after the cut.

@@ -177,7 +177,7 @@ def main():
         "id": f"{a.user}/{a.slug}", "title": a.slug.replace("-", " ").title(), "code_file": f"{a.slug}.ipynb",
         "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_tpu": False,
         "enable_internet": False, "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse"],
-        "competition_sources": ["gemma-4-developer-agent"], "kernel_sources": a.kernel_source,
+        "competition_sources": ["gemma-4-developer-agent"], "kernel_sources": list(dict.fromkeys(a.kernel_source)),
         "model_sources": ["google/gemma-4/Other/gemma-4-31b-it-qat-w4a16-ct/2"], "machine_shape": "NvidiaL4",
         "docker_image": "gcr.io/kaggle-private-byod/python@sha256:37c64f7dd9c54116ecd1bcc88817c5469b88387388fade02bfa8bf3fc647d461"}))
     (a.out / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))

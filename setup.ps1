@@ -14,6 +14,24 @@ $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Set-Location $PSScriptRoot
 
+if (-not (Test-Path "requirements.txt")) {
+    # Run outside the AI Office folder (setup.ps1 downloaded on its own): get the office, then set it up.
+    $folder = Join-Path $PSScriptRoot "ai-office"
+    if (-not (Test-Path (Join-Path $folder "requirements.txt"))) {
+        Write-Host "This isn't the AI Office folder. Downloading the AI Office into $folder ..." -ForegroundColor Cyan
+        $zip = Join-Path $env:TEMP "ai-office.zip"
+        $unzipped = Join-Path $env:TEMP "ai-office-unzipped"
+        Invoke-WebRequest "https://github.com/Daniel766hi/kaggle-compe/archive/refs/heads/claude/hopeful-volta-g9uqe7.zip" -OutFile $zip -ErrorAction Stop
+        if (Test-Path $unzipped) { Remove-Item $unzipped -Recurse -Force }
+        Expand-Archive $zip -DestinationPath $unzipped -Force
+        Move-Item (Get-ChildItem $unzipped -Directory | Select-Object -First 1).FullName $folder
+        Remove-Item $zip, $unzipped -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host "The AI Office is in $folder. Next time, run start-office.ps1 from that folder." -ForegroundColor Green
+    & powershell -ExecutionPolicy Bypass -File (Join-Path $folder "setup.ps1")
+    exit $LASTEXITCODE
+}
+
 function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Have($name) { [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 function WingetInstall($id) {

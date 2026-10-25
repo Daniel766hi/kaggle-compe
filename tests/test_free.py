@@ -670,20 +670,21 @@ def test_cloudflare_explains_the_daily_free_limit():
 
 
 def test_pictures_are_the_default_once_cloudflare_is_set_up(monkeypatch):
-    assert plans.video_source() == "stock"
+    assert plans.video_source() == "stock" and (TIKTOK.shots, TIKTOK.seconds) == (3, 5)
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acc")
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
     assert plans.video_source() == "images"
+    assert (TIKTOK.shots, TIKTOK.seconds) == (5, 3)  # quick cuts keep still pictures lively
     shot = plans.schemas()[0]["properties"]["concepts"]["items"]["properties"]["shots"]["items"]
     assert shot["required"] == ["image_prompt", "action", "camera", "on_screen_text"]
-    assert "word for word" in plans._system(TIKTOK, "profile")
+    assert "word for word" in plans._system(TIKTOK, "profile") and "no two pictures look alike" in plans._system(TIKTOK, "p")
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
 def test_pictures_become_smooth_moving_shots_of_the_same_animal(tmp_path):
     fake = FakePictures(picture_bytes(tmp_path))
     clips = images.render_pictures(PICTURE_PLAN, 2, tmp_path / "out", fake)
-    assert fake.calls[0][1] is None and fake.calls[1][1] and fake.calls[1][1] == fake.calls[2][1]  # shot 1 is the model
+    assert [reference for _, reference in fake.calls] == [None, None, None]  # a reference makes every shot alike
     assert [c["source"] for c in clips] == ["ai-picture:picture_1.png", "ai-picture:picture_2.png", "ai-picture:picture_3.png"]
     info = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=width,height,nb_frames",
                            "-of", "csv=p=0", clips[0]["video_url"]], capture_output=True, text=True).stdout.strip()  # fmt: skip

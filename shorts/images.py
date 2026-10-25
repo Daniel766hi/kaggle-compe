@@ -3,8 +3,9 @@
 Pictures come from FLUX on Cloudflare Workers AI: free for about 60 pictures a day with a free
 Cloudflare account (10,000 "neurons" a day, reset at 00:00 UTC = 07:00 WIB). Set
 CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (a token with the "Workers AI" permission).
-Every shot after the first is drawn with the first picture as a reference, so the animal looks
-the same all through the video.
+The plan describes the animal star the same way in every shot, so it looks alike all through the
+video. (PICTURE_REFERENCE=1 also draws later shots from the first picture, but the model then
+tends to repeat that picture.)
 
 Optional real motion: with DASHSCOPE_API_KEY set, Alibaba's Wan model (from the Qwen team's
 Model Studio) animates each picture into a video clip. New accounts get a small free quota; after
@@ -29,7 +30,8 @@ REFERENCE_SIDE = 512  # the model takes reference pictures up to 512 x 512
 WAN_URL = "https://dashscope-intl.aliyuncs.com"
 WAN_MODEL = "wan2.6-i2v-flash"
 CAMERA = ("zoom_in", "zoom_out", "pan_left", "pan_right", "pan_up")
-ZOOM = 0.14  # how far the camera moves: 14% of the frame
+ZOOM = 0.3  # how far the camera moves: 30% of the frame
+PUNCH, PUNCH_FRAMES = 0.08, 10  # each shot opens 8% closer and settles within 10 frames
 
 
 def configured():
@@ -119,8 +121,9 @@ def render_pictures(item, seconds, out_dir, images=None, wan=None, ffmpeg=None):
         picture = images.generate(shot["image_prompt"], reference)
         path = out_dir / f"picture_{n}.png"
         path.write_bytes(picture)
-        if reference is None and "flux-1-schnell" not in images.model:
-            reference = _small(path, ffmpeg)  # later shots keep the same animal
+        # Off by default: with a reference, the model mostly repeats the first picture.
+        if reference is None and os.environ.get("PICTURE_REFERENCE") == "1" and "flux-1-schnell" not in images.model:
+            reference = _small(path, ffmpeg)
         clip = out_dir / f"moving_{n}.mp4"
         source = f"ai-picture:{path.name}"
         if wan is not None:
@@ -137,18 +140,24 @@ def render_pictures(item, seconds, out_dir, images=None, wan=None, ffmpeg=None):
 
 
 def camera_move(picture, out, seconds, move="zoom_in", ffmpeg=None):
-    """A slow, eased camera move over a still picture, as a 1080x1920 30 fps clip."""
+    """A lively camera move over a still picture, as a 1080x1920 30 fps clip.
+
+    Each shot opens with a quick punch-in that settles, then an eased zoom or pan across a good
+    part of the frame, so the picture never sits still.
+    """
     frames = int(round(seconds * 30))
     p = f"(1-cos(PI*on/{frames}))/2"  # eased progress, 0 -> 1
+    pop = f"{PUNCH}*pow(max(0,1-on/{PUNCH_FRAMES}),2)"  # the punch-in, gone after a third of a second
     big_w, big_h = WIDTH * 3, HEIGHT * 3  # move over a 3x picture, in full colour, so the motion is smooth
     center_x, center_y = "iw/2-iw/zoom/2", "ih/2-ih/zoom/2"
+    wide = 1 + ZOOM * 0.8  # pans travel across a zoomed-in picture, zooming a little as they go
     zoom, x, y = {
-        "zoom_in": (f"1+{ZOOM}*{p}", center_x, center_y),
-        "zoom_out": (f"{1 + ZOOM}-{ZOOM}*{p}", center_x, center_y),
-        "pan_left": (f"{1 + ZOOM}", f"(iw-iw/zoom)*(1-{p})", center_y),
-        "pan_right": (f"{1 + ZOOM}", f"(iw-iw/zoom)*{p}", center_y),
-        "pan_up": (f"{1 + ZOOM}", center_x, f"(ih-ih/zoom)*(1-{p})"),
-    }.get(move, (f"1+{ZOOM}*{p}", center_x, center_y))
+        "zoom_in": (f"1+{ZOOM}*{p}+{pop}", center_x, f"(ih-ih/zoom)*(0.5-0.15*{p})"),
+        "zoom_out": (f"{1 + ZOOM}-{ZOOM}*{p}+{pop}", center_x, center_y),
+        "pan_left": (f"{wide}+{ZOOM * 0.2}*{p}+{pop}", f"(iw-iw/zoom)*(1-{p})", center_y),
+        "pan_right": (f"{wide}+{ZOOM * 0.2}*{p}+{pop}", f"(iw-iw/zoom)*{p}", center_y),
+        "pan_up": (f"{wide}+{ZOOM * 0.2}*{p}+{pop}", center_x, f"(ih-ih/zoom)*(1-{p})"),
+    }.get(move, (f"1+{ZOOM}*{p}+{pop}", center_x, center_y))
     vf = (
         f"scale={big_w}:{big_h}:force_original_aspect_ratio=increase,crop={big_w}:{big_h},setsar=1,format=yuv444p,"
         f"zoompan=z='{zoom}':x='{x}':y='{y}':d={frames}:s={WIDTH}x{HEIGHT}:fps=30,format=yuv420p"

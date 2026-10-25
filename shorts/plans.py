@@ -54,7 +54,9 @@ VISUALS = {
   capybaras, parrots, horses, cows, monkeys, penguins, hamsters, not only cats.
 - Each image_prompt stands on its own: the star, what it is doing in this shot, the setting, the
   light, then "photorealistic photo, shot on a phone, vertical composition, the animal fills the
-  frame". Three shots, three different moments of one little story.
+  frame".
+- Every shot is a different moment of one little story, with a different pose, place or distance
+  (a wide shot, then a close-up of the face, then the punchline), so no two pictures look alike.
 - Never ask for text, letters, signs, screens with words, logos, brands or real, identifiable
   people in the picture (image models draw them badly). People only as hands, backs or blurred
   background figures.

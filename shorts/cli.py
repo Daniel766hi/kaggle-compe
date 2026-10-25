@@ -39,12 +39,13 @@ class Platform:
 
     @property
     def shots(self):
-        return int(self.setting("SHOTS", 3))
+        """Shots per video: 5 quick ones for AI pictures, 3 for clips."""
+        return int(self.setting("SHOTS", 5 if plans.video_source() == "images" else 3))
 
     @property
     def seconds(self):
-        """Seconds per shot: 3 x 5 s by default (Higgsfield bills video per second)."""
-        return int(self.setting("CLIP_SECONDS", 5))
+        """Seconds per shot: 3 for AI pictures (quick cuts keep stills lively), 5 for clips."""
+        return int(self.setting("CLIP_SECONDS", 3 if plans.video_source() == "images" else 5))
 
     @property
     def profile(self):

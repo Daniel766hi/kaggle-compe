@@ -45,7 +45,10 @@ WRITE_AGENTS = pilot.WRITE_AGENTS.replace(OLD_TESTDEPS, NEW_TESTDEPS)
 assert WRITE_AGENTS != pilot.WRITE_AGENTS
 
 TOOL_SEQUENCE = pilot.RUN[pilot.RUN.index("def tool_sequence"):pilot.RUN.index("for idx, iid in enumerate(PILOT_TASKS")]
-RUN = pilot.RUN[:pilot.RUN.index("OUT = WORK / 'pilot_results.jsonl'")] + TOOL_SEQUENCE + r'''
+# Official scoring compacts every 5 events (HARNESS_README section 7.2); the paper pilot used 15.
+_PILOT_RUN = pilot.RUN.replace("EventsCompactionConfig(compaction_interval=15,", "EventsCompactionConfig(compaction_interval=5,")
+assert _PILOT_RUN != pilot.RUN
+RUN = _PILOT_RUN[:_PILOT_RUN.index("OUT = WORK / 'pilot_results.jsonl'")] + TOOL_SEQUENCE + r'''
 from swegemma.harness import agent_runner as _AR
 PROMPTS = {}
 _build_prompt = _AR.build_agent_prompt
@@ -133,6 +136,8 @@ def main():
     ap.add_argument("--slug", default="gemma4-collect")
     ap.add_argument("--user", default="danielaijdkx")
     ap.add_argument("--configs", default="baseline")
+    ap.add_argument("--input-agent", action="append", default=[],
+                    help="name=glob of an agent.yaml in an attached kernel output, e.g. rft=/kaggle/input/**/agent_lora/agent.yaml")
     ap.add_argument("--exclude-file", type=Path, help="JSON list of task ids to leave out (the eval holdout)")
     ap.add_argument("--tasks-file", type=Path, help="JSON list of task ids to run (default: all minus excluded)")
     ap.add_argument("--repeats", type=int, default=2)
@@ -153,7 +158,7 @@ def main():
         "cells": [
             pilot.md("# Gemma 4 agent: collect own trajectories\n\n" + __doc__.split("\n\n", 2)[2]),
             pilot.code(pilot.SETUP),
-            pilot.code("AGENT_FILES = " + json.dumps(files, indent=1) + "\nINPUT_AGENTS = {}"
+            pilot.code("AGENT_FILES = " + json.dumps(files, indent=1) + "\nINPUT_AGENTS = " + json.dumps(dict(x.split("=", 1) for x in a.input_agent))
                        + "\nTEST_DEPS_GLOB = " + json.dumps(a.test_deps_glob) + "\nPILOT_TASKS = " + json.dumps(ids)
                        + f"\nREPEATS = {a.repeats}\nCONCURRENCY = {a.concurrency}\nMAX_TIME_MINUTES = {a.max_time_minutes or None}"
                        + f"\nSTOP_AFTER_HOURS = {a.stop_after_hours}"

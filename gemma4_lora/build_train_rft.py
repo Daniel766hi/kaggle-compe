@@ -139,6 +139,8 @@ TRAIN = (TRAIN[:_a] + "".join("    " + l + "\n" for l in TRAIN[_a:_b].rstrip("\n
 TRAIN = TRAIN.replace("model.train(); t0 = time.time()", "oom = 0\nmodel.train(); t0 = time.time()")
 TRAIN = TRAIN.replace("print('train loss', train_loss,", "print('OOM skipped', oom); print('train loss', train_loss,")
 assert "chunk_loss" in TRAIN and "OOM, skipped" in TRAIN
+TRAIN = TRAIN.replace("TIME_LIMIT = 9 * 3600", "TIME_LIMIT = 5 * 3600")  # weekly GPU quota
+assert "TIME_LIMIT = 5 * 3600" in TRAIN
 
 SAVE = l4.SAVE
 

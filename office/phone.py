@@ -57,7 +57,7 @@ def start_tunnel(port, timeout_s=45, popen=subprocess.Popen):
             "macOS: brew install cloudflared  (then open the office again)"
         )
     proc = popen([exe, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"],
-                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)  # fmt: skip
+                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")  # fmt: skip
     found = []
 
     def read():

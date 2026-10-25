@@ -289,7 +289,10 @@ Or set it up by hand (`python -m local_env set NAME value` saves a key in `.env`
 1. **Gemini:** open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), sign in and
    click *Create API key*. Save it as `GEMINI_API_KEY`. `GEMINI_MODEL` picks another model
    (default `gemini-flash-latest`). The free tier allows a few requests a minute; the office
-   waits and retries when it hits that.
+   waits and retries when it hits that. If the model doesn't answer within 150 seconds, the
+   office tries the lighter `gemini-flash-lite-latest` (`GEMINI_FALLBACK_MODEL`). It asks for
+   short thinking (`GEMINI_THINKING=low`) so answers come quickly. `python -m llm` checks that
+   the AI answers and how fast.
 2. **Cloudflare:** sign up free at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up), open
    *AI → Workers AI → Use REST API*, copy the *Account ID* and click *Create a Workers AI API
    Token*. Save them as `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The free allowance

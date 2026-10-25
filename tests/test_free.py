@@ -84,7 +84,7 @@ def free_setup(monkeypatch):
     monkeypatch.delenv("STOCK_SITE", raising=False)
     monkeypatch.delenv("AI_PROVIDER", raising=False)
     monkeypatch.delenv("VIDEO_SOURCE", raising=False)
-    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "DASHSCOPE_API_KEY"):
+    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_FALLBACK_MODEL", "GEMINI_THINKING", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "DASHSCOPE_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     for key in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"):
         monkeypatch.delenv(key, raising=False)
@@ -758,3 +758,41 @@ def test_make_draws_a_picture_plan_and_new_pictures_are_free(tmp_path, monkeypat
     cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1, no_upload=True, new_clips=True), None, FakeUploader(), assemble)
     assert len(drawn) == 2  # drawn again, for free
     assert "Visuals made with AI." in ig_main.final_caption(q.get(1))
+
+
+def test_gemini_thinks_briefly_and_falls_back_to_the_lighter_model_when_slow(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+
+    class SlowThenFine(FakeGemini):
+        def post(self, url, json, headers, timeout):
+            if json["model"] == "gemini-flash-latest":
+                self.calls.append({"body": json, "timeout": timeout})
+                raise requests.ReadTimeout("read timed out")
+            return super().post(url, json, headers, timeout)
+
+    session = SlowThenFine({"role": "assistant", "content": "ready"})
+    assert llm.gemini_chat([{"role": "user", "content": "hi"}], session=session)["content"] == "ready"
+    assert [c["body"]["model"] for c in session.calls] == ["gemini-flash-latest", "gemini-flash-lite-latest"]
+    assert session.calls[0]["timeout"] == (15, 150) and session.calls[0]["body"]["reasoning_effort"] == "low"
+
+    always_slow = SlowThenFine()
+    always_slow.post = lambda url, json, headers, timeout: (_ for _ in ()).throw(requests.ReadTimeout("slow"))
+    with pytest.raises(llm.LLMError, match="didn't answer in time"):
+        llm.gemini_chat([{"role": "user", "content": "hi"}], session=always_slow)
+
+
+def test_gemini_models_without_thinking_settings_still_answer(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+
+    class NoThinking(FakeGemini):
+        def post(self, url, json, headers, timeout):
+            if "reasoning_effort" in json:
+                self.calls.append({"body": json})
+                resp = FakeResponse({}, 400)
+                resp.text = "reasoning_effort is not supported for this model"
+                return resp
+            return super().post(url, json, headers, timeout)
+
+    session = NoThinking({"role": "assistant", "content": "ready"})
+    assert llm.gemini_chat([{"role": "user", "content": "hi"}], session=session)["content"] == "ready"
+    assert "reasoning_effort" not in session.calls[-1]["body"]

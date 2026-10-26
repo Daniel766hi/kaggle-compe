@@ -47,3 +47,4 @@ The aggregate outputs we obtained are in `results/`.
 |---|---|---|
 | 57131199 | `agent/locate` (31B + locate-code skill) | public 0.20 (rank 59 / 2,747 on 2026-10-14) |
 | 57186550 | `agent/locate_12b` (12B, same agent) | failed: "notebook hit an unhandled error while rerunning"; not GPU-tested beforehand, likely the 12B vLLM start-up issue reported on the forum. Do not resubmit without a GPU smoke test. |
+| 57627856 | `agent/verify36` (reproduce before/after + related test file, 36 tool calls, 8 min) | failed: "exceeded the allowed runtime" (12 h for all tasks). Not GPU-tested beforehand. The longer budget plus the extra verification steps do not fit; keep 28 calls and measure the mean time per task sequentially before resubmitting. |

@@ -13,7 +13,7 @@ import llm
 import local_env
 from x_agent.brain import load_profile
 
-from . import plans, render
+from . import images, plans, render
 from .plans import VideoQueue
 
 WAITING = ("draft", "approved", "rendered", "failed")
@@ -39,12 +39,13 @@ class Platform:
 
     @property
     def shots(self):
-        return int(self.setting("SHOTS", 3))
+        """Shots per video: 5 quick ones for AI pictures, 3 for clips."""
+        return int(self.setting("SHOTS", 5 if plans.video_source() == "images" else 3))
 
     @property
     def seconds(self):
-        """Seconds per shot: 3 x 5 s by default (Higgsfield bills video per second)."""
-        return int(self.setting("CLIP_SECONDS", 5))
+        """Seconds per shot: 3 for AI pictures (quick cuts keep stills lively), 5 for clips."""
+        return int(self.setting("CLIP_SECONDS", 3 if plans.video_source() == "images" else 5))
 
     @property
     def profile(self):
@@ -145,12 +146,21 @@ def cmd_set_status(platform, queue, args):
             print(f"  ! {problem}")
 
 
-def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=None):
+def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=None, pictures=None):
     item = queue.get(args.id)
     if item["status"] not in ("approved", "rendered", "failed"):
         raise SystemExit(f"#{item['id']} is {item['status']}; approve it first.")
+    if is_upload(item):  # your own clips, made from the prompts on the card
+        files = render.uploaded(upload_folder(platform, item["id"]), len(item["shots"]))
+        missing = [n for n, f in enumerate(files, 1) if f is None]
+        if missing:
+            item["error"] = f"Add your clip for shot {', '.join(map(str, missing))} first (Add clip on the card)."
+            logging.error("#%s: %s", item["id"], item["error"])
+            return 1
+        item["clips"] = [{"video_url": str(f.resolve()), "source": f"upload:{f.name}"} for f in files]
+        queue.set_status(item["id"], "rendered", error="")
     try:
-        if getattr(args, "new_clips", False) and is_stock(item):  # free: find different footage
+        if getattr(args, "new_clips", False) and is_free(item):  # free: find or draw different visuals
             old = {c["source"] for c in item.pop("clips", []) if c.get("source")}
         else:
             old = set()
@@ -158,15 +168,20 @@ def cmd_make(platform, queue, args, hf=None, client=None, assemble=None, pexels=
             if is_stock(item):  # free stock clips, none already used in another video
                 exclude = render.used_clips(queue.items, except_id=item["id"]) | old
                 item["clips"] = render.render_stock(item, platform.seconds, pexels, exclude)
+            elif is_pictures(item):  # free AI pictures, brought to life
+                folder = Path("build") / platform.name / str(item["id"]) / "pictures"
+                item["clips"] = images.render_pictures(item, platform.seconds, folder, pictures)
             else:  # an AI plan: Higgsfield
                 item["clips"] = render.render(item, platform.seconds, hf)
             queue.set_status(item["id"], "rendered", error="")
             queue.save()
         options = {}
         if platform.burn_text:
-            music = render.pick_music(platform.setting("MUSIC", "assets/music"), item["id"])
+            # Your own tracks in assets/music first; otherwise a tune made for this video. "none": silent.
+            setting = platform.setting("MUSIC", "assets/music")
+            music = "none" if setting.lower() == "none" else render.pick_music(setting, item["id"])
             texts = [s["on_screen_text"] for s in item["shots"]]
-            options = dict(texts=texts, seconds=platform.seconds, audio=True, music=music)
+            options = dict(texts=texts, seconds=platform.seconds, audio=True, music=music, seed=item["id"])
         video = (assemble or render.assemble)(item["clips"], Path("build") / platform.name / str(item["id"]), **options)
         if getattr(args, "no_upload", False):
             print(f"Rendered #{item['id']}: {video}")
@@ -201,7 +216,13 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
             # Only plans with nothing to verify are made without a human look.
             if not item.get("fact_check") and not plans.problems(platform, item):
                 queue.set_status(item["id"], "approved", approved_by="autopilot")
-    item = (queue.with_status("rendered") or [None])[0] or queue.next_approved()
+    # Plans made from your own clips wait until you have added them in the office.
+    def ready(i):
+        return not is_upload(i) or has_clips(platform, i)
+
+    rendered = [i for i in queue.with_status("rendered") if ready(i)]
+    approved = [i for i in queue.with_status("approved") if ready(i)]
+    item = rendered[0] if rendered else min(approved, key=lambda i: (i.get("approved_at", ""), i["id"]), default=None)
     if item is None:
         logging.info("No approved plans waiting.")
         return int(generation_failed)
@@ -226,9 +247,32 @@ def is_stock(item):
     return "search_query" in item["shots"][0]
 
 
+def is_pictures(item):
+    """A plan drawn as free AI pictures (VIDEO_SOURCE=images)."""
+    return "camera" in item["shots"][0]
+
+
+def is_free(item):
+    """Visuals that cost nothing to make again."""
+    return is_stock(item) or is_pictures(item)
+
+
+def is_upload(item):
+    """A plan whose clips the owner makes on an AI video website and adds to the office."""
+    return "video_prompt" in item["shots"][0]
+
+
+def upload_folder(platform, item_id):
+    return Path("build") / platform.name / str(int(item_id)) / "uploads"
+
+
+def has_clips(platform, item):
+    return all(render.uploaded(upload_folder(platform, item["id"]), len(item["shots"])))
+
+
 def _unrendered(queue, item_id):
     item = queue.get(item_id)
-    if item.get("clips") and not is_stock(item):  # paid AI clips are never thrown away
+    if item.get("clips") and not is_free(item):  # paid AI clips are never thrown away
         raise SystemExit(f"#{item_id} is already rendered; plan a new video instead.")
     return item
 
@@ -239,6 +283,11 @@ def _print_item(platform, item):
         print(f"  Shot {i}: \"{shot['on_screen_text']}\"")
         if "search_query" in shot:
             print(f"    clip:   {shot['search_query']}")
+        elif "camera" in shot:
+            print(f"    picture: {shot['image_prompt']}")
+            print(f"    action:  {shot['action']} ({shot['camera'].replace('_', ' ')})")
+        elif "video_prompt" in shot:
+            print(f"    prompt: {shot['video_prompt']}")
         else:
             print(f"    image:  {shot['image_prompt']}")
             print(f"    motion: {shot['motion_prompt']}")

@@ -1,0 +1,18 @@
+{
+  // A GitHub Codespace runs the office in the cloud, so you can use it from your phone with the
+  // computer off. github.com/codespaces > New codespace > this repository. Free for personal
+  // accounts up to GitHub's monthly Codespaces allowance; stop the codespace when you're done.
+  "name": "AI Office",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core && pip install -q -r requirements.txt",
+  "postStartCommand": "setsid nohup python -m office --no-browser > /tmp/office.log 2>&1 &",
+  "forwardPorts": [8765],
+  "portsAttributes": {
+    "8765": { "label": "AI Office", "onAutoForward": "openBrowser" }
+  },
+  "secrets": {
+    "GEMINI_API_KEY": { "description": "Free key from https://aistudio.google.com/apikey: the team's brain." },
+    "CLOUDFLARE_ACCOUNT_ID": { "description": "Cloudflare > AI > Workers AI > Use REST API: free AI pictures for the videos." },
+    "CLOUDFLARE_API_TOKEN": { "description": "Cloudflare > AI > Workers AI > Use REST API > Create a Workers AI API Token." }
+  }
+}

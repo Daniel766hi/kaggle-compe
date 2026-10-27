@@ -153,7 +153,7 @@ Setup:
 This repo is public, so drafts in `content/x_queue.json` are visible on GitHub before they are
 posted. Make the repo private if you don't want that.
 
-## TikTok content creator (Higgsfield)
+## TikTok content creator
 
 `tiktok_agent/` makes short vertical videos for the channel described in `shorts/profile.md`: by
 default, funny and ridiculous AI animal sketches (setup, escalation, punchline). Edit that file to
@@ -162,8 +162,9 @@ change the channel; `TIKTOK_PROFILE` / `INSTAGRAM_PROFILE` can point a platform 
    a motion prompt and on-screen text for each), a voiceover script and a caption.
 2. **Approve:** you check the plan. Nothing is rendered before approval, because Higgsfield
    charges credits for every generation.
-3. **Render:** Higgsfield makes an image for each shot (Seedream 4), animates it (Kling 3.0 Turbo,
-   5 s), and ffmpeg joins the clips into a silent 1080x1920 mp4 (15 s by default).
+3. **Render:** each shot gets a clip (free stock footage, or Higgsfield AI clips), and ffmpeg makes
+   a 1080x1920 mp4 of about 14 s: soft crossfades between shots, the on-screen text fading in and
+   out, and background music (your tracks in `assets/music/`, or an original tune made for the video).
 4. **Inbox:** the video is uploaded to your TikTok inbox as a draft. In the app, add a sound or
    voiceover and the on-screen text, turn on the AI-generated content label, paste the caption and
    post.
@@ -186,16 +187,22 @@ Setup:
    `HF_KEY=key:secret`. To use other models, copy their IDs from the model pages into
    `HIGGSFIELD_IMAGE_MODEL` / `HIGGSFIELD_VIDEO_MODEL`. If the video model doesn't allow 5 s
    clips, change `TIKTOK_CLIP_SECONDS`.
-2. **TikTok:** at developers.tiktok.com, create an app and add Login Kit and the Content Posting
-   API with the `video.upload` scope. Register a redirect URI. Then, once, on your computer:
+2. **TikTok:** at [developers.tiktok.com/apps](https://developers.tiktok.com/apps), create an app:
+   - *App details → Platforms:* tick **Desktop** (Web isn't needed: a desktop app logs in on
+     your own computer, so there's no website to register).
+   - *Add products:* **Login Kit** and **Content Posting API** with *Upload* turned on.
+   - *Login Kit → Desktop → Redirect URI:* `http://127.0.0.1:3455/callback/` exactly.
+   - *Sandbox:* add your own TikTok account under *Target users*. A sandbox app works for its
+     target users without TikTok's review, and uploads to the inbox aren't limited to private.
+
+   Then, once, on your computer:
    ```
-   export TIKTOK_CLIENT_KEY=... TIKTOK_CLIENT_SECRET=...
-   python -m tiktok_agent auth-url --redirect-uri https://your-registered-uri
-   # open the link, log in, copy the "code" from the address you land on
-   python -m tiktok_agent auth-code CODE --redirect-uri https://your-registered-uri
+   python -m tiktok_agent login
    ```
-   That prints `TIKTOK_REFRESH_TOKEN`, which is valid for about a year. Each run uses it to get
-   a fresh access token.
+   It asks for the app's *Client key* and *Client secret*, opens TikTok in your browser, catches
+   TikTok's answer on your computer and saves `TIKTOK_REFRESH_TOKEN` in `.env` (valid for about
+   a year; a renewed token is saved automatically). For a web redirect URI instead, use
+   `auth-url` and `auth-code`.
 3. **Automation:** add the repo secrets `ANTHROPIC_API_KEY`, `HF_KEY`, `TIKTOK_CLIENT_KEY`,
    `TIKTOK_CLIENT_SECRET` and `TIKTOK_REFRESH_TOKEN`, then the variable
    `TIKTOK_AGENT_ENABLED=true`. The *TikTok agent* workflow runs daily at 09:37 WIB. It plans new
@@ -206,15 +213,16 @@ Setup:
 TikTok only lets apps post directly (without the inbox step) after it audits them. Until then, a
 direct post can only be private, so this agent uses the inbox.
 
-## Instagram Reels creator (Higgsfield)
+## Instagram Reels creator
 
 `instagram_agent/` plans and renders videos the same way as the TikTok agent. The difference is
 that Instagram's API has **no drafts**: a Reel goes live as soon as it is published. So the agent
 finishes each video before uploading it.
 - The on-screen text for each shot is burned into the video. Claude keeps it to 12 words or
   fewer, because there is no voiceover.
-- An AAC audio track is added: a track from `assets/music/` (royalty-free only, see the README
-  there), or silence.
+- Music is added: a track from `assets/music/` if you put any there (royalty-free only, see the
+  README there), or otherwise an original tune made for that video (`shorts/music.py`), different
+  for each video and free of any licence. `INSTAGRAM_MUSIC=none` makes it silent.
 - The caption ends with "Visuals made with AI." unless it already mentions AI.
 - Before uploading, the agent checks the Reels requirements: H.264 at 1080x1920, AAC audio,
   3 s to 15 min, at most 300 MB. It also checks that the daily API publishing limit isn't reached.
@@ -260,39 +268,75 @@ Everything can run without paying for anything:
 
 | Part | Free option | Paid option (optional) |
 |---|---|---|
-| The agents' AI | **Ollama**: a local model on your computer (default when `ANTHROPIC_API_KEY` isn't set) | Claude: `ANTHROPIC_API_KEY` |
-| Video clips | **Pixabay** stock clips, creators credited in the caption (`VIDEO_SOURCE=stock`, the default; a Pexels key works too, but Pexels has paused new keys) | Higgsfield AI clips: `VIDEO_SOURCE=higgsfield` and `HF_KEY` |
+| The agents' AI | **Gemini**: a free key from [Google AI Studio](https://aistudio.google.com/apikey), no card (`GEMINI_API_KEY`). It runs in Google's cloud, so it works from a phone and in the daily runs. Or **Ollama**, a local model on your computer | Claude: `ANTHROPIC_API_KEY` |
+| Video visuals | **AI pictures**: FLUX on Cloudflare Workers AI, about 60 free pictures a day (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`). Five quick shots of 3 seconds, each a different picture of the same animal star, brought to life with a punch-in and a smooth zoom or pan across the picture. Without Cloudflare keys: **Pixabay** stock clips (`PIXABAY_API_KEY`) | **Wan** (Alibaba, the Qwen team's Model Studio) animates each picture into real motion: `DASHSCOPE_API_KEY`. New accounts get a small free quota, then it's paid; when it runs out, the office goes back to camera moves. Or Higgsfield: `VIDEO_SOURCE=higgsfield` and `HF_KEY` |
 | Posting to X | **Open in X**: the office opens X with the post filled in, you press Post, then *I posted it* | X API keys (X charges per post) |
 | TikTok, Instagram | Their posting APIs are free | |
 | Daily runs | GitHub Actions is free for public repos | |
+| Phone | The office on your phone over Wi-Fi, or from anywhere through a free Cloudflare tunnel (below) | |
+
+Pick the visuals with `VIDEO_SOURCE`: `images` (the default once the Cloudflare keys are set),
+`stock`, `upload` (you make clips on a free AI video site from the prompts on the card and add
+them) or `higgsfield`. Google's free Gemini key doesn't cover image or video models (Veo is paid),
+which is why the pictures come from Cloudflare.
 
 **One-command setup.** In the repo folder, run the script for your system. It installs what's
-missing (Python packages, ffmpeg, Ollama), picks a model that fits your computer's memory and
-downloads it, asks for your free Pixabay key (and checks that it works), saves your keys in `.env`
-(never committed), then opens the office:
+missing (Python packages, ffmpeg, Git), asks for your free Gemini key and your free Cloudflare
+keys (and checks that they work), asks whether you want the office on your phone, saves your
+keys in `.env` (never committed), then opens the office. If you skip the Gemini key, it installs
+Ollama and a local model that fits your computer's memory instead.
 
 | System | First time | After that |
 |---|---|---|
-| Windows | right-click `setup.ps1` → *Run with PowerShell* | `start-office.ps1` |
+| Windows | right-click `setup.ps1` → *Run with PowerShell* | double-click `start-office.cmd` |
 | macOS / Linux | `bash setup.sh` | `bash start-office.sh` |
 
-Or set it up by hand:
-1. **Ollama:** install it from ollama.com and open it. Then run `ollama pull qwen3:8b` once.
-   That's about a 5 GB download and needs 16 GB of RAM. On 8 GB of RAM, use `qwen3:4b` and set
-   `OLLAMA_MODEL=qwen3:4b`. Keep the Ollama app running while you use the office.
-2. **Pixabay:** sign up at pixabay.com, then open pixabay.com/api/docs. Your key is shown under
-   *Parameters → key (required)*. Set `PIXABAY_API_KEY` on your
-   computer, and add it as a GitHub secret for the daily video runs.
+Or set it up by hand (`python -m local_env set NAME value` saves a key in `.env`):
+1. **Gemini:** open [aistudio.google.com/apikey](https://aistudio.google.com/apikey), sign in and
+   click *Create API key*. Save it as `GEMINI_API_KEY`. `GEMINI_MODEL` picks another model
+   (default `gemini-flash-latest`). The free tier allows a few requests a minute; the office
+   waits and retries when it hits that. If the model doesn't answer within 150 seconds, the
+   office tries the lighter `gemini-flash-lite-latest` (`GEMINI_FALLBACK_MODEL`). It asks for
+   short thinking (`GEMINI_THINKING=low`) so answers come quickly. `python -m llm` checks that
+   the AI answers and how fast.
+2. **Cloudflare:** sign up free at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up), open
+   *AI → Workers AI → Use REST API*, copy the *Account ID* and click *Create a Workers AI API
+   Token*. Save them as `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The free allowance
+   resets every day at 07:00 WIB (00:00 UTC).
+3. **Optional, Wan:** an Alibaba Cloud Model Studio key (international, Singapore region) saved as
+   `DASHSCOPE_API_KEY`. `WAN_MODEL` and `DASHSCOPE_BASE_URL` change the model and address.
+4. For the daily runs, add the same keys as GitHub secrets.
 
 What changes when it's free:
-- **Weaker drafts, no web search.** A local model writes slower and weaker drafts than Claude, and
-  it can't search the web, so ideas come from your profile files. Review drafts a little more
-  carefully.
-- **New drafts come from the office.** Ollama runs on your computer, not on GitHub's servers. The
-  daily workflows skip writing new ideas and still publish the videos you approved. Approve in
-  the office, then click *Sync with GitHub*.
-- **Clips are real stock footage, not AI.** The Reel caption credits the clip creators instead
-  of saying "made with AI".
+- **No web search.** Gemini and the local model write from your profile files and don't search
+  the web, so check anything that sounds like a fact before you approve.
+- **Pictures, not filmed footage.** The videos are AI pictures with camera moves (or Wan clips).
+  The Reel caption says "Visuals made with AI." When you post a TikTok from your inbox, turn on
+  TikTok's *AI-generated content* label.
+
+## Your phone
+
+The office works in a phone's browser, and there are three ways to reach it:
+
+| Where you are | How | Your computer |
+|---|---|---|
+| Same Wi-Fi as your computer | `start-office.ps1 -Phone` (or `OFFICE_PHONE=wifi` in `.env`) | stays on |
+| Anywhere, even on mobile data | `start-office.ps1 -Anywhere` (or `OFFICE_PHONE=anywhere`): a free Cloudflare quick tunnel, no account needed. The setup script installs `cloudflared` | stays on |
+| Anywhere, computer off | A GitHub Codespace runs the office in the cloud (below) | can be off |
+
+With `-Phone` or `-Anywhere`, click **Phone** at the top of the office on your computer and scan
+the QR code with your phone's camera: it opens the office and logs your phone in. Other devices
+need the office password, which the office makes for you and keeps in `.env` as
+`OFFICE_PASSWORD`. Keep the QR link to yourself. With `-Anywhere`, the tunnel's address changes
+each time you open the office, so scan the new QR code.
+
+**Codespace (computer off):** add `GEMINI_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN` as Codespaces secrets (github.com → Settings → Codespaces), then open
+[github.com/codespaces](https://github.com/codespaces) → *New codespace* → this repository. The
+office starts by itself. Open the *Ports* tab and click the address of port 8765, and keep the
+port *Private* so only you can open it. Your GitHub account includes a free monthly allowance of
+Codespaces hours. Stop the codespace when you're done, and *Sync with GitHub* before you delete
+one, so your approvals are saved.
 
 ## AI Office: chat with your content team
 
@@ -308,9 +352,9 @@ you can chat with each of them. They also message you when something needs you.
 
 ```
 pip install -r requirements.txt
-ollama pull qwen3:8b                # once; see "Run it for free" below
-export PEXELS_API_KEY=...           # free; plus TIKTOK_*, INSTAGRAM_* to publish from the office
-python -m office                    # opens http://127.0.0.1:8765
+export GEMINI_API_KEY=...           # free; see "Run it for free" above
+export CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=...   # free AI pictures for the videos
+python -m office                    # opens http://127.0.0.1:8765 (--phone / --anywhere: on your phone too)
 ```
 
 - **You chat with them.** Ask "what needs me today?", "draft 3 posts about supply chains" or "make
@@ -322,11 +366,18 @@ python -m office                    # opens http://127.0.0.1:8765
 - **Only you approve and publish.** The agents can read, draft, revise and reject. Approve,
   *Open in X* / *Post to X now*, *Render preview* and *Publish* are buttons on the cards, and
   they ask for confirmation before anything public happens.
-- **Sync with GitHub** pulls what the scheduled runs changed and pushes your approvals and edits to
-  `content/`, so the daily workflows use them.
+- **Sync with GitHub** pulls what the scheduled runs changed (and any updates to the office) and
+  pushes your approvals and edits to `content/`, so the daily workflows use them. It needs Git and
+  a folder linked to GitHub: the setup scripts install Git and link a folder that came from a ZIP,
+  keeping your `.env`, plans and videos.
 
-Conversations are saved in `office_data/` (not committed). The server only listens on
-127.0.0.1 and refuses requests from other sites, so a web page you visit can't press its buttons.
+- **Cards show the pictures.** For videos made from AI pictures, the card shows the pictures
+  too; tap one to save it (for a photo carousel, say). *New pictures* draws them again for free.
+
+Conversations are saved in `office_data/` (not committed). By default the server only listens on
+127.0.0.1. With `--phone` or `--anywhere`, every device except the computer itself must log in.
+Either way it refuses button presses that come from other sites, so a web page you visit can't
+press its buttons.
 
 ## Code layout
 
@@ -355,21 +406,25 @@ x_agent/
   text.py          post length as X counts it
 shorts/            short-video pipeline shared by the TikTok and Instagram agents
   profile.md       the video channel (ridiculous animal sketches); edit to change it
-  plans.py         Claude: video plans (shots, on-screen text, voiceover, caption), the video queue
-  render.py        Higgsfield image -> clip per shot; ffmpeg joins them, burns in text, adds audio
+  plans.py         video plans (shots, on-screen text, voiceover, caption), the video queue
+  images.py        free AI pictures (Cloudflare FLUX), camera moves, optional Wan animation
+  render.py        stock clips, Higgsfield, your own clips; ffmpeg joins them, burns in text, adds audio
+  music.py         an original tune for each video
   cli.py           commands every video agent has (ideas, approve, make, autopilot, ...)
 tiktok_agent/
   tiktok.py        TikTok login (OAuth) and upload to your inbox
 instagram_agent/
   instagram.py     Instagram Graph API: resumable Reel upload, publish, quota, account setup
-llm.py             which AI thinks: a free local model (Ollama) or Claude
+llm.py             which AI thinks: Gemini (free key), a free local model (Ollama) or Claude
 local_env.py       keys saved in .env on your computer (setup.ps1 / setup.sh write it)
 office/            the AI Office web app (python -m office)
   team.py          the four agents: who they are and their tools
   chat.py          conversations with Claude, check-ins (agents messaging you)
   desks.py         queue work behind each desk; approve/publish only from buttons
-  server.py        local web server and JSON API
-  static/          the office page
+  server.py        web server and JSON API; phone login
+  phone.py         phone links, QR codes and the Cloudflare tunnel
+  static/          the office page and the login page
+.devcontainer/     a GitHub Codespace that runs the office in the cloud
 assets/music/      your royalty-free tracks for Reels (optional)
 tests/             offline tests with synthetic API payloads
 ```

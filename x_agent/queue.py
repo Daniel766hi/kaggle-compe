@@ -23,12 +23,12 @@ class PostQueue:
 
     def __init__(self, path=None):
         self.path = Path(path or os.environ.get(self.PATH_ENV) or self.DEFAULT_PATH)
-        self.items = json.loads(self.path.read_text()) if self.path.exists() else []
+        self.items = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else []
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_name(self.path.name + ".tmp")
-        tmp.write_text(json.dumps(self.items, indent=2, ensure_ascii=False) + "\n")
+        tmp.write_text(json.dumps(self.items, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)  # readers never see a half-written file
 
     def add(self, idea, status="draft"):

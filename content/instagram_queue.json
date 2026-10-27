@@ -1,1 +1,139 @@
-[]
+[
+  {
+    "id": 1,
+    "status": "draft",
+    "pillar": "mix",
+    "hook": "Duck barista makes latte art.",
+    "shots": [
+      {
+        "search_query": "duck wearing sunglasses",
+        "on_screen_text": "Duck barista makes latte art."
+      },
+      {
+        "search_query": "duck using coffee machine",
+        "on_screen_text": "Espresso shot? More like espresso... disaster."
+      },
+      {
+        "search_query": "duck handing coffee",
+        "on_screen_text": "Customer: 'This is... art?' Duck: 'It’s a latte.'"
+      }
+    ],
+    "voiceover": "A duck barista tries to make latte art. The espresso shot? More like a disaster. The customer’s confused. It’s just a latte.",
+    "caption": "Duck barista fails at latte art. #funnyanimals #ridiculousanimals #animalmemes",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-10-25T10:26:12+00:00"
+  },
+  {
+    "id": 2,
+    "status": "approved",
+    "pillar": "mix",
+    "hook": "Parrot CEO fails at corporate life.",
+    "shots": [
+      {
+        "search_query": "parrot in meeting",
+        "on_screen_text": "Parrot’s first day at the office."
+      },
+      {
+        "search_query": "parrot holding phone",
+        "on_screen_text": "Boss: 'Can you repeat that?' Parrot: 'I’m the CEO.'"
+      },
+      {
+        "search_query": "parrot in suit",
+        "on_screen_text": "Now it’s just a bird in a suit."
+      }
+    ],
+    "voiceover": "A parrot starts its first day at the office. The boss asks it to repeat. The parrot says it’s the CEO. Now it’s just a bird in a suit.",
+    "caption": "Parrot CEO fails at corporate life. #funnyanimals #ridiculousanimals #animalmemes",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-10-25T10:26:12+00:00",
+    "approved_at": "2026-10-25T11:45:05+00:00",
+    "approved_by": "office"
+  },
+  {
+    "id": 3,
+    "status": "approved",
+    "pillar": "Animals doing human jobs badly",
+    "hook": "A goose takes his new job as corporate security guard far too seriously.",
+    "shots": [
+      {
+        "image_prompt": "A large white goose wearing a miniature black security badge on a blue lanyard, standing tall and alert beside an office turnstile in a corporate lobby, bright fluorescent lighting, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the goose puffs out its chest and tilts its head aggressively toward the camera",
+        "camera": "zoom_in",
+        "on_screen_text": "New head of corporate security started today"
+      },
+      {
+        "image_prompt": "A large white goose wearing a miniature black security badge on a blue lanyard, furiously honking with wide open wings at an innocent cardboard parcel on the floor, modern office hallway, bright indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the goose flaps its wings and steps forward aggressively toward the floor",
+        "camera": "pan_right",
+        "on_screen_text": "Unattended package identified and confronted"
+      },
+      {
+        "image_prompt": "A large white goose wearing a miniature black security badge on a blue lanyard, proudly sitting on the main reception desk eating lettuce out of a plastic salad bowl, sunny corporate reception desk, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the goose calmly swallows a bite of lettuce and blinks",
+        "camera": "zoom_out",
+        "on_screen_text": "Demanding bribes just to let the staff leave"
+      }
+    ],
+    "voiceover": "Management said we needed tighter access control. Honestly, no one has managed to enter or leave the office since eight in the morning.",
+    "caption": "Attendance has dropped to zero percent this week. #funnyanimals #goose #officelife #security #workmemes",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-10-25T11:53:04+00:00",
+    "approved_at": "2026-10-25T11:57:08+00:00",
+    "approved_by": "office"
+  },
+  {
+    "id": 4,
+    "status": "rendered",
+    "pillar": "Dramatic overreactions to tiny things",
+    "hook": "A tiny hamster treats escaping a laundry basket like an action film heist.",
+    "shots": [
+      {
+        "image_prompt": "A fluffy golden-brown dwarf hamster wearing a tiny red fabric headband, peering intensely over the rim of a tall woven laundry basket, soft bedroom morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the hamster twitches its whiskers and looks from side to side suspiciously",
+        "camera": "zoom_in",
+        "on_screen_text": "Trapped behind enemy lines"
+      },
+      {
+        "image_prompt": "A fluffy golden-brown dwarf hamster wearing a tiny red fabric headband, squeezing dramatically out through the weave of a wicker basket onto a wooden floor, cinematic soft indoor lighting, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the hamster wriggles forward through the gap and drops onto the floor",
+        "camera": "pan_right",
+        "on_screen_text": "Executing tactical breach"
+      },
+      {
+        "image_prompt": "A fluffy golden-brown dwarf hamster wearing a tiny red fabric headband, triumphantly stuffed inside a ceramic dish filled with sunflower seeds, bright kitchen daylight, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the hamster rapidly stuffs another seed into its bulging cheek",
+        "camera": "zoom_out",
+        "on_screen_text": "Mission accomplished the prize is secured"
+      }
+    ],
+    "voiceover": "They thought a laundry basket could contain an elite tactical operative. They deeply underestimated his hunger.",
+    "caption": "Never underestimate a rodent with a headband and a mission. #funnyanimals #hamster #escapeartist #pets #heist",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-10-25T11:53:04+00:00",
+    "approved_at": "2026-10-25T11:56:08+00:00",
+    "approved_by": "office",
+    "clips": [
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\instagram\\4\\pictures\\moving_1.mp4",
+        "source": "ai-picture:picture_1.png",
+        "picture": "build\\instagram\\4\\pictures\\picture_1.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\instagram\\4\\pictures\\moving_2.mp4",
+        "source": "ai-picture:picture_2.png",
+        "picture": "build\\instagram\\4\\pictures\\picture_2.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\instagram\\4\\pictures\\moving_3.mp4",
+        "source": "ai-picture:picture_3.png",
+        "picture": "build\\instagram\\4\\pictures\\picture_3.png"
+      }
+    ],
+    "rendered_at": "2026-10-25T11:57:00+00:00",
+    "error": ""
+  }
+]

@@ -15,10 +15,12 @@ neighbours mostly share a module (63.6% vs. 9.3% at random), and cosine tracks l
 only weakly (Spearman 0.14). This points to structural rather than semantic embeddings.
 Personalized PageRank over the call graph does not improve function ranking. In a
 cross-validated exploratory analysis, a degree-preserving rewired graph does as well as the real
-one. We ship the lexical bridge as a standard-library ADK skill that runs in under a second, and report an end-to-end paired pilot
-with Gemma 4 31B on Kaggle L4×4. There the skill variant resolved 5 of 24 tasks against 3 of 24 for
-the unchanged baseline (2 discordant pairs, both favouring the skill; exact sign test p = 0.50).
-The direction is encouraging, but the pilot is too small to establish an effect.
+one. We ship the lexical bridge as a standard-library ADK skill that runs in under a second, and test
+it end to end with Gemma 4 31B on Kaggle L4×4. A 24-task pilot favoured the skill (5 vs. 3
+resolved), but the pre-registered extension did not replicate it: over 70 completed pairs the
+arms resolve 17 and 19 tasks (3 vs. 5 discordant pairs, exact sign test p = 0.73), and the agent
+called the skill in only 8 of 46 extension runs. A text entry point fixes retrieval; getting the
+agent to use it is the open problem.
 
 ## 1. Introduction
 
@@ -40,7 +42,7 @@ We explain why, using the harness source (`swegemma` 0.2.11) and the released da
    neighbourhood) more than what it says. Under a frozen protocol, neither the embeddings nor the
    call graph improves BM25's function ranking (Sections 5–6).
 4. **A drop-in fix.** A 130-line standard-library skill packages the BM25 bridge in the
-   competition's skill format. We test it end to end in a paired pilot (Section 7).
+   competition's skill format. We test it end to end in a paired pilot and a pre-registered extension (Section 7).
 
 All numbers come from scripts in our public repository and were computed under a protocol
 written before any result was seen (Section 4). Exploratory analyses run afterwards are labelled
@@ -59,8 +61,7 @@ as a plug-in. CodexGraph (Liu et al., NAACL 2025; arXiv:2408.03910) lets agents 
 database. LocAgent (Chen et al., ACL 2025; arXiv:2503.09089) has agents traverse a heterogeneous
 code graph for localization. These systems pair the graph with a working entry point from text:
 LLM-written queries, BM25 or a text encoder. Our audit shows what happens when that entry point
-is missing. Training-data work such as SWE-Gym (Pan et al., ICML 2025; arXiv:2412.21139) and
-SWE-smith (Yang et al., 2025; arXiv:2504.21798) is complementary to ours. Benchmarks follow
+is missing. Benchmarks follow
 SWE-bench (Jimenez et al., 2024; arXiv:2310.06770). Embedding anisotropy, where vectors sit in a
 narrow cone, was characterized for contextual language models by Ethayarajh (2019;
 arXiv:1909.00512). We observe the same geometry in the competition's node embeddings and show
@@ -218,22 +219,30 @@ Requests and HTTPX. Each task runs A then B on the same vLLM server (Kaggle L4×
 
 *Table 4. Paired pilot, one run per arm per task. Wall time excludes grading.*
 
-B solved every task A solved, plus two more. Both extra wins are on Rich, the repository where
-BM25 most improves on the tool in Section 5 (Hit@10 57.8% vs. 28.9%). With only two discordant
-pairs, the exact two-sided sign test gives p = 0.50. This is consistent with no effect, and a
-single sampled run per arm adds noise of the same size. B cost about 41 s more per task on
-average, which is within the 12-hour budget. We could not reliably check whether the agent
-actually called the skill on every task: our counter searched the trace for `run_skill_script`,
-and the system prompt itself contains that string. Measuring adoption, repeating runs, and
-evaluating all 116 labelled tasks are the obvious next steps.
+B solved every task A solved, plus two more, both on Rich, where BM25 most improves on the tool
+(Section 5). With two discordant pairs the exact sign test gives p = 0.50. B cost about 41 s more
+per task. (The pilot's skill counter also matched prompt text, so we report adoption only below.)
+
+**Pre-registered extension.** A protocol addendum, committed before any extension run, fixes the
+primary analysis: all completed pairs, exact sign test. Two of four extension shards (46 tasks)
+ran within our GPU quota; shards 3–4 did not run, and no task was replaced. Over the 70 completed
+pairs A resolves 17 and B 19, with 3 vs. 5 discordant pairs (p = 0.73). Adoption, now counted from
+tool-call events, is low: B called the skill in 8 of 46 extension runs, 7 times as its first call.
+The pilot's advantage does not replicate; with this little use, the comparison tests the prompt
+line as much as the retriever. On the public leaderboard B scored 0.20 and A's public
+bundle 0.18, one unpaired submission each.
 
 ## 8. Limitations
 
 The labels assume that the edited functions are the ones to localize. Some fixes legitimately
 touch other places. There are 129 tasks from four repositories, dominated by FastAPI and Rich.
-Hit@k on graph nodes is not resolve rate; only the pilot measures resolution, and with 24 pairs
+Hit@k on graph nodes is not resolve rate; only Section 7 measures resolution, and with 70 pairs
 it can detect only large effects. The hidden test set is built by the same pipeline but is
-unseen. We did not tune BM25. A tuned retriever, or one that also uses hints, would likely do
+unseen. Our end-to-end runs used the subprocess sandbox without the repositories' test-only packages
+(for example `inline-snapshot`, `dirty-equals`). With them installed, the same baseline later
+resolved 36 of 105 development tasks on first try (16-minute limit), so the absolute rates in Section 7 are
+underestimates for both arms; whether the handicap interacts with the skill is untested. We did
+not tune BM25. A tuned retriever, or one that also uses hints, would likely do
 better, so our gap is a lower bound on what a working text entry point can add.
 
 ## 9. Recommendations
@@ -262,7 +271,5 @@ writing; every number comes from executed scripts.
 - Ouyang et al. RepoGraph: Enhancing AI Software Engineering with Repository-level Code Graph. ICLR 2025, arXiv:2410.14684.
 - Liu et al. CodexGraph: Bridging Large Language Models and Code Repositories via Code Graph Databases. NAACL 2025, arXiv:2408.03910.
 - Chen et al. LocAgent: Graph-Guided LLM Agents for Code Localization. ACL 2025, arXiv:2503.09089.
-- Pan et al. Training Software Engineering Agents and Verifiers with SWE-Gym. ICML 2025, arXiv:2412.21139.
-- Yang et al. SWE-smith: Scaling Data for Software Engineering Agents. arXiv:2504.21798.
 - Ethayarajh. How Contextual are Contextualized Word Representations? EMNLP 2019, arXiv:1909.00512.
 - Robertson and Zaragoza. The Probabilistic Relevance Framework: BM25 and Beyond. FnTIR 2009.

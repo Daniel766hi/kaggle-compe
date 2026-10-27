@@ -187,16 +187,22 @@ Setup:
    `HF_KEY=key:secret`. To use other models, copy their IDs from the model pages into
    `HIGGSFIELD_IMAGE_MODEL` / `HIGGSFIELD_VIDEO_MODEL`. If the video model doesn't allow 5 s
    clips, change `TIKTOK_CLIP_SECONDS`.
-2. **TikTok:** at developers.tiktok.com, create an app and add Login Kit and the Content Posting
-   API with the `video.upload` scope. Register a redirect URI. Then, once, on your computer:
+2. **TikTok:** at [developers.tiktok.com/apps](https://developers.tiktok.com/apps), create an app:
+   - *App details → Platforms:* tick **Desktop** (Web isn't needed: a desktop app logs in on
+     your own computer, so there's no website to register).
+   - *Add products:* **Login Kit** and **Content Posting API** with *Upload* turned on.
+   - *Login Kit → Desktop → Redirect URI:* `http://127.0.0.1:3455/callback/` exactly.
+   - *Sandbox:* add your own TikTok account under *Target users*. A sandbox app works for its
+     target users without TikTok's review, and uploads to the inbox aren't limited to private.
+
+   Then, once, on your computer:
    ```
-   export TIKTOK_CLIENT_KEY=... TIKTOK_CLIENT_SECRET=...
-   python -m tiktok_agent auth-url --redirect-uri https://your-registered-uri
-   # open the link, log in, copy the "code" from the address you land on
-   python -m tiktok_agent auth-code CODE --redirect-uri https://your-registered-uri
+   python -m tiktok_agent login
    ```
-   That prints `TIKTOK_REFRESH_TOKEN`, which is valid for about a year. Each run uses it to get
-   a fresh access token.
+   It asks for the app's *Client key* and *Client secret*, opens TikTok in your browser, catches
+   TikTok's answer on your computer and saves `TIKTOK_REFRESH_TOKEN` in `.env` (valid for about
+   a year; a renewed token is saved automatically). For a web redirect URI instead, use
+   `auth-url` and `auth-code`.
 3. **Automation:** add the repo secrets `ANTHROPIC_API_KEY`, `HF_KEY`, `TIKTOK_CLIENT_KEY`,
    `TIKTOK_CLIENT_SECRET` and `TIKTOK_REFRESH_TOKEN`, then the variable
    `TIKTOK_AGENT_ENABLED=true`. The *TikTok agent* workflow runs daily at 09:37 WIB. It plans new

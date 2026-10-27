@@ -1,6 +1,8 @@
 # %% [markdown]
 # # IMDb in SQLite: build and query in minutes
 #
+# Building takes about 25 minutes (all core tables, 17 GB); after that, queries take seconds.
+#
 # This notebook uses the **[IMDb SQLite Builder](https://www.kaggle.com/datasets/danielaijdkx/imdb-sqlite-database)**
 # to download IMDb's official datasets (https://datasets.imdbws.com) and load them into one SQLite
 # database, then runs a few SQL queries. IMDb's data is for personal and non-commercial use; it is
@@ -21,7 +23,7 @@ import pandas as pd
 
 pd.set_option("display.max_colwidth", 60)
 builder = glob.glob("/kaggle/input/**/build_imdb_sqlite.py", recursive=True)[0]
-work = "/kaggle/temp" if os.path.isdir("/kaggle/temp") else "/tmp"
+work = "/tmp"  # the database is about 17 GB; /tmp has far more room than /kaggle/working
 db = os.path.join(work, "imdb.sqlite")
 free_gb = shutil.disk_usage(work).free / 1e9
 print(f"Builder: {builder}\nDatabase: {db}\nFree disk: {free_gb:.0f} GB")
@@ -33,7 +35,8 @@ print(f"Built in {(time.time() - start) / 60:.1f} minutes; file size {os.path.ge
 
 # %%
 con = sqlite3.connect(db)
-tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")]
+tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type = 'table' "
+                                    "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
 counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in tables}
 counts_df = pd.DataFrame({"rows": counts}).sort_values("rows", ascending=False)
 print(counts_df.to_string(formatters={"rows": "{:,}".format}))
@@ -43,8 +46,10 @@ print("COUNTS_JSON", {**counts, "built_on": time.strftime("%Y-%m-%d")})
 # ## The best-rated movies (IMDb-style weighted rating)
 
 # %%
-pd.read_sql("SELECT primary_title, start_year, average_rating, num_votes, weighted_rating "
-            "FROM top_rated_movies LIMIT 15", con)
+top = pd.read_sql("SELECT primary_title, start_year, average_rating, num_votes, weighted_rating "
+                  "FROM top_rated_movies LIMIT 15", con)
+print(top.head(5).to_string(index=False))
+top
 
 # %% [markdown]
 # ## Which genres rate best, decade by decade?

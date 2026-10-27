@@ -33,7 +33,10 @@ def counts_table(counts):
                 f"[example notebook]({NOTEBOOK}) prints them.")
     lines = [f"Measured in a test build on {counts['built_on']} (IMDb updates its files daily):", "",
              "| Table | Rows |", "|---|---|"]
-    lines += [f"| `{t}` | {n:,} |" for t, n in counts.items() if t != "built_on"]
+    lines += [f"| `{t}` | {n:,} |" for t, n in sorted(counts.items(), key=lambda kv: -kv[1] if isinstance(kv[1], int) else 0)
+              if t != "built_on" and not t.startswith("sqlite_")]
+    lines += ["", "The core build (without `title_akas`) took about 26 minutes on a Kaggle CPU notebook and produced "
+              "a 17 GB file, so build it in `/tmp` (Kaggle notebooks have plenty of space there)."]
     return "\n".join(lines)
 
 
@@ -56,8 +59,8 @@ def description(counts):
         "```python",
         "import subprocess, sqlite3",
         "subprocess.run(['python', '/kaggle/input/imdb-sqlite-database/build_imdb_sqlite.py',",
-        "                '--db', '/kaggle/temp/imdb.sqlite'], check=True)   # core tables, about 10 minutes",
-        "con = sqlite3.connect('/kaggle/temp/imdb.sqlite')",
+        "                '--db', '/tmp/imdb.sqlite'], check=True)   # core tables: about 25 minutes, 17 GB",
+        "con = sqlite3.connect('/tmp/imdb.sqlite')",
         "con.execute('SELECT * FROM top_rated_movies LIMIT 10').fetchall()",
         "```",
         "",

@@ -1,5 +1,6 @@
 import argparse
 import json
+import threading
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -165,6 +166,8 @@ def test_upload_draft_reports_api_errors(tmp_path):
 
 
 def test_refresh_uses_app_credentials(monkeypatch, caplog):
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(tiktok.local_env, "save", lambda *a: pytest.fail("saved a token on GitHub's servers"))
     monkeypatch.setenv("TIKTOK_CLIENT_KEY", "ck")
     monkeypatch.setenv("TIKTOK_CLIENT_SECRET", "cs")
     monkeypatch.setenv("TIKTOK_REFRESH_TOKEN", "old")
@@ -174,6 +177,57 @@ def test_refresh_uses_app_credentials(monkeypatch, caplog):
     assert session.posts[0][1] == {"client_key": "ck", "client_secret": "cs", "grant_type": "refresh_token", "refresh_token": "old"}
     assert client.session.headers["Authorization"] == "Bearer act"
     assert "rft" not in caplog.text  # a rotated token must never reach (public) logs
+
+
+def test_a_rotated_refresh_token_is_kept_on_your_computer(monkeypatch):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    for name, value in (("TIKTOK_CLIENT_KEY", "ck"), ("TIKTOK_CLIENT_SECRET", "cs"), ("TIKTOK_REFRESH_TOKEN", "old")):
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv("TIKTOK_ACCESS_TOKEN", raising=False)
+    saved = {}
+    monkeypatch.setattr(tiktok.local_env, "save", lambda key, value: saved.update({key: value}))
+    tiktok.TikTokClient.from_env(FakeTikTokSession())
+    assert saved == {"TIKTOK_REFRESH_TOKEN": "rft"}
+
+
+def test_desktop_login_uses_pkce_and_catches_the_answer_locally(monkeypatch):
+    import hashlib
+    import urllib.request
+    from urllib.parse import parse_qs, urlparse
+
+    monkeypatch.setenv("TIKTOK_CLIENT_KEY", "ck")
+    monkeypatch.setenv("TIKTOK_CLIENT_SECRET", "cs")
+    session, opened = FakeTikTokSession(), []
+
+    def browser(url):  # TikTok, after you press Authorize, sends the browser back to this computer
+        opened.append(url)
+        query = parse_qs(urlparse(url).query)
+        back = f"{tiktok.DESKTOP_REDIRECT}?code=c0de*!&scopes=user.info.basic,video.upload&state={query['state'][0]}"
+        threading.Thread(target=lambda: urllib.request.urlopen(back).read(), daemon=True).start()
+
+    tokens = tiktok.login(browser, session, timeout_s=10)
+    assert tokens["refresh_token"] == "rft"
+    query = parse_qs(urlparse(opened[0]).query)
+    assert query["redirect_uri"] == ["http://127.0.0.1:3455/callback/"] and query["code_challenge_method"] == ["S256"]
+    sent = session.posts[0][1]
+    assert sent["code"] == "c0de*!" and sent["redirect_uri"] == tiktok.DESKTOP_REDIRECT
+    assert query["code_challenge"] == [hashlib.sha256(sent["code_verifier"].encode()).hexdigest()]  # hex, as TikTok wants
+    assert 43 <= len(sent["code_verifier"]) <= 128
+
+
+def test_desktop_login_explains_a_wrong_redirect_uri(monkeypatch):
+    import urllib.request
+    from urllib.parse import parse_qs, urlparse
+
+    monkeypatch.setenv("TIKTOK_CLIENT_KEY", "ck")
+
+    def browser(url):
+        state = parse_qs(urlparse(url).query)["state"][0]
+        back = f"{tiktok.DESKTOP_REDIRECT}?error=invalid_redirect_uri&error_description=redirect_uri+mismatch&state={state}"
+        threading.Thread(target=lambda: urllib.request.urlopen(back).read(), daemon=True).start()
+
+    with pytest.raises(tiktok.TikTokError, match=r"Redirect URI must be exactly http://127\.0\.0\.1:3455/callback/"):
+        tiktok.login(browser, FakeTikTokSession(), timeout_s=10)
 
 
 def test_make_renders_once_and_retries_only_the_upload(tmp_path):

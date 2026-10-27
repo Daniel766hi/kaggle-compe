@@ -49,6 +49,13 @@ NOTEBOOKS = {
         "datasets": ["indonesia-daily-weather-31-cities"],
         "tags": ["weather and climate", "exploratory data analysis", "data visualization"],
     },
+    "imdb-sqlite": {
+        "source": "notebooks/imdb_sqlite_example.py",
+        "title": "IMDb in SQLite: Build and Query in Minutes",
+        "datasets": ["imdb-sqlite-database"],
+        "internet": True,  # downloads IMDb's files from datasets.imdbws.com
+        "tags": ["movies and tv shows", "sql", "data cleaning", "beginner"],
+    },
     "haze-forecast": {
         "source": "notebooks/haze_forecast_example.py",
         "title": "Tomorrow's Haze: PM2.5 Forecast for 31 Cities",
@@ -92,7 +99,7 @@ def build_folder(name, owner, public, folder):
         "kernel_type": "notebook",
         "is_private": not public,
         "enable_gpu": False,
-        "enable_internet": False,
+        "enable_internet": cfg.get("internet", False),
         "dataset_sources": [f"{owner}/{d}" for d in cfg["datasets"]],
         "model_sources": [f"{owner}/{m}" for m in cfg.get("models", [])],
         "keywords": cfg["tags"],

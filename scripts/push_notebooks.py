@@ -70,6 +70,19 @@ NOTEBOOKS = {
         "datasets": ["indonesia-fire-hotspots-nasa-firms", "indonesia-air-quality-hourly-pm25"],
         "tags": ["environment", "earth and nature", "pollution", "data visualization"],
     },
+    "idn-quakes": {
+        "source": "notebooks/indonesia_earthquakes.py",
+        "title": "Indonesia's Earthquakes: Where, How Big, What Next",
+        "datasets": ["indonesia-earthquakes-usgs-daily"],
+        "tags": ["earth and nature", "geography", "exploratory data analysis", "data visualization"],
+    },
+    "aftershock-forecast": {
+        "source": "notebooks/aftershock_forecast_example.py",
+        "title": "After a Strong Quake: 7-Day Aftershock Forecast",
+        "datasets": ["indonesia-earthquakes-usgs-daily"],
+        "models": ["indonesia-aftershock-forecast/scikitLearn/default/1"],
+        "tags": ["earth and nature", "time series analysis", "regression", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

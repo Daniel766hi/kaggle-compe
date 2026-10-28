@@ -120,7 +120,7 @@ SEQUENCES = Table(
         Column("province", "string", "Nearest Indonesian province (when country is Indonesia)"),
         Column("radius_km", "number", "Aftershock zone radius: rupture length (Wells & Coppersmith), at least 75 km"),
         Column("prior_m45_30d", "integer", "M4.5+ quakes within the radius in the 30 days before"),
-        Column("prior_larger_30d", "boolean", "A larger quake hit within the radius in the 30 days before"),
+        Column("prior_larger_30d", "boolean", "Within 30 days after a larger quake, inside that quake's aftershock zone"),
         Column("aftershocks_m45_1d", "integer", "M4.5+ quakes within the radius in the first 24 hours after"),
         Column("aftershocks_m5_1d", "integer", "M5+ quakes within the radius in the first 24 hours after"),
         Column("aftershocks_m45_7d", "integer", "M4.5+ quakes within the radius in the 7 days after"),
@@ -338,8 +338,11 @@ def sequences(events, last_time=None):
         hi = np.searchsorted(t, t[i] + np.timedelta64(7, "D"), side="right")
         idx = np.arange(lo, hi)
         idx = idx[idx != i]
-        near = idx[haversine_km(lat[i], lon[i], lat[idx], lon[idx]) <= radius]
+        dist = haversine_km(lat[i], lon[i], lat[idx], lon[idx])
+        near = idx[dist <= radius]
         before, after = near[t[near] < t[i]], near[t[near] > t[i]]
+        # A larger earlier quake counts when this one lies within *its* (larger) aftershock zone.
+        earlier_larger = (t[idx] < t[i]) & (mag[idx] > mag[i]) & (dist <= search_radius_km(mag[idx]))
         # Same-second duplicates or events listed at the mainshock time count as neither.
         prior_m45 = before[mag[before] >= AFTERSHOCK_MIN_MAG]
         after45 = after[mag[after] >= AFTERSHOCK_MIN_MAG]
@@ -351,7 +354,7 @@ def sequences(events, last_time=None):
             "longitude": row["longitude"], "depth_km": row["depth_km"], "mag": row["mag"],
             "mag_type": row["mag_type"], "country": row["country"], "province": row["province"],
             "radius_km": round(radius, 1), "prior_m45_30d": len(prior_m45),
-            "prior_larger_30d": bool((mag[before] > mag[i]).any()),
+            "prior_larger_30d": bool(earlier_larger.any()),
             "aftershocks_m45_1d": len(day1), "aftershocks_m5_1d": int((mag[day1] >= 5.0).sum()),
             "aftershocks_m45_7d": len(after45),
             "aftershocks_m5_7d": len(after5),

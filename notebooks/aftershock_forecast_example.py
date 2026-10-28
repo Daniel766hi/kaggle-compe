@@ -58,10 +58,12 @@ print(f"Model trained on {info['data']['quakes']:,} quakes ({info['data']['first
 # ## 1. The most recent strong quakes
 #
 # For each of the latest M5.5+ quakes nearest Indonesia: the forecast made right after it, and, where
-# a week has passed, what actually happened.
+# a week has passed, what actually happened. Quakes that came within 30 days of a larger quake nearby
+# are left out: they are part of that quake's sequence, which the model forecasts as a whole.
 
 # %%
-latest = seq[seq["country"] == "Indonesia"].sort_values("time").tail(12).copy()
+independent = (seq["country"] == "Indonesia") & ~seq["prior_larger_30d"]
+latest = seq[independent].sort_values("time").tail(12).copy()
 fc = forecast(models, latest)
 table = pd.concat([latest[["time", "mag", "depth_km", "province"]], fc,
                    latest[["aftershocks_m45_7d", "aftershocks_m5_7d", "complete_7d"]]], axis=1)
@@ -104,34 +106,39 @@ upd.round(3)
 # ## 3. How good is it?
 #
 # From the model card: results on the held-out period, with models trained only on earlier quakes.
-# The baseline is the classic *productivity law* (aftershock count grows with magnitude only).
+# The baseline is the classic *productivity law* (magnitude only). Lower is better everywhere.
 
 # %%
-rows = []
+counts, chances = [], []
 for key, e in info["stages"].items():
     for name, s in e["test"].items():
-        rows.append({"forecast": key, "method": name + (" (chosen)" if name == e["chosen"] else ""),
-                     "Poisson deviance": s["mean_poisson_deviance"], "MAE": s["MAE"],
-                     "Brier (any M5+)": s.get("brier_any")})
-pd.DataFrame(rows)
+        row = {"forecast": key, "method": name + (" (chosen)" if name == e["chosen"] else "")}
+        if "brier" in s:
+            chances.append({**row, "Brier score": s["brier"], "log loss": s["log_loss"],
+                            "Brier, always the average": s["brier_base_rate"]})
+        else:
+            counts.append({**row, "Poisson deviance": s["mean_poisson_deviance"], "MAE": s["MAE"]})
+display(pd.DataFrame(counts))
+pd.DataFrame(chances)
 
 # %% [markdown]
 # Calibration matters most for a probability: when the model said "X% chance of an M5+ aftershock",
-# how often did one happen?
+# how often did one happen? Points on the dashed line are perfectly calibrated.
 
 # %%
-cal = pd.DataFrame(info["stages"]["at_mainshock/m5"]["test_calibration"])
-fig, ax = plt.subplots(figsize=(6, 5))
-ax.plot([0, 1], [0, 1], color=MUTED, lw=1, ls="--")
-ax.scatter(cal["mean_forecast"], cal["observed"], s=cal["quakes"] * 2, color=C[0])
-for r in cal.itertuples():
-    ax.annotate(f"{r.quakes} quakes", (r.mean_forecast, r.observed), xytext=(8, -4), textcoords="offset points",
-                fontsize=9)
-ax.set_xlabel("Forecast chance")
-ax.set_ylabel("Observed share")
-ax.set_title("Calibration on the test period")
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), sharey=True)
+for ax, (key, title) in zip(axes, [("at_mainshock/any_m5", "Right after the quake"),
+                                   ("after_24h/any_m5", "After 24 hours")]):
+    cal = pd.DataFrame(info["stages"][key]["test_calibration"])
+    ax.plot([0, 1], [0, 1], color=MUTED, lw=1, ls="--")
+    ax.scatter(cal["mean_forecast"], cal["observed"], s=cal["quakes"] * 2, color=C[0])
+    for r in cal.itertuples():
+        ax.annotate(f"{r.quakes}", (r.mean_forecast, r.observed), xytext=(8, -4), textcoords="offset points",
+                    fontsize=9)
+    ax.set_xlabel("Forecast chance of an M5+ aftershock")
+    ax.set_title(title)
+axes[0].set_ylabel("Observed share (labels: number of quakes)")
 plt.show()
-cal
 
 # %% [markdown]
 # ## Takeaways
@@ -139,6 +146,8 @@ cal
 # - Aftershock forecasts are probabilities, not predictions of a specific quake. The model gives the
 #   expected number of aftershocks in the coming week and the chance of a strong (M5+) one.
 # - Magnitude matters most, then depth: shallow quakes have far more aftershocks than deep ones.
-# - The first day of a sequence is informative: updating after 24 hours sharpens the forecast.
+# - The first day of a sequence is informative: updating after 24 hours sharpens the forecast. In the
+#   test years, though, the update's high chances were too high (strong aftershocks after the first
+#   day were rarer than in earlier years), so treat them as an upper range.
 #
 # Data: U.S. Geological Survey ANSS Comprehensive Catalog (public domain).

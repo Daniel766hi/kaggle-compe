@@ -27,6 +27,10 @@ STAGE_NAMES = {
     "after_24h/m45": "After 24 hours: M4.5+ aftershocks in days 2-7",
     "after_24h/m5": "After 24 hours: M5+ aftershocks in days 2-7",
 }
+CHANCE_NAMES = {
+    "at_mainshock/any_m5": "Right after the quake: any M5+ aftershock in 7 days",
+    "after_24h/any_m5": "After 24 hours: any M5+ aftershock in days 2-7",
+}
 
 
 def results_table(info):
@@ -41,21 +45,36 @@ def results_table(info):
 
 
 def chance_table(info):
-    rows = ["| Forecast | Brier score: model | baseline | always the average rate | Quakes with an M5+ aftershock |",
-            "|---|---|---|---|---|"]
-    for key in ("at_mainshock/m5", "after_24h/m5"):
+    rows = ["| Forecast | Model | Brier score | Log loss | Productivity law: Brier | Log loss | "
+            "Always the training average: Brier | Share of quakes with one |",
+            "|---|---|---|---|---|---|---|---|"]
+    for key, name in CHANCE_NAMES.items():
         e = info["stages"][key]
         best, base = e["test"][e["chosen"]], e["test"]["productivity law"]
-        rows.append(f"| {STAGE_NAMES[key]} | {best['brier_any']} | {base['brier_any']} | "
-                    f"{best['brier_any_climatology']} | {best['share_with_any']:.0%} |")
+        rows.append(f"| {name} | {e['chosen']} | {best['brier']} | {best['log_loss']} | {base['brier']} | "
+                    f"{base['log_loss']} | {best['brier_base_rate']} | {best['share_with_any']:.0%} |")
     return "\n".join(rows)
 
 
-def calibration_table(info):
-    rows = ["| Forecast chance of an M5+ aftershock | Quakes | Mean forecast | Observed |", "|---|---|---|---|"]
-    for r in info["stages"]["at_mainshock/m5"]["test_calibration"]:
+def calibration_table(info, key):
+    rows = ["| Forecast chance | Quakes | Mean forecast | Observed |", "|---|---|---|---|"]
+    for r in info["stages"][key]["test_calibration"]:
         rows.append(f"| {r['forecast']} | {r['quakes']} | {r['mean_forecast']:.0%} | {r['observed']:.0%} |")
     return "\n".join(rows)
+
+
+def worse_than_baseline(info):
+    """A line naming every forecast where the chosen model did worse than the baseline on the test period."""
+    worse = []
+    for key, e in info["stages"].items():
+        best, base = e["test"][e["chosen"]], e["test"]["productivity law"]
+        metric = "log_loss" if "log_loss" in best else "mean_poisson_deviance"
+        if best[metric] > base[metric]:
+            worse.append({**STAGE_NAMES, **CHANCE_NAMES}[key])
+    if not worse:
+        return []
+    return [f"- Exception: for \"{'; '.join(worse)}\" the chosen model (picked on the validation years) did "
+            "slightly worse than magnitude alone in the test years."]
 
 
 def examples_table(info):
@@ -89,12 +108,13 @@ def description(info):
         "",
         "- Aftershocks: M4.5+ quakes within the rupture zone (radius from Wells & Coppersmith's rupture "
         "length, at least 75 km) in the 7 days after the mainshock.",
-        "- Four count models: M4.5+ and M5+ aftershocks, right after the quake and after 24 hours. The "
-        "chance of at least one M5+ aftershock is 1 - exp(-expected count).",
+        "- Six models: the expected number of M4.5+ and of M5+ aftershocks (count models) and the chance of "
+        "at least one M5+ aftershock (a classifier), each right after the quake and after 24 hours.",
         "- For each, three candidates were compared on a validation period "
         f"({d['validation'][0]} to {d['validation'][1]}, trained on earlier quakes): the classic "
-        "*productivity law* (expected count grows exponentially with magnitude), a Poisson regression on all "
-        "inputs, and gradient-boosted trees with a Poisson loss. The test period was not used to choose.",
+        "*productivity law* (magnitude only; aftershock numbers grow exponentially with magnitude), a linear "
+        "model on all inputs (Poisson or logistic regression), and gradient-boosted trees. The test period "
+        "was not used to choose.",
         "",
         "# Data Overview",
         "",
@@ -113,18 +133,31 @@ def description(info):
         "",
         chance_table(info),
         "",
-        "Calibration, right after the quake (test period): when the model says X%, how often did it happen?",
+        "Calibration on the test period: when the model said X%, how often did it happen?",
         "",
-        calibration_table(info),
+        "Right after the quake:",
+        "",
+        calibration_table(info, "at_mainshock/any_m5"),
+        "",
+        "After 24 hours:",
+        "",
+        calibration_table(info, "after_24h/any_m5"),
         "",
         "The largest quakes of the test period, with the final model's forecast (the final model was "
         "refitted on all quakes, including these):",
         "",
         examples_table(info),
         "",
-        "Reading the results honestly: aftershock counts are very noisy (some M6+ quakes have none, others "
-        "dozens), so even a good forecast has large errors on single quakes. What matters is that the "
-        "probabilities are calibrated. The productivity law alone is already a strong baseline.",
+        "Reading the results honestly:",
+        "",
+        "- Aftershock counts are very noisy (some M7 quakes have a handful of aftershocks, others over a "
+        "hundred), so single forecasts can be far off. On average the model beats magnitude alone, mainly "
+        "because it knows that deep quakes have few aftershocks (about ten times fewer than shallow ones of "
+        "the same magnitude).",
+        *worse_than_baseline(info),
+        "- The chances right after the quake were well calibrated in the test period.",
+        "- The 24-hour update was too high when it gave large chances: M5+ aftershocks in days 2-7 were rarer "
+        "in 2018-2026 than in the training years. Treat its high values as an upper range.",
         "",
         "The published files are refitted on all quakes, including the test period.",
     ])
@@ -132,8 +165,8 @@ def description(info):
 
 USAGE = """# Model Format
 
-A dict of four fitted scikit-learn models saved with joblib (`model.joblib`), keyed by
-(stage, size) with stage "at_mainshock" or "after_24h" and size "m45" or "m5", plus
+A dict of six fitted scikit-learn models saved with joblib (`model.joblib`), keyed by
+(stage, output) with stage "at_mainshock" or "after_24h" and output "m45", "m5" or "any_m5", plus
 `features.py` (input preparation and `forecast()`) and `model_info.json` (metrics and examples).
 
 # Model Inputs

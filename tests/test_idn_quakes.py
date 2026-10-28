@@ -111,6 +111,16 @@ def test_sequences_count_aftershocks_in_the_radius_and_flag_prior_larger():
     assert seq.loc["late", "prior_larger_30d"]  # the 6.9 hit 9 days earlier
 
 
+def test_a_quake_inside_a_great_quakes_zone_is_flagged_even_when_far_from_its_epicentre():
+    t0 = pd.Timestamp("2026-08-14 21:58")
+    events = qk.to_frame([feature("great", t0, -8.0, 118.0, 7.8),            # zone radius about 140 km
+                          feature("later", t0 + pd.Timedelta(minutes=15), -8.0, 119.1, 5.9)])  # 121 km east
+    events["country"], events["province"] = "Indonesia", "Nusa Tenggara Timur"
+    seq = qk.sequences(events).set_index("mainshock_id")
+    assert seq.loc["later", "prior_larger_30d"]
+    assert seq.loc["great", "aftershocks_m45_7d"] == 1
+
+
 def test_full_build_writes_every_file_with_column_descriptions(tmp_path, monkeypatch):
     feats = [feature(f"e{i}", pd.Timestamp("2010-01-01") + pd.Timedelta(hours=7 * i), -1.0 + (i % 7) * 0.1,
                      100.0, 4.5 + (i % 20) / 10) for i in range(1500)]

@@ -1,10 +1,11 @@
 """Inputs of the Indonesia aftershock forecast, and how to turn its outputs into numbers people use.
 
-Two forecasts per M5.5+ earthquake, each a Poisson model of a count:
-- "at_mainshock": right after the quake, the number of M4.5+ aftershocks in the next 7 days;
-- "after_24h": a day later, the number in days 2-7, now also knowing how many came in the first 24 hours.
-For each, a second model forecasts the number of M5+ aftershocks, whose chance of at least one is
-1 - exp(-expected count).
+Two forecasts per M5.5+ earthquake:
+- "at_mainshock": right after the quake, for the next 7 days;
+- "after_24h": a day later, for days 2-7, now also knowing how many aftershocks the first day had.
+Each has three models: the expected number of M4.5+ aftershocks and of M5+ aftershocks (count
+models), and the chance of at least one M5+ aftershock (a classifier: aftershock counts vary too
+much between sequences for a Poisson count to give calibrated chances).
 
 Inputs come from the `aftershock_sequences` table of the Indonesia earthquakes dataset, or can be
 written by hand for a new quake (see `forecast()`).
@@ -23,6 +24,8 @@ TARGETS = {
     ("at_mainshock", "m5"): "aftershocks_m5_7d",
     ("after_24h", "m45"): "aftershocks_m45_2_7d",
     ("after_24h", "m5"): "aftershocks_m5_2_7d",
+    ("at_mainshock", "any_m5"): "any_m5_7d",
+    ("after_24h", "any_m5"): "any_m5_2_7d",
 }
 
 
@@ -45,6 +48,8 @@ def prepare(seq):
         out["aftershocks_m5_7d"] = df["aftershocks_m5_7d"].astype(float)
         out["aftershocks_m45_2_7d"] = (df["aftershocks_m45_7d"] - df["aftershocks_m45_1d"]).astype(float)
         out["aftershocks_m5_2_7d"] = (df["aftershocks_m5_7d"] - df["aftershocks_m5_1d"]).astype(float)
+        out["any_m5_7d"] = (out["aftershocks_m5_7d"] > 0).astype(int)
+        out["any_m5_2_7d"] = (out["aftershocks_m5_2_7d"] > 0).astype(int)
     return out
 
 
@@ -59,6 +64,9 @@ class Columns:
         return self
 
     def predict(self, X):
+        """Expected count, or for a classifier the probability of the event."""
+        if hasattr(self.model, "predict_proba"):
+            return self.model.predict_proba(X[self.columns])[:, 1]
         return np.clip(self.model.predict(X[self.columns]), 1e-6, None)
 
 
@@ -74,5 +82,5 @@ def forecast(models, quakes, stage="at_mainshock"):
     return pd.DataFrame({
         "expected_m45": np.round(m45, 2),
         "expected_m5": np.round(m5, 3),
-        "p_any_m5": np.round(1 - np.exp(-m5), 3),
+        "p_any_m5": np.round(models[(stage, "any_m5")].predict(X), 3),
     }, index=quakes.index)

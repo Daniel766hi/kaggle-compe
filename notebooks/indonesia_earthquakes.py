@@ -46,7 +46,7 @@ def find(name):
 
 
 # %%
-eq = pd.read_csv(find("earthquakes.csv"), parse_dates=["time", "time_wib", "updated"])
+eq = pd.read_csv(find("earthquakes.csv"), parse_dates=["time", "time_wib", "updated"], low_memory=False)
 quakes = eq[eq["type"] == "earthquake"].copy()
 idn = quakes[quakes["country"] == "Indonesia"].copy()
 idn["year"] = idn["time"].dt.year
@@ -119,8 +119,9 @@ plt.show()
 print("Last 5 years:", yearly.tail(5)["m6"].to_dict())
 
 # %% [markdown]
-# The spikes are aftershock sequences, above all Aceh-Andaman 2004 (M9.1) and Nias 2005 (M8.6).
-# Apart from them there is no clear trend: the rate of large quakes is roughly steady.
+# The busiest stretch, 2004-2009, came with the great Sumatra quakes (Aceh 2004 M9.1, Nias 2005
+# M8.6, Bengkulu 2007 M8.4) and their aftershocks. Outside it, a typical year has 10 to 20 M6+
+# quakes, with no sign of a steady long-term rise.
 #
 # ## 4. How rare are big ones? The Gutenberg-Richter law
 #
@@ -143,11 +144,18 @@ ax.set_ylabel("Quakes of at least M per year")
 ax.set_title(f"Gutenberg-Richter: b = {b:.2f}")
 ax.legend()
 plt.show()
-for mag in (6, 7, 8):
-    rate = 10 ** (a - b * mag)
-    print(f"M{mag}+: about {rate:.2g} a year, i.e. one every {1 / rate:.1f} years on average")
+# Long-run rates counted directly (M8+ since 1900, as such quakes are rare but always recorded).
+for mag, since in ((6, 1990), (7, 1990), (8, 1900)):
+    n = ((idn["mag"] >= mag) & (idn["year"] >= since)).sum()
+    rate = n / (idn["year"].max() - since + 1)
+    every = f"about {rate:.0f} a year" if rate >= 1.5 else f"one every {1 / rate:.1f} years on average"
+    print(f"M{mag}+ since {since}: {n} quakes, {every}")
 
 # %% [markdown]
+# The line fits well up to about M6.5. Quakes of M6.5-8 are somewhat more frequent than the line
+# predicts (common in subduction zones), so the long-run rates above are counted directly, not
+# read off the line.
+#
 # ## 5. What comes after a large quake
 #
 # The `aftershock_sequences` table lists every M5.5+ quake since 1990 with the M4.5+ quakes that
@@ -173,6 +181,8 @@ plt.show()
 # %% [markdown]
 # Most aftershocks come in the first hours and days: the rate decays roughly as 1/time (the Omori
 # law). Below, all M4.5+ aftershocks of independent M6.5+ shallow quakes, by hour after the mainshock.
+# In the first hour the curve flattens: right after a big quake, seismic waves overlap and many
+# aftershocks go uncatalogued, so the fit uses the time after the first hour.
 
 # %%
 mains = s[(s["mag"] >= 6.5) & (s["depth_km"] < 70)]
@@ -194,7 +204,7 @@ fig, ax = plt.subplots()
 ax.loglog(mid, rate, "o", color=C[0], label="observed")
 ok = rate > 0
 slope, icpt = np.polyfit(np.log10(mid[ok & (mid > 1)]), np.log10(rate[ok & (mid > 1)]), 1)
-ax.loglog(mid, 10 ** icpt * mid ** slope, color=C[7], lw=1.5, label=f"fit: rate ~ t^{slope:.2f}")
+ax.loglog(mid[mid > 1], 10 ** icpt * mid[mid > 1] ** slope, color=C[7], lw=1.5, label=f"fit after 1 h: rate ~ t^{slope:.2f}")
 ax.set_xlabel("Hours after the mainshock")
 ax.set_ylabel("Aftershocks per hour, per sequence")
 ax.set_title(f"Omori's law in {len(mains)} Indonesian sequences (M6.5+, shallow)")
@@ -208,7 +218,7 @@ print(f"{share:.0%} of the first month's M4.5+ aftershocks came within 24 hours;
 # ## The largest earthquakes in the catalogue
 
 # %%
-cols = ["time_wib", "mag", "mag_type", "depth_km", "province", "place", "tsunami", "alert"]
+cols = ["time_wib", "mag", "mag_type", "depth_km", "province", "place"]
 idn.nlargest(15, "mag")[cols].reset_index(drop=True)
 
 # %% [markdown]
@@ -216,9 +226,10 @@ idn.nlargest(15, "mag")[cols].reset_index(drop=True)
 #
 # - Indonesia's quakes trace its plate boundaries: shallow ones along the Sunda trench and in the
 #   east, and deep ones under Java, Flores and the Banda Sea, down to about 650 km.
-# - Large quakes come at a roughly steady rate; the busiest years are the aftershock sequences of the
-#   2004 and 2005 Sumatra megaquakes.
-# - The Gutenberg-Richter law holds well, and gives the long-run rates of M6, M7 and M8 quakes above.
+# - Large quakes come at a roughly steady rate; the busiest years, 2004-2009, followed the great
+#   Sumatra quakes.
+# - The Gutenberg-Richter law holds well up to about M6.5; larger quakes are a little more frequent
+#   than it predicts (about two M7+ quakes a year, and an M8+ every decade or so).
 # - Aftershocks follow simple laws: more after bigger and shallower quakes, most within the first day.
 #   The [Indonesia Aftershock Forecast model](https://www.kaggle.com/models/danielaijdkx/indonesia-aftershock-forecast)
 #   turns these patterns into a 7-day forecast.

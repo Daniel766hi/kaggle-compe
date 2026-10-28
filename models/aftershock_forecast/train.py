@@ -18,6 +18,9 @@ Candidates, compared on an inner validation period (2012-2017, trained on 1990-2
 The best on validation (mean Poisson deviance for counts, log loss for the chance) is then tested
 on the held-out period (2018 onward), trained on everything before it, and finally refitted on
 all quakes.
+
+Train with the scikit-learn version Kaggle notebooks run (1.6.1 in October 2026, found from a
+failing notebook's traceback): pickled models from newer versions fail to load there.
 """
 
 import json
@@ -28,6 +31,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 from sklearn.metrics import log_loss, mean_poisson_deviance
@@ -148,6 +152,7 @@ def main(data_dir, out_dir):
          "actual_m45_7d": int(r.aftershocks_m45_7d), "actual_m5_7d": int(r.aftershocks_m5_7d)}
         for i, r in examples.iterrows()]
     info["features"] = FEATURES
+    info["sklearn_version"] = sklearn.__version__
     info["note"] = ("Examples are predicted by the final model, which was refitted on all quakes including "
                     "these; the test scores above come from models that never saw the test period.")
     joblib.dump(final, out_dir / "model.joblib")

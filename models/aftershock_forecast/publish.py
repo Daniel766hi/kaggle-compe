@@ -196,11 +196,14 @@ quake["aftershocks_m45_1d"] = 5
 forecast(models, quake, stage="after_24h")  # one day later
 ```
 
-`joblib.load` unpickles the file: only load model files from sources you trust.
+Trained with scikit-learn {sklearn_version} (the version Kaggle notebooks run); other versions may
+fail to load the file. `joblib.load` unpickles it: only load model files from sources you trust.
 
 # Changelog
 
 Version 1: first release.
+Version 2: retrained with Kaggle's scikit-learn version; sequences that fall inside a larger
+quake's aftershock zone are now left out of training.
 """
 
 
@@ -208,6 +211,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("out_dir")
     p.add_argument("--public", action="store_true")
+    p.add_argument("--notes", default="Retrained", help="version notes when the instance already exists")
     args = p.parse_args()
     owner = os.environ.get("KAGGLE_USERNAME") or sys.exit("Set KAGGLE_USERNAME")
     out_dir = Path(args.out_dir)
@@ -242,18 +246,19 @@ def main():
         instance_meta = {
             "ownerSlug": owner, "modelSlug": SLUG, "instanceSlug": INSTANCE, "framework": "scikitLearn",
             "overview": f"Count models ({', '.join(chosen)}) of aftershocks after M5.5+ Indonesian earthquakes.",
-            "usage": USAGE, "licenseName": "Apache 2.0", "fineTunable": False,
+            "usage": USAGE.replace("{sklearn_version}", info.get("sklearn_version", "1.6.1")), "licenseName": "Apache 2.0", "fineTunable": False,
             "trainingData": [DATASET], "modelInstanceType": "Unspecified",
             "baseModelInstanceId": 0, "externalBaseModelUrl": "",
         }
         (files / "model-instance-metadata.json").write_text(json.dumps(instance_meta, indent=2))
-        try:
-            print(api.model_instance_create(str(files), quiet=True))
-        except Exception as exc:  # noqa: BLE001 - instance exists: upload a new version
-            print(f"instance exists ({exc}); creating a new version")
+        resp = api.model_instance_create(str(files), quiet=True)
+        print(resp)
+        if getattr(resp, "error_code", None) == 409 or "already used" in str(getattr(resp, "error", "") or ""):
+            print("instance exists; updating its card and uploading a new version")
+            api.model_instance_update(str(files))
             (files / "model-instance-metadata.json").unlink()
             print(api.model_instance_version_create(f"{owner}/{SLUG}/scikitLearn/{INSTANCE}", str(files),
-                                                    version_notes="Retrained", quiet=True))
+                                                    version_notes=args.notes, quiet=True))
 
 
 if __name__ == "__main__":

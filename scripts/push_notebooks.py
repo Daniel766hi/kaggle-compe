@@ -80,7 +80,7 @@ NOTEBOOKS = {
         "source": "notebooks/aftershock_forecast_example.py",
         "title": "After a Strong Quake: 7-Day Aftershock Forecast",
         "datasets": ["indonesia-earthquakes-usgs-daily"],
-        "models": ["indonesia-aftershock-forecast/scikitLearn/default/1"],
+        "models": ["indonesia-aftershock-forecast/scikitLearn/default/2"],
         "tags": ["earth and nature", "time series analysis", "regression", "data visualization"],
     },
     "idn-politics": {

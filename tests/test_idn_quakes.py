@@ -104,7 +104,7 @@ def test_sequences_count_aftershocks_in_the_radius_and_flag_prior_larger():
     seq = qk.sequences(events).set_index("mainshock_id")
     main = seq.loc["main"]
     assert (main["aftershocks_m45_1d"], main["aftershocks_m45_7d"], main["aftershocks_m5_7d"]) == (1, 2, 1)
-    assert main["max_aftershock_mag_7d"] == 5.2 and main["prior_m45_30d"] == 1
+    assert main["aftershocks_m5_1d"] == 0 and main["max_aftershock_mag_7d"] == 5.2 and main["prior_m45_30d"] == 1
     assert not main["prior_larger_30d"] and main["complete_7d"]
     assert seq.loc["fore", "aftershocks_m45_7d"] == 2  # main and a1 follow the 6.4 within 7 days
     assert seq.loc["far", "prior_larger_30d"] == False  # noqa: E712 - 1,800 km away

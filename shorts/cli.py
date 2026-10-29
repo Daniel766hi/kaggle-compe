@@ -88,7 +88,7 @@ def _parser(platform, doc):
     p.add_argument("id", type=int)
     p.set_defaults(run=cmd_show)
 
-    p = sub.add_parser("revise", help="have Claude rework a plan with your feedback")
+    p = sub.add_parser("revise", help="have the AI rework a plan with your feedback")
     p.add_argument("id", type=int)
     p.add_argument("feedback")
     p.set_defaults(run=cmd_revise)

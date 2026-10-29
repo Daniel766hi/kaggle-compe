@@ -34,7 +34,7 @@ class InstagramClient:
     def from_env(cls):
         missing = [k for k in ("INSTAGRAM_USER_ID", "INSTAGRAM_ACCESS_TOKEN") if not os.environ.get(k)]
         if missing:
-            raise SystemExit(f"Set {', '.join(missing)} (run: python -m instagram_agent connect; see README).")
+            raise SystemExit(f"Set {', '.join(missing)}: run `python -m instagram_agent login` (it walks you through it).")
         return cls(os.environ["INSTAGRAM_USER_ID"], os.environ["INSTAGRAM_ACCESS_TOKEN"])
 
     def publish_reel(self, path, caption):

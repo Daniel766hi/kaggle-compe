@@ -207,3 +207,28 @@ def test_a_platform_can_use_its_own_profile(tmp_path, monkeypatch):
     profile.write_text("# A cooking channel")
     monkeypatch.setenv("INSTAGRAM_PROFILE", str(profile))
     assert PLATFORM.profile == "# A cooking channel"
+
+
+def test_login_walks_you_through_and_saves_the_account(monkeypatch):
+    for name in ("META_APP_ID", "META_APP_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    saved, opened = {}, []
+    monkeypatch.setattr(ig_main.local_env, "save", lambda key, value: saved.update({key: value}))
+    accounts = [{"page": "Old Page", "username": "old", "user_id": "1", "access_token": "t1"},
+                {"page": "Animals", "username": "funnyanimals", "user_id": "2", "access_token": "t2"}]  # fmt: skip
+    monkeypatch.setattr(instagram, "connect", lambda app, secret, token: accounts if (app, secret, token) == ("app", "sec", "tok") else [])
+    monkeypatch.setattr(instagram.InstagramClient, "quota", lambda self: {"used": 0, "total": 100})
+    answers = iter(["app", "sec", "tok", "2"])
+    args = argparse.Namespace(short_token=None)
+    assert ig_main.cmd_login(PLATFORM, None, args, ask=lambda prompt: next(answers), open_browser=opened.append) == 0
+    assert opened == [ig_main.EXPLORER]
+    assert saved == {"META_APP_ID": "app", "META_APP_SECRET": "sec", "INSTAGRAM_USER_ID": "2", "INSTAGRAM_ACCESS_TOKEN": "t2"}
+
+
+def test_login_explains_a_missing_professional_account(monkeypatch):
+    monkeypatch.setenv("META_APP_ID", "app")
+    monkeypatch.setenv("META_APP_SECRET", "sec")
+    monkeypatch.setattr(ig_main.local_env, "save", lambda *a: pytest.fail("nothing to save"))
+    monkeypatch.setattr(instagram, "connect", lambda *a: [])
+    with pytest.raises(SystemExit, match="No Instagram professional account"):
+        ig_main.cmd_login(PLATFORM, None, argparse.Namespace(short_token="tok"), ask=lambda p: "", open_browser=lambda u: None)

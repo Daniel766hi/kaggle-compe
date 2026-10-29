@@ -242,14 +242,15 @@ Setup:
 2. **Meta app:** at developers.facebook.com create an app of type *Business*, add
    *Instagram* (API setup with Facebook login), and note the app ID and secret. You are the app's
    admin, so you can publish to your own account without App Review.
-3. **Token, once:** in the Graph API Explorer (developers.facebook.com/tools/explorer), pick your
-   app and generate a user token with `instagram_basic`, `instagram_content_publish`,
-   `pages_show_list` and `pages_read_engagement`. Then:
+3. **Connect, once,** on your computer:
    ```
-   export META_APP_ID=... META_APP_SECRET=...
-   python -m instagram_agent connect <the token from the explorer>
+   python -m instagram_agent login
    ```
-   This prints `INSTAGRAM_USER_ID` and a Page token that doesn't expire.
+   It shows these steps, asks for the app ID and secret, opens the Graph API Explorer (pick your
+   app; add `instagram_basic`, `instagram_content_publish`, `pages_show_list`,
+   `pages_read_engagement` and `business_management`; *Generate Access Token*; paste it), finds
+   the Instagram account linked to your Page and saves `INSTAGRAM_USER_ID` and a Page token that
+   doesn't expire in `.env`.
 4. **Automation:** add the repo secrets `ANTHROPIC_API_KEY`, `HF_KEY`, `INSTAGRAM_USER_ID` and
    `INSTAGRAM_ACCESS_TOKEN`, then the variable `INSTAGRAM_AGENT_ENABLED=true`. The *Instagram
    agent* workflow runs daily at 18:07 WIB. It plans new Reels when fewer than 3 are waiting,

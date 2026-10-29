@@ -72,6 +72,19 @@ Policy Anda ditulis di `smart_buildings/baselines/transfer_policy.py` (kelas `Tr
 dengan method `__init__(building_meta_data, action_spec)` dan `get_action(obs)`).
 Ambil indeks aksi dari `building_meta_data`, jangan di-hardcode.
 
+## Notebook submit
+
+Notebook `notebooks/smart_buildings_submission.ipynb` (sumbernya `.py`, format percent) mengikuti
+notebook resmi "TransferPolicy Notebook" dari tab Code. Paket `smart_buildings` beserta 30
+skenario latih sudah ada di data kompetisi, jadi notebook tidak butuh internet.
+
+- `MyPolicy` = baseline `pid_water`. Perubahan Anda ditulis di kelas ini.
+- `SubmissionPolicy` membungkus `MyPolicy` untuk server inference, lalu memotong (clip) aksi
+  ke batas ruang aksi.
+- Sel penilaian lokal (`LOCAL_EVAL` = `smoke` / `scenario` / `full`) dilewati saat rerun tersembunyi.
+- Cara pakai: Kaggle → New Notebook → File → Import Notebook → pilih `.ipynb`. Lalu Add Input
+  data kompetisi, Internet off, Save Version, dan submit versi itu.
+
 ## Peluang perbaikan (dari dokumentasi starter kit)
 
 - AHU hanya bisa mendinginkan. Semua pemanas berasal dari reheat VAV lewat loop air panas.

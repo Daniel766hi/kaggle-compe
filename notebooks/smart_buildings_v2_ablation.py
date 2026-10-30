@@ -9,13 +9,16 @@
 # **Variants**
 # - The organizers' chain (`smart_buildings/baselines/pid.py`, `pid_plus.py`), each step adding one
 #   idea: `pid` → `pid_worst` (worst zone instead of average) → `pid_econ` (economizer) →
-#   `pid_prop` (proportional reheat) → `pid_water` (hot-water reset; the version already
-#   submitted, public score 0.0052).
+#   `pid_prop` (proportional reheat) → `pid_water` (hot-water reset).
 # - `water_sensor`: `pid_water` with `USE_SENSOR_BAND = True`. The chain can read each zone's band
 #   from its own setpoint sensors (the band the reward uses), but ships with that switch off.
-# - `water_precond`: `pid_water` that switches to the comfort band `PRECOND_HOURS` before the
-#   weekday comfort period, so zones are in band when occupancy starts.
-# - `water_sensor_precond`: both.
+# - `water_precond` / `pid_precond`: `pid_water` / `pid` switched to the comfort band
+#   `PRECOND_HOURS` before the weekday comfort period, so zones are in band when occupancy starts.
+# - `water_sensor_precond`: `water_sensor` with pre-conditioning.
+#
+# `VARIANTS` picks which ones run. The first run (8 variants, 45 minutes) finished only Fairbanks:
+# `pid` beat `pid_water` by 27% there, and pre-conditioning helped in both Fairbanks (-1.5%) and
+# the part of Phoenix that ran (-25%). This run keeps the five that matter, across all climates.
 #
 # **Time saving**: 5 scenarios (one per weather station, different buildings) × `STEPS` steps
 # (default 2,016 = 7 days, which includes a weekend), runs ordered scenario by scenario so a
@@ -58,7 +61,7 @@ OUT_DIR = Path("/kaggle/working") if Path("/kaggle/working").exists() else Path(
 IS_RERUN = os.getenv("KAGGLE_IS_COMPETITION_RERUN") is not None
 RUN_EXPERIMENT = True
 STEPS = 2016  # 288 = 1 day, 2016 = 7 days, 8640 = the full 30-day episode
-TIME_BUDGET_MIN = 45
+TIME_BUDGET_MIN = 200
 SCENARIOS = [
     "building_train_1/fairbanks_1",
     "building_train_2/phoenix_6",
@@ -66,10 +69,7 @@ SCENARIOS = [
     "building_train_5/atlanta_6",
     "building_train_7/singapore_6",
 ]
-VARIANTS = [
-    "pid_water", "water_sensor", "water_precond", "water_sensor_precond",
-    "pid_prop", "pid_econ", "pid_worst", "pid",
-]
+VARIANTS = ["pid_water", "water_precond", "pid", "pid_precond", "water_sensor"]
 SUBMIT_VARIANT = "pid_water"
 print("Competition data:", DATA_ROOT, "| hidden rerun:", IS_RERUN)
 
@@ -90,12 +90,13 @@ class WaterSensorPolicy(PIDWaterResetPolicy):
     USE_SENSOR_BAND = True
 
 
-class WaterPrecondPolicy(PIDWaterResetPolicy):
-    """pid_water that holds the comfort band from PRECOND_HOURS before the weekday start.
+class PrecondMixin:
+    """Holds the comfort band from PRECOND_HOURS before the weekday start.
 
-    The chain picks its band from the hour of day in several places, so the hour is shifted to the
-    comfort start inside the pre-conditioning window. While that window is active, zones are judged
-    against the comfort band even when sensor bands are on, since the sensors still report eco.
+    The PID policies pick their band from the hour of day in several places, so the hour is shifted
+    to the comfort start inside the pre-conditioning window. While that window is active, zones are
+    judged against the comfort band even when sensor bands are on, since the sensors still report
+    eco. `pid` has no per-zone band, so only the hour shift applies to it.
     """
 
     PRECOND_HOURS = 1
@@ -112,8 +113,16 @@ class WaterPrecondPolicy(PIDWaterResetPolicy):
         return super()._zone_band(obs, vav_id, low, high)
 
 
+class WaterPrecondPolicy(PrecondMixin, PIDWaterResetPolicy):
+    pass
+
+
 class WaterSensorPrecondPolicy(WaterPrecondPolicy):
     USE_SENSOR_BAND = True
+
+
+class PIDPrecondPolicy(PrecondMixin, PIDPolicy):
+    pass
 
 
 POLICIES = {
@@ -125,6 +134,7 @@ POLICIES = {
     "water_sensor": WaterSensorPolicy,
     "water_precond": WaterPrecondPolicy,
     "water_sensor_precond": WaterSensorPrecondPolicy,
+    "pid_precond": PIDPrecondPolicy,
 }
 
 

@@ -102,6 +102,26 @@ rantai baseline resmi (`pid` → `pid_worst` → `pid_econ` → `pid_prop` → `
 Hasilnya ditulis ke `ablation_results.csv` dan `ablation_summary.csv`, termasuk rincian
 kenyamanan, energi, dan karbon. Notebook yang sama bisa di-submit lewat `SUBMIT_VARIANT`.
 
+### Hasil ablation (Kaggle, notebook v2 version 2, 31 Okt 2026)
+
+Lima skenario × 7 hari (2.016 langkah), satu gedung per iklim. Skor = |reward per langkah|,
+makin kecil makin baik. Belum sebanding dengan skor 30 hari maupun skor leaderboard.
+
+| Varian | Rata-rata | vs `pid_water` | Fairbanks | Phoenix | Denver | Atlanta | Singapore |
+|---|---|---|---|---|---|---|---|
+| `pid_precond` | **0.0815** | −19.9% | **0.2032** | 0.0996 | 0.0498 | 0.0308 | 0.0239 |
+| `water_precond` | 0.0916 | −9.9% | 0.2887 | **0.0746** | **0.0443** | **0.0268** | **0.0238** |
+| `pid_water` | 0.1017 | 0 | 0.2930 | 0.1001 | 0.0457 | 0.0453 | 0.0243 |
+| `water_sensor` | 0.1032 | +1.5% | 0.2956 | 0.0912 | 0.0462 | 0.0584 | 0.0244 |
+| `pid` | 0.1034 | +1.7% | 0.2125 | 0.1311 | 0.0512 | 0.0814 | 0.0410 |
+
+- Pre-conditioning 1 jam sebelum jam kerja memperbaiki `pid_water` di kelima iklim, dengan
+  perbaikan terbesar di Atlanta (−41%) dan Phoenix (−25%).
+- `pid_precond` punya rata-rata terbaik, tapi hampir seluruhnya berasal dari Fairbanks.
+  Di empat iklim lain `water_precond` lebih baik atau setara.
+- `USE_SENSOR_BAND` tidak membantu.
+- Batasan: satu gedung per iklim, 7 hari, dan cuaca uji tersembunyi berbeda dari cuaca latih.
+
 ## Peluang perbaikan (dari dokumentasi starter kit)
 
 - AHU hanya bisa mendinginkan. Semua pemanas berasal dari reheat VAV lewat loop air panas.

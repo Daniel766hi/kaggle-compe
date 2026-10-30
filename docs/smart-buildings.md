@@ -87,10 +87,10 @@ skenario latih sudah ada di data kompetisi, jadi notebook tidak butuh internet.
 
 ### Hasil submit pertama
 
-`pid_water` tanpa perubahan mendapat skor publik **0.0052** (dilaporkan 30 Okt 2026).
-Leaderboard saat itu: peringkat 1 di 0.00470 dan peringkat 20 di 0.00627, dari 410 tim.
-Artinya skenario uji tersembunyi jauh lebih ringan daripada skenario latih (`pid_water` mendapat
-0.0541 di skenario latih). Leaderboard publik hanya memakai 33% skenario uji.
+Belum ada. Angka 0.0052 yang sempat dilaporkan (30 Okt 2026) bukan hasil submission, karena saat
+itu belum ada notebook di Kaggle. Skor `pid_water` di skenario uji tersembunyi belum diketahui.
+Leaderboard 30 Okt: peringkat 1 di 0.00470 dan peringkat 20 di 0.00627, dari 410 tim.
+Leaderboard publik hanya memakai 33% skenario uji.
 
 ### Notebook v2: ablation hemat waktu
 

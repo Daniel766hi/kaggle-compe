@@ -85,6 +85,23 @@ skenario latih sudah ada di data kompetisi, jadi notebook tidak butuh internet.
 - Cara pakai: Kaggle → New Notebook → File → Import Notebook → pilih `.ipynb`. Lalu Add Input
   data kompetisi, Internet off, Save Version, dan submit versi itu.
 
+### Hasil submit pertama
+
+`pid_water` tanpa perubahan mendapat skor publik **0.0052** (dilaporkan 30 Okt 2026).
+Leaderboard saat itu: peringkat 1 di 0.00470 dan peringkat 20 di 0.00627, dari 410 tim.
+Artinya skenario uji tersembunyi jauh lebih ringan daripada skenario latih (`pid_water` mendapat
+0.0541 di skenario latih). Leaderboard publik hanya memakai 33% skenario uji.
+
+### Notebook v2: ablation hemat waktu
+
+`notebooks/smart_buildings_v2_ablation.ipynb` membandingkan 8 varian pada 5 skenario (satu per
+stasiun cuaca) × 7 hari, dengan batas waktu `TIME_BUDGET_MIN`. Varian yang dibandingkan:
+rantai baseline resmi (`pid` → `pid_worst` → `pid_econ` → `pid_prop` → `pid_water`),
+`water_sensor` (`USE_SENSOR_BAND = True`, saklar yang ada di baseline tapi dimatikan),
+`water_precond` (pita nyaman 1 jam sebelum jam kerja), dan gabungan keduanya.
+Hasilnya ditulis ke `ablation_results.csv` dan `ablation_summary.csv`, termasuk rincian
+kenyamanan, energi, dan karbon. Notebook yang sama bisa di-submit lewat `SUBMIT_VARIANT`.
+
 ## Peluang perbaikan (dari dokumentasi starter kit)
 
 - AHU hanya bisa mendinginkan. Semua pemanas berasal dari reheat VAV lewat loop air panas.

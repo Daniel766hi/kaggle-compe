@@ -115,6 +115,7 @@ chi_pilot/         χ-Bench agent harness (see docs/chi-bench.md)
 scripts/install_chi_pilot.py   copies chi_pilot/ into a χ-Bench checkout and registers it
 notebooks/chi_pilot_run.py     private Kaggle notebook that runs chi-pilot on Modal
 notebooks/smart_buildings_submission.py   NeurIPS 2026 Smart Buildings submission notebook (.ipynb alongside)
+notebooks/smart_buildings_v2_ablation.py  time-boxed ablation of Smart Buildings controllers, also submittable
 report/                        technical report draft and its result-table generator
 configs/chi_bench/chi-pilot.yaml   χ-Bench submission config
 ```

@@ -116,6 +116,8 @@ scripts/install_chi_pilot.py   copies chi_pilot/ into a χ-Bench checkout and re
 notebooks/chi_pilot_run.py     private Kaggle notebook that runs chi-pilot on Modal
 notebooks/smart_buildings_submission.py   NeurIPS 2026 Smart Buildings submission notebook (.ipynb alongside)
 notebooks/smart_buildings_v2_ablation.py  time-boxed ablation of Smart Buildings controllers, also submittable
+notebooks/smart_buildings_rl_base.py     submission copy of the public residual-RL controller (Apache-2.0), our base
+scripts/percent_to_ipynb.py    converts a `# %%` notebook script to .ipynb, with optional constant overrides
 report/                        technical report draft and its result-table generator
 configs/chi_bench/chi-pilot.yaml   χ-Bench submission config
 ```

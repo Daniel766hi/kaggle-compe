@@ -173,3 +173,41 @@ def test_failed_generation_still_posts_what_is_approved(tmp_path, monkeypatch):
     broken = FakeClaude()  # no responses left: the request fails
     assert cli.cmd_autopilot(q, SimpleNamespace(min_drafts=3, count=1, dry_run=False), XClient(session), broken) == 1
     assert q.get(1)["status"] == "posted"
+
+
+class FakeMe:
+    def __init__(self, status=200, body=None):
+        self.status, self.body = status, body or {"data": {"id": "42", "username": "daniel"}}
+
+    def get(self, url, timeout):
+        assert url == "https://api.x.com/2/users/me"
+        resp = FakeResponse(self.status, self.body)
+        resp.text = json.dumps(self.body)
+        return resp
+
+
+def test_login_saves_the_four_keys_and_checks_them(monkeypatch, tmp_path):
+    from x_agent import __main__ as x_main
+    from x_agent.x_client import XClient
+
+    saved, opened = {}, []
+    monkeypatch.setattr(x_main.local_env, "save", lambda key, value: saved.update({key: value}))
+    for key in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"):
+        monkeypatch.delenv(key, raising=False)
+    answers = iter(["k", "ks", "t", "ts"])
+    queue = PostQueue(tmp_path / "q.json")
+    code = x_main.cmd_login(queue, None, ask=lambda p: next(answers), open_browser=opened.append, client=XClient(FakeMe()))
+    assert code == 0 and opened == [x_main.CONSOLE]
+    assert saved == {"X_API_KEY": "k", "X_API_SECRET": "ks", "X_ACCESS_TOKEN": "t", "X_ACCESS_TOKEN_SECRET": "ts"}
+
+
+@pytest.mark.parametrize("status, body, hint", [
+    (401, {"title": "Unauthorized"}, "didn't accept the keys"),
+    (402, {"title": "CreditsDepleted"}, "no credits"),
+    (403, {"title": "Forbidden", "detail": "oauth1 app permissions"}, "Read and write"),
+])  # fmt: skip
+def test_the_key_check_explains_the_usual_mistakes(status, body, hint):
+    from x_agent.x_client import XClient, XError
+
+    with pytest.raises(XError, match=hint):
+        XClient(FakeMe(status, body)).me()

@@ -1,6 +1,6 @@
 """AI agent for an X (Twitter) account: ideas, drafts, review queue and posting.
 
-    python -m x_agent ideas --count 5             # Claude researches and drafts 5 posts into the queue
+    python -m x_agent ideas --count 5             # the AI drafts 5 posts into the queue
     python -m x_agent ideas --theme "haze season" # ideas on one theme
     python -m x_agent list                        # drafts and approved posts waiting
     python -m x_agent show 3                      # full text, sources and what to fact-check
@@ -10,6 +10,7 @@
     python -m x_agent reject 5
     python -m x_agent post [--dry-run]            # publish the oldest approved post
     python -m x_agent autopilot                   # top up drafts if few are waiting, then post one
+    python -m x_agent login                       # save your X API keys (optional, X charges per post)
 
 With no arguments the command is read from X_AGENT_COMMAND (used by the GitHub Actions workflow).
 """
@@ -19,6 +20,7 @@ import logging
 import os
 import shlex
 import sys
+import webbrowser
 
 import llm
 import local_env
@@ -62,7 +64,7 @@ def _parser():
     p.add_argument("id", type=int)
     p.set_defaults(run=cmd_show)
 
-    p = sub.add_parser("revise", help="have Claude rewrite a draft with your feedback")
+    p = sub.add_parser("revise", help="have the AI rewrite a draft with your feedback")
     p.add_argument("id", type=int)
     p.add_argument("feedback")
     p.set_defaults(run=cmd_revise)
@@ -86,7 +88,48 @@ def _parser():
     p.add_argument("--count", type=int, default=5, help="ideas to generate when topping up")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(run=cmd_autopilot)
+
+    p = sub.add_parser("login", help="save your X API keys so the office can post for you (X charges per post)")
+    p.set_defaults(run=cmd_login)
     return parser
+
+
+LOGIN_STEPS = """\
+X API keys (optional). Without them the office still works for free: "Open in X" fills in the post,
+you press Post, then "I posted it". With keys, "Post to X now" posts for you, and X charges your
+developer credits for each post (about $0.015 a post, more if it has a link; check X's current prices).
+
+  1. The X developer console opens next. Sign in with the X account you post from, sign up for the
+     developer program, and create an app (any name).
+  2. In the app: User authentication settings -> App permissions: Read and write. Type of app: Web
+     App, Automated App or Bot. Callback URI and website: any of your links (e.g. your profile).
+  3. Keys and tokens: copy the API Key and API Key Secret. Then generate the Access Token and
+     Access Token Secret (only after step 2, so they can write).
+  4. Billing: buy a small amount of credits (a few dollars lasts hundreds of posts).
+"""
+CONSOLE = "https://developer.x.com/en/portal/dashboard"
+
+
+def cmd_login(queue, args, ask=input, open_browser=webbrowser.open, client=None):
+    print(LOGIN_STEPS)
+    open_browser(CONSOLE)
+    labels = {"X_API_KEY": "API Key", "X_API_SECRET": "API Key Secret",
+              "X_ACCESS_TOKEN": "Access Token", "X_ACCESS_TOKEN_SECRET": "Access Token Secret"}  # fmt: skip
+    for name, label in labels.items():
+        value = ask(f"Paste the {label}: ").strip()
+        if not value:
+            raise SystemExit(f"No {label}; run this again when you have it. (The free Open in X button still works.)")
+        local_env.save(name, value)
+        os.environ[name] = value
+    print("Saved in .env. Checking them with X ...")
+    try:
+        account = (client or XClient.from_env()).me()
+    except (XError, OSError) as e:
+        print(f"Not ready yet: {e}")
+        return 1
+    print(f"X is connected: the office posts as @{account['username']}. \"Post to X now\" appears on approved posts.")
+    print("For the scheduled GitHub runs too, add the four X_* values as repository secrets.")
+    return 0
 
 
 def cmd_ideas(queue, args):

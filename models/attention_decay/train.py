@@ -10,7 +10,8 @@ the newest 20% test. Candidates:
 - "persistence" (baseline): views stay at the spike-day level.
 - "typical decay" (baseline): every spike follows the median decay curve of the training spikes.
 - "linear": ridge regression on the inputs.
-- "boosted trees": gradient boosting on the inputs.
+- "boosted trees": gradient boosting on the inputs (squared error), and "boosted trees (median)", the
+  same fitted to absolute error.
 The best on validation is tested, then refitted on all spikes for publishing.
 
 Train with the scikit-learn version Kaggle notebooks run (1.6.1 in October 2026): pickled models
@@ -60,6 +61,10 @@ CANDIDATES = {
     "linear": lambda: make_pipeline(StandardScaler(), Ridge(alpha=1.0)),
     "boosted trees": lambda: HistGradientBoostingRegressor(max_iter=400, learning_rate=0.05, max_depth=6,
                                                            min_samples_leaf=50, random_state=0),
+    # The same trees fitted to the median (absolute error) instead of the mean: attention decays are
+    # skewed, and the scores below are absolute errors.
+    "boosted trees (median)": lambda: HistGradientBoostingRegressor(
+        loss="absolute_error", max_iter=400, learning_rate=0.05, max_depth=6, min_samples_leaf=50, random_state=0),
 }
 BASELINES = ("persistence", "typical decay")
 
@@ -86,7 +91,9 @@ def main(data_dir, out_dir):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     spikes = pd.read_csv(Path(data_dir) / "attention_spikes.csv", parse_dates=["spike_date"])
-    spikes = spikes[spikes["views_d0"] > 0].sort_values("spike_date").reset_index(drop=True)
+    # One-day bursts (next-day views below 1% of the spike day) are almost always automated traffic.
+    bursts = spikes["one_day_burst"].astype(bool) if "one_day_burst" in spikes else False
+    spikes = spikes[(spikes["views_d0"] > 0) & ~bursts].sort_values("spike_date").reset_index(drop=True)
     cut_valid, cut_test = spikes["spike_date"].quantile([0.65, 0.80])
     parts = {"train": spikes[spikes["spike_date"] < cut_valid],
              "valid": spikes[(spikes["spike_date"] >= cut_valid) & (spikes["spike_date"] < cut_test)],

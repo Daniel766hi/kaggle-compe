@@ -50,7 +50,10 @@ NAMESPACES = {
     "pembicaraan", "talk", "pembicaraan_pengguna", "user_talk", "wikipedia_bicara", "media", "topik", "topic",
     "draf", "draft",
 }
-NOT_ARTICLES = {"Halaman_Utama", "Main_Page", "-", "Undefined", "Wikipedia"}
+NOT_ARTICLES = {"halaman_utama", "main_page", "-", "undefined", "wikipedia"}  # compared in lower case
+# A spike whose views the next day are below this share of the spike day is flagged: real attention
+# never vanishes that fast, so these are almost always automated traffic counted as people.
+BURST_SHARE = 0.01
 
 
 def view_col(offset):
@@ -122,6 +125,7 @@ SPIKES = Table(
         Column("baseline_7d", "number", "Mean daily views over the 7 days before"),
         Column("next_7d", "integer", "Total views over the 7 days after the spike day"),
         Column("half_life_days", "number", "Days until daily views first fell to half the spike day (empty: not within 14)"),
+        Column("one_day_burst", "boolean", "Next-day views below 1% of the spike day: most likely automated traffic"),
     ],
 )
 
@@ -148,7 +152,7 @@ def is_article(titles):
     titles = pd.Series(titles, dtype="string")
     prefix = titles.str.split(":", n=1).str[0].str.lower()
     namespaced = titles.str.contains(":", regex=False) & prefix.isin(NAMESPACES)
-    return ~(namespaced | titles.isin(NOT_ARTICLES))
+    return ~(namespaced | titles.str.lower().isin(NOT_ARTICLES))
 
 
 # ---------- API ----------
@@ -339,6 +343,7 @@ def spike_table(series, top):
     half = following <= (out["views_d0"].to_numpy(dtype=float)[:, None] / 2)
     first = np.where(half.any(axis=1), half.argmax(axis=1) + 1, np.nan)
     out["half_life_days"] = first
+    out["one_day_burst"] = (out["views_p1"] < BURST_SHARE * out["views_d0"]).tolist()
     return out[SPIKES.column_names]
 
 
@@ -410,6 +415,9 @@ def describe(snapshot_date, tables_written, frames=None):
         "automated traffic still slips through, so an obscure page with a sudden huge count may be a bot.",
         "- A spike is an article that entered the top 100 on a day after being outside the top 1,000 on "
         "each of the 7 days before. Spikes are added once the 14 days after them have passed.",
+        "- `one_day_burst` flags spikes whose views the next day fell below 1% of the spike day (about 1.5% "
+        "of spikes): real attention does not vanish that fast, so these are almost always automated traffic. "
+        "Leave them out when studying people's attention.",
         "- `monthly_top_articles` sums views over the days an article was in the daily top 1,000, so its "
         "totals are lower bounds.",
         "- Dates are UTC days (07:00 to 07:00 Western Indonesia Time).",

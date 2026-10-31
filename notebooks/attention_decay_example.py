@@ -52,6 +52,9 @@ from features import forecast  # noqa: E402
 model = joblib.load(os.path.join(model_dir, "model.joblib"))
 info = json.load(open(os.path.join(model_dir, "model_info.json")))
 spikes = pd.read_csv(find("attention_spikes.csv"), parse_dates=["spike_date"])
+# Spikes whose views vanish the next day (below 1% of the spike day) are almost always automated
+# traffic; the dataset flags them as `one_day_burst`. They are left out here.
+spikes = spikes[~(spikes["views_p1"] < 0.01 * spikes["views_d0"])].reset_index(drop=True)
 print(f"Model: {info['chosen']}, trained on {info['data']['spikes']:,} spikes "
       f"({info['data']['first']} to {info['data']['last']}); dataset has {len(spikes):,} spikes "
       f"up to {spikes['spike_date'].max():%d %B %Y}")
@@ -104,7 +107,7 @@ for (name, s), color in zip(info["test"].items(), [C[7], C[3], C[0], C[2]]):
     ax.plot(hs, [s["mae_log_by_horizon"][str(h)] for h in hs], marker="o", color=color, label=name)
 ax.set_xlabel("Days after the spike")
 ax.set_ylabel("Mean error (log scale)")
-ax.set_title("Forecast error grows with the horizon; persistence is far off after day 1")
+ax.set_title("Persistence is far off after day 1; the model gains most on days 4-7")
 ax.legend()
 plt.show()
 

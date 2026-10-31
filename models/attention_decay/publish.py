@@ -54,10 +54,33 @@ def examples_table(info):
     return "\n".join(rows)
 
 
+def honest_reading(info):
+    """The 'reading the results' paragraph, written from the numbers so it never overstates them."""
+    best, base = info["test"][info["chosen"]], info["test"]["typical decay"]
+    lines = ["Reading the results honestly:", ""]
+    lines.append("- Attention after a spike fades fast and in a fairly typical way, so the \"typical decay\" rule is "
+                 "a strong baseline and \"views stay the same\" is far off.")
+    wins = [label for key, label in (("mae_log", "daily error (log scale)"), ("next_7d_wape", "weighted 7-day error"),
+                                     ("next_7d_median_ape", "median 7-day error"))
+            if best[key] < base[key]]
+    losses = [label for key, label in (("mae_log", "daily error (log scale)"), ("next_7d_wape", "weighted 7-day error"),
+                                       ("next_7d_median_ape", "median 7-day error"))
+              if best[key] > base[key]]
+    if wins:
+        lines.append(f"- The model beats the typical decay on {' and '.join(wins)}" +
+                     (f", but not on {' and '.join(losses)}." if losses else "."))
+    else:
+        lines.append("- The model did not beat the typical decay on the test period: use the typical curve.")
+    lines.append(f"- Errors on single spikes are large: only {best['next_7d_within_25pct']:.0%} of 7-day totals were "
+                 "within 25%. A story that develops (a second event, an announcement) restarts the attention, "
+                 "and page views alone cannot see that coming.")
+    lines.append("- Spikes whose views vanish the next day (`one_day_burst`, almost always automated traffic) were "
+                 "left out of training and testing.")
+    return lines
+
+
 def description(info):
     d = info["data"]
-    best, base = info["test"][info["chosen"]], info["test"]["typical decay"]
-    better = best["mae_log"] < base["mae_log"]
     return "\n".join([
         "# Model Summary",
         "",
@@ -105,13 +128,7 @@ def description(info):
         "",
         examples_table(info),
         "",
-        "Reading the results honestly: attention decays fast and fairly predictably, so the typical decay curve "
-        "is already a strong baseline; " + (
-            f"the model improves on it ({best['mae_log']} vs {base['mae_log']} log error), mostly by telling apart "
-            "spikes that fade in a day from topics that stay in the news."
-            if better else "the model did not beat it on the test period, so use the typical curve.")
-        + " Single spikes can still be far off: a story that develops (a second event, an announcement) restarts "
-        "the attention, and no model can see that coming from page views alone.",
+        *honest_reading(info),
         "",
         "The published file is refitted on all spikes, including the test period.",
     ])

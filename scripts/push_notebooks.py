@@ -83,6 +83,19 @@ NOTEBOOKS = {
         "models": ["indonesia-aftershock-forecast/scikitLearn/default/2"],
         "tags": ["earth and nature", "time series analysis", "regression", "data visualization"],
     },
+    "idn-wiki": {
+        "source": "notebooks/what_indonesia_reads.py",
+        "title": "What Indonesia Reads: 11 Years of Wikipedia",
+        "datasets": ["indonesian-wikipedia-daily-top-articles"],
+        "tags": ["popular culture", "culture and humanities", "exploratory data analysis", "data visualization"],
+    },
+    "attention-decay": {
+        "source": "notebooks/attention_decay_example.py",
+        "title": "How Long Does the Hype Last? Attention Forecast",
+        "datasets": ["indonesian-wikipedia-daily-top-articles"],
+        "models": ["wikipedia-attention-decay-forecast/scikitLearn/default/1"],
+        "tags": ["popular culture", "time series analysis", "regression", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

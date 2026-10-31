@@ -44,6 +44,10 @@ def find(name):
 top = pd.read_parquet(find("top_articles.parquet"))
 totals = pd.read_csv(find("daily_totals.csv"), parse_dates=["date"])
 spikes = pd.read_csv(find("attention_spikes.csv"), parse_dates=["spike_date"])
+# Spikes whose views vanish the next day (below 1% of the spike day) are almost always automated
+# traffic; the dataset flags them as `one_day_burst`. They are left out here.
+spikes_all = spikes
+spikes = spikes[~(spikes["views_p1"] < 0.01 * spikes["views_d0"])].reset_index(drop=True)
 art = top[top["is_article"]].copy()
 art["year"] = art["date"].dt.year
 art["title"] = art["article"].str.replace("_", " ", regex=False)
@@ -63,41 +67,67 @@ ax.set_ylabel("Daily views (millions, monthly average)")
 ax.set_title("Indonesian Wikipedia: daily views by people, by device")
 ax.legend(loc="upper right")
 plt.show()
-first, last = monthly.iloc[12], monthly.iloc[-2]
-print(f"Mobile share: {first['views_mobile_web'] / first['views']:.0%} in {monthly.index[12]:%Y} -> "
-      f"{last['views_mobile_web'] / last['views']:.0%} in {monthly.index[-2]:%b %Y}")
+yearly_views = totals.groupby(totals["date"].dt.year)["views"].mean() / 1e6
+print("Average daily views (millions) per year:", yearly_views.round(2).to_dict())
+last12 = totals[totals["date"] > totals["date"].max() - pd.Timedelta(days=365)]["views"].mean() / 1e6
+peak_year = yearly_views.idxmax()
+print(f"Last 12 months: {last12:.2f} million a day, {1 - last12 / yearly_views[peak_year]:.0%} below {peak_year} "
+      f"and {1 - last12 / yearly_views[2024]:.0%} below 2024")
+share = (totals["views_mobile_web"] + totals["views_mobile_app"]).sum() / totals["views"].sum()
+print(f"Phones (browser + app): {share:.0%} of all views since 2015")
 
 # %% [markdown]
-# ## 2. The most-read articles of each year
+# Readership peaked in 2020 (people at home during COVID-19) and has fallen steeply since 2024. The
+# data alone cannot say why; a likely part of it is people getting answers from search-engine
+# summaries and AI chatbots without opening Wikipedia.
+
+# %% [markdown]
+# ## 2. The articles of each year
 #
-# Views summed over the days an article was in the daily top 1,000 (a lower bound for its total).
+# Ranked by the number of days each article was in the daily **top 100**: a measure of steady
+# attention. (Summed views would put a few pages with huge bursts of automated traffic, such as
+# search-engine names, on top.)
 
 # %%
-yearly = art.groupby(["year", "title"])["views"].sum().reset_index()
-best = yearly.sort_values(["year", "views"], ascending=[True, False]).groupby("year").head(5)
+top100 = art[art["rank"] <= 100]
+yearly = top100.groupby(["year", "title"]).size().rename("days_in_top_100").reset_index()
+best = yearly.sort_values(["year", "days_in_top_100"], ascending=[True, False]).groupby("year").head(5)
 best["rank"] = best.groupby("year").cumcount() + 1
 best.pivot(index="rank", columns="year", values="title")
 
 # %% [markdown]
-# ## 3. What comes back every year
-#
-# Some topics return on the calendar: holidays, national days, exams. Here, a few recurring
-# articles' daily views (when in the top 1,000) by day of the year, averaged over all years.
+# And the biggest single day of each year. To keep out automated traffic, a day only counts when the
+# article kept at least 10% of those views the next day (real attention fades, it does not vanish).
 
 # %%
-recurring = art.groupby("article")["year"].nunique()
-recurring = recurring[recurring >= 8].index
-r = art[art["article"].isin(recurring)].copy()
-r["doy"] = r["date"].dt.dayofyear
-# Articles whose attention is concentrated in a few weeks of the year.
-conc = r.groupby("article").apply(lambda g: g.groupby(g["doy"] // 14)["views"].sum().max() / g["views"].sum(),
-                                  include_groups=False)
-seasonal = conc[conc > 0.5].sort_values(ascending=False).head(12)
-pd.DataFrame({"title": [a.replace("_", " ") for a in seasonal.index],
-              "share of its views in its busiest 2 weeks": seasonal.round(2).to_numpy(),
-              "peak date (typical)": [r[r["article"] == a].groupby("doy")["views"].mean().idxmax() for a in seasonal.index]}
-             ).assign(**{"peak date (typical)": lambda d: pd.to_datetime(d["peak date (typical)"] - 1, unit="D",
-                                                                          origin="2025-01-01").dt.strftime("%d %b")})
+nxt = art[["article", "date", "views"]].assign(date=art["date"] - pd.Timedelta(days=1)).rename(columns={"views": "next_day"})
+clean = art.merge(nxt, on=["article", "date"], how="left")
+clean = clean[clean["next_day"] >= 0.1 * clean["views"]]
+peaks = clean.loc[clean.groupby("year")["views"].idxmax(), ["year", "date", "title", "views", "next_day"]]
+peaks.assign(date=peaks["date"].dt.strftime("%d %b")).reset_index(drop=True)
+
+# %% [markdown]
+# Most peaks are real news (Habibie's death in 2019, Didi Kempot's in 2020, the World Cup final
+# stretch in 2022). A few names, such as Facebook in 2015 and Yandex in 2023, are most likely
+# automated traffic that lasted several days: the filter above only removes one-day bursts.
+#
+# ## 3. What comes back every year
+#
+# Some topics return with the calendar: national days, religious holidays, exams. Below, articles whose
+# busiest two weeks of the year fell in the **same** two weeks in at least 6 different years. (Articles
+# named after a date, such as "17 Agustus", are left out: the main page features them on their date.)
+
+# %%
+r = art[~art["title"].str.match(r"^\d{1,2} \w+$")].copy()
+r["fortnight"] = (r["date"].dt.dayofyear - 1) // 14
+per_year = r.groupby(["article", "year", "fortnight"])["views"].sum().reset_index()
+busiest = per_year.loc[per_year.groupby(["article", "year"])["views"].idxmax()]
+same = busiest.groupby(["article", "fortnight"]).size().rename("years").reset_index()
+same = same[same["years"] >= 6].sort_values("years", ascending=False).drop_duplicates("article")
+same["around"] = pd.to_datetime(same["fortnight"] * 14 + 7, unit="D", origin="2025-01-01").dt.strftime("%d %b")
+same["views in top lists"] = same["article"].map(r.groupby("article")["views"].sum())
+same.assign(article=same["article"].str.replace("_", " ")).nlargest(15, "views in top lists")[
+    ["article", "years", "around", "views in top lists"]].reset_index(drop=True)
 
 # %% [markdown]
 # ## 4. How fast does attention fade?
@@ -142,9 +172,11 @@ spikes.nlargest(15, "views_d0")[["spike_date", "title", "spike_rank", "views_d0"
 # %% [markdown]
 # ## Takeaways
 #
-# - Indonesian Wikipedia is read mostly on phones, and the overall level is in the chart above.
-# - Yearly favourites mix evergreen topics with that year's big news.
-# - Calendar topics come back every year at the same time, a useful seasonal signal.
+# - Indonesian Wikipedia is read mostly on phones, and readership has fallen steeply since 2024.
+# - Yearly favourites mix evergreen school topics (sports, the constitution, independence) with that
+#   year's big news; a few pages are inflated by automated traffic, so rank by steady attention.
+# - The national calendar is visible every year: Independence Day in August, G30S on 1 October,
+#   Sumpah Pemuda on 28 October, Kartini in April, and sports topics in the December exam season.
 # - Attention spikes fade fast and fairly predictably; the [attention-decay model](https://www.kaggle.com/models/danielaijdkx/wikipedia-attention-decay-forecast)
 #   forecasts the 7 days after a spike.
 #

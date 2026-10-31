@@ -71,8 +71,9 @@ def short_history(monkeypatch):
 
 
 def test_is_article_flags_namespaces_and_the_main_page_only():
-    flags = wk.is_article(["Avengers:_Endgame", "Istimewa:Pencarian", "Halaman_Utama", "Joko_Widodo", "Berkas:X.jpg"])
-    assert flags.tolist() == [True, False, False, True, False]
+    flags = wk.is_article(["Avengers:_Endgame", "Istimewa:Pencarian", "Halaman_Utama", "Joko_Widodo", "Berkas:X.jpg",
+                           "halaman_utama"])
+    assert flags.tolist() == [True, False, False, True, False, False]
 
 
 def test_spikes_need_seven_quiet_days_and_fourteen_days_after():
@@ -110,6 +111,17 @@ def test_spike_table_computes_baseline_next_week_and_half_life():
     assert row["next_7d"] == sum(int(20000 / (k + 1)) for k in range(1, 8))
     assert row["half_life_days"] == 1 and row["baseline_7d"] == round(10 / 7, 1)
     assert row["title"] == "Gempa Bumi" and row["weekday"] == 1  # 20 Jan 2026 is a Tuesday
+    assert not row["one_day_burst"]
+
+
+def test_a_spike_that_vanishes_the_next_day_is_flagged_as_a_burst():
+    views = world()
+    views.update({("Robot_Page", pd.Timestamp("2026-01-25")): 900000, ("Robot_Page", pd.Timestamp("2026-01-26")): 40})
+    api = FakeWikimedia(views, "2026-02-10")
+    shared = {}
+    top = wk.fetch_top(api, None, date(2026, 2, 10), shared)
+    table = wk.spike_table(wk.fetch_spike_series(api, None, date(2026, 2, 10), shared), top).set_index("article")
+    assert table.loc["Robot_Page", "one_day_burst"] and not table.loc["Gempa_Bumi", "one_day_burst"]
 
 
 def test_full_build_writes_every_file_with_column_descriptions(tmp_path, monkeypatch):

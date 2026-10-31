@@ -32,8 +32,10 @@ ASSETS = Path(__file__).resolve().parents[2] / "assets"
 API = "https://wikimedia.org/api/rest_v1/metrics/pageviews"
 PROJECT = "id.wikipedia.org"
 FIRST_DAY = date(2015, 7, 1)  # first day the pageviews API covers
-WORKERS = 6  # Wikimedia asks API clients to stay well below 100 requests per second
-BUDGET_S = int(os.environ.get("WIKI_BUDGET_S") or 40 * 60)
+WORKERS = 8  # Wikimedia asks API clients to stay well below 100 requests per second
+# Per run: the top lists may use half; the spikes get what is left. The full history takes a few
+# daily runs (about 4 top lists or spikes per second).
+BUDGET_S = int(os.environ.get("WIKI_BUDGET_S") or 80 * 60)
 ACCESS = ("all-access", "desktop", "mobile-web", "mobile-app")
 
 # Spikes: an article in the day's top SPIKE_RANK that was outside the top 1,000 on each of the
@@ -214,7 +216,8 @@ def missing_days(previous, last_day):
 def fetch_top(session, previous, last_day, shared, budget_s=BUDGET_S, clock=time.monotonic):
     days = missing_days(previous, last_day)
     log.info("Wikipedia top lists: %d days to fetch", len(days))
-    frames, failed, deadline = [], 0, clock() + budget_s / 2
+    shared.setdefault("deadline", clock() + budget_s)
+    frames, failed, deadline = [], 0, min(shared["deadline"], clock() + budget_s / 2)
 
     def one(day):
         try:
@@ -271,7 +274,7 @@ def fetch_spike_series(session, previous, last_day, shared, budget_s=BUDGET_S, c
     todo = spikes[[(a, d) not in done for a, d in zip(spikes["article"], spikes["spike_date"])]]
     todo = todo.sort_values("spike_date", ascending=False)
     log.info("Wikipedia spikes: %d found, %d to fetch", len(spikes), len(todo))
-    frames, failed, deadline = [], 0, clock() + budget_s / 2
+    frames, failed, deadline = [], 0, shared.get("deadline", clock() + budget_s)
 
     def one(row):
         article, day = row

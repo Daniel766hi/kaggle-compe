@@ -34,7 +34,7 @@ jobs:
       fail-fast: false # one dataset failing must not stop the others
       matrix:
         # Scheduled datasets: add one here once it has been checked against real data.
-        dataset: ${{ fromJSON(inputs.dataset && format('["{0}"]', inputs.dataset) || '["defi", "idn-air-quality", "idn-fires", "idn-politics", "idn-quakes", "idn-weather", "idr-fx", "movies"]') }}
+        dataset: ${{ fromJSON(inputs.dataset && format('["{0}"]', inputs.dataset) || '["defi", "idn-air-quality", "idn-fires", "idn-politics", "idn-quakes", "idn-weather", "idn-wiki", "idr-fx", "movies"]') }}
     concurrency:
       group: update-${{ matrix.dataset }}
       cancel-in-progress: false

@@ -8,8 +8,11 @@ the adapter to edit without exploring, 0/24 vs 3/24), these runs use no privileg
 
 Differences from build_train_l4.py:
 - ADK sends earlier reasoning back as reasoning_content and the Gemma 4 template renders it, so whole
-  runs are trained with every turn's reasoning; runs are ~2-3x longer, so MAX_LEN is 16k and longer
-  runs are truncated at the end instead of dropped.
+  runs are trained with every turn's reasoning; runs are ~2-3x longer. Longer runs are truncated at
+  the end instead of dropped. MAX_LEN stays 8192: Gemma 4's global layers have head_dim 512, which
+  the fused SDPA kernels do not support, so attention falls back to a full score matrix that grows
+  with the square of the length (v1 at 16k ran out of memory on every example). Tool outputs, which
+  are context only, are cut to 600 characters to keep more of each run inside 8192 tokens.
 - The cross-entropy over the 262k vocabulary is computed in checkpointed chunks of positions.
 - An out-of-memory example is skipped instead of ending the run.
 """
@@ -85,7 +88,7 @@ def trace_to_messages(prompt, entries):
     flush()
     return out
 
-TOOL_CHARS = 1200
+TOOL_CHARS = 600
 files = sorted(glob.glob('/kaggle/input/**/collected/*.json', recursive=True))
 runs = [json.load(open(f)) for f in files]
 print('collected runs', len(runs), 'resolved', sum(bool(r['row'].get('resolved')) for r in runs))
@@ -107,12 +110,12 @@ print('roles', [m['role'] for m in m0][:12], '| first call', next((m['tool_calls
 to_hf = lambda msgs: msgs  # trace_to_messages already returns HF chat format
 '''
 
-MODEL = l4.MODEL.replace("MAX_LEN = 8192", "MAX_LEN = 16384").replace(
+MODEL = l4.MODEL.replace(
     "    if len(ids) > MAX_LEN or not any(l != -100 for l in labels):\n        return None\n",
     "    ids, labels = ids[:MAX_LEN], labels[:MAX_LEN]  # long runs: keep the start, drop the end\n"
     "    if not any(l != -100 for l in labels):\n        return None\n").replace(
     "assert len(examples) >= 20, len(examples)", "assert len(examples) >= 10, len(examples)")
-assert "MAX_LEN = 16384" in MODEL and "keep the start" in MODEL and "len(examples) >= 10" in MODEL
+assert "MAX_LEN = 8192" in MODEL and "keep the start" in MODEL and "len(examples) >= 10" in MODEL
 
 OLD_LOSS = l4.TRAIN[l4.TRAIN.index("    hs = h[:-1]"):l4.TRAIN.index("    (loss / ACCUM).backward()")]
 NEW_LOSS = r'''    hs = h[:-1].index_select(0, sel.to(h.device))
@@ -134,7 +137,10 @@ _a = TRAIN.index("    ids = torch.tensor([ex['input_ids']]")
 _b = TRAIN.index("    if (k + 1) % ACCUM == 0")
 TRAIN = (TRAIN[:_a] + "".join("    " + l + "\n" for l in TRAIN[_a:_b].rstrip("\n").split("\n"))
          + "    except torch.cuda.OutOfMemoryError:\n        print('OOM, skipped example', idx, len(ex['input_ids']), flush=True)\n"
-         "        h = hs = loss = tot = None; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache(); oom += 1; continue\n"
+         "        ids = lab = h = sel = hs = ys = loss = tot = None; opt.zero_grad(set_to_none=True)\n"
+         "        import gc; gc.collect(); torch.cuda.empty_cache(); oom += 1\n"
+         "        if oom > 8:\n            raise RuntimeError('too many out-of-memory examples; lower MAX_LEN')\n"
+         "        continue\n"
          + TRAIN[_b:])
 TRAIN = TRAIN.replace("model.train(); t0 = time.time()", "oom = 0\nmodel.train(); t0 = time.time()")
 TRAIN = TRAIN.replace("print('train loss', train_loss,", "print('OOM skipped', oom); print('train loss', train_loss,")

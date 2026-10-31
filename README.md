@@ -139,11 +139,13 @@ Guardrails:
 
 Setup:
 1. Edit `x_agent/profile.md`: who you are, goals, content pillars and voice.
-2. Get an Anthropic API key (console.anthropic.com) and X API keys: developer.x.com → your app →
-   *User authentication settings*: **Read and write** → *Keys and tokens*: API key and secret, plus
-   an access token and secret generated **after** setting write permission.
-3. Local use: `pip install -r requirements.txt`, export `ANTHROPIC_API_KEY`, `X_API_KEY`,
-   `X_API_SECRET`, `X_ACCESS_TOKEN` and `X_ACCESS_TOKEN_SECRET`.
+2. **Free, no keys:** in the office, approved posts get *Open in X*: X opens with the post filled
+   in, you press Post, then *I posted it*.
+3. **Optional, X API keys** (X charges per post, about $0.015, more with a link): run
+   `python -m x_agent login`. It opens the developer console, explains the steps (app
+   permissions **Read and write**, then generate the access token and secret; buy a few dollars
+   of credits), saves the four keys in `.env` and checks them with X. Approved posts then get
+   *Post to X now*.
 4. Automation: add the same five values as repo **secrets**, then the repo **variable**
    `X_AGENT_ENABLED=true`. The *X agent* workflow runs at 07:17 and 18:47 WIB. Each run creates
    new drafts when fewer than 5 are waiting, posts the oldest approved one, and commits the queue.

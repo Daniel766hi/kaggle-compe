@@ -406,3 +406,26 @@ def test_you_can_edit_restore_and_post_videos_yourself(office, tmp_path, monkeyp
     app.action("x", 1, "restore")
     assert app.item("x", 1)["status"] == "draft"
     assert [(r["desk"], r["id"]) for r in app.library()][:1] == [("x", 1)]  # newest change first
+
+
+def test_quiet_sync_only_speaks_up_about_updates_and_new_failures(office):
+    o, _ = office()
+    results = iter([RuntimeError("no network"), RuntimeError("no network"), "Synced with GitHub: nothing of yours to push.",
+                    "Synced with GitHub: ... Updates to the office were downloaded too: close it and open it again."])  # fmt: skip
+
+    def git():
+        result = next(results)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    app = server.OfficeApp(o, git=git)
+    for _ in range(4):
+        app.sync(quiet=True)
+        for _ in range(200):
+            if not app.syncing:
+                break
+            time.sleep(0.02)
+    said = [e["text"] for e in o.threads["maya"].feed]
+    assert said == ["Sync with GitHub failed: no network",
+                    "Synced with GitHub: ... Updates to the office were downloaded too: close it and open it again."]  # fmt: skip

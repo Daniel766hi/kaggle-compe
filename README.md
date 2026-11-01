@@ -317,6 +317,31 @@ What changes when it's free:
   The Reel caption says "Visuals made with AI." When you post a TikTok from your inbox, turn on
   TikTok's *AI-generated content* label.
 
+## Run it all automatically
+
+GitHub can run the agents every day, even with your computer off. After the setup script and the
+logins (`python -m tiktok_agent login`, `python -m instagram_agent login`, and optionally
+`python -m x_agent login`), run once:
+
+```
+python -m automate        # Windows: double-click automate.cmd
+```
+
+It needs GitHub's command-line tool (`winget install --id GitHub.cli`, then `gh auth login`). It:
+- copies the keys from your `.env` into your repository's encrypted GitHub secrets (nothing is
+  printed, and local-only settings such as the office password stay local);
+- asks which daily runs to turn on: TikTok at 09:37 WIB (videos land in your TikTok inbox),
+  Instagram at 18:07 WIB (Reels go live), X at 07:17 and 18:47 WIB;
+- asks, for each, whether it may also approve plans by itself. The answer defaults to **no**:
+  then you approve in the office and the runs do the rest. Plans with something to fact-check
+  always wait for you;
+- makes the office sync with GitHub by itself every 30 minutes while it's open (`OFFICE_AUTO_SYNC`),
+  so your approvals reach the next run and finished videos come back.
+
+Run it again any time to change your choices. The runs show up in the repository's *Actions* tab.
+Plans that need clips you make yourself (`VIDEO_SOURCE=upload`) are skipped by the daily runs;
+they draw AI pictures instead (Cloudflare keys).
+
 ## Your phone
 
 The office works in a phone's browser, and there are three ways to reach it:

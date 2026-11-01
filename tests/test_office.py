@@ -360,3 +360,49 @@ def test_today_board_lists_what_needs_you_across_desks(office, tmp_path, monkeyp
     ]  # fmt: skip
     assert board["needs"][0]["agent"] == "sari"
     assert [(r["desk"], r["id"], r["url"]) for r in board["done"]] == [("x", 2, "https://x.com/i/web/status/1")]
+
+
+def test_you_can_edit_restore_and_post_videos_yourself(office, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    o, _ = office()
+    app = server.OfficeApp(o)
+    xq = PostQueue(o.team["raka"].desk.queue_path)
+    xq.add(IDEA, status="approved")
+    xq.save()
+    app.edit("x", 1, {"hook": "Haze, again", "posts": ["My own words."]})
+    assert app.item("x", 1)["posts"] == ["My own words."] and app.item("x", 1)["status"] == "approved"
+    app.edit("x", 1, {"posts": ["x" * 300]})  # too long: back to draft until it fits
+    assert app.item("x", 1)["status"] == "draft"
+    with pytest.raises(ValueError, match="needs text"):
+        app.edit("x", 1, {"posts": ["  "]})
+
+    tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    tq.add({**PLAN, "caption": "Old caption #cat"}, status="rendered")
+    tq.get(1)["clips"] = [{"video_url": "a", "source": "s"}] * 3
+    tq.save()
+    video = tmp_path / "build" / "tiktok" / "1" / "video.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"mp4")
+    item = app.item("tiktok", 1)
+    assert "mark_posted" in item["actions"] and item["editable"] and item["caption_to_post"] == "Old caption #cat"
+    app.edit("tiktok", 1, {"caption": "New caption #cat"})
+    assert app.item("tiktok", 1)["status"] == "rendered" and video.exists()  # caption only: the video stays
+    texts = [s["on_screen_text"] for s in PLAN["shots"]]
+    app.edit("tiktok", 1, {"texts": ["Brand new hook", *texts[1:]]})
+    assert app.item("tiktok", 1)["status"] == "approved" and not video.exists()  # words are in the video: make it again
+
+    tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    tq.set_status(1, "sent")
+    tq.save()
+    assert app.item("tiktok", 1)["actions"] == ["mark_posted"]
+    assert [r["kind"] for r in app.board()["needs"] if r["desk"] == "tiktok"] == ["finish"]
+    app.action("tiktok", 1, "mark_posted")
+    assert app.item("tiktok", 1)["status"] == "posted" and not app.item("tiktok", 1)["editable"]
+    with pytest.raises(ValueError, match="can't be edited"):
+        app.edit("tiktok", 1, {"caption": "late"})
+
+    app.action("x", 1, "reject")
+    assert app.item("x", 1)["actions"] == ["restore"]
+    app.action("x", 1, "restore")
+    assert app.item("x", 1)["status"] == "draft"
+    assert [(r["desk"], r["id"]) for r in app.library()][:1] == [("x", 1)]  # newest change first

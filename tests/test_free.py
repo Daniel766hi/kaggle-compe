@@ -390,7 +390,7 @@ def test_office_new_clips_button_swaps_the_footage(tmp_path, monkeypatch):
             break
         time.sleep(0.02)
     first = {c["source"] for c in tiktok.item(1)["clips"]}
-    assert app.item("tiktok", 1)["actions"] == ["publish", "mark_posted", "new_clips", "reject"]
+    assert app.item("tiktok", 1)["actions"] == ["publish", "mark_posted", "new_clips", "reject", "copy"]
     app.action("tiktok", 1, "new_clips")
     for _ in range(200):
         if not app.jobs:
@@ -507,7 +507,7 @@ def test_office_add_clip_buttons_then_render(tmp_path, monkeypatch):
     q.save()
     assert app.item("tiktok", 1)["uploads"] == [False, False, False]
     app.action("tiktok", 1, "approve")
-    assert app.item("tiktok", 1)["actions"] == ["reject"]  # nothing to render until your clips are in
+    assert app.item("tiktok", 1)["actions"] == ["reject", "copy"]  # nothing to render until your clips are in
     app.office.checkin()
     assert "waiting for your clips" in app.office.threads["sari"].feed[-1]["text"]
 
@@ -529,7 +529,7 @@ def test_office_add_clip_buttons_then_render(tmp_path, monkeypatch):
     finally:
         httpd.shutdown()
     item = app.item("tiktok", 1)
-    assert item["uploads"] == [True, True, True] and item["actions"] == ["render", "publish", "reject"]
+    assert item["uploads"] == [True, True, True] and item["actions"] == ["render", "publish", "reject", "copy"]
     assert any("All clips are in" in e["text"] for e in app.office.threads["sari"].feed)
     app.action("tiktok", 1, "render")
     for _ in range(1000):
@@ -538,7 +538,7 @@ def test_office_add_clip_buttons_then_render(tmp_path, monkeypatch):
         time.sleep(0.05)
     item = app.item("tiktok", 1)
     assert item["status"] == "rendered" and item.get("video"), item
-    assert item["actions"] == ["render", "publish", "reject"]  # replace a clip and render again
+    assert item["actions"] == ["render", "publish", "reject", "copy"]  # replace a clip and render again
 
 
 # --- Gemini: the free cloud brain -------------------------------------------------------------

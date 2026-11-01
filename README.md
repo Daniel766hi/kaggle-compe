@@ -411,6 +411,14 @@ python -m office                    # opens http://127.0.0.1:8765 (--phone / --a
   your inbox wait under *Post from your TikTok inbox* until you press it.
 - **Restore** brings back something you rejected, and *Everything your team has made* (at the
   bottom of the Today board) lists every item with filters.
+- **The team learns your taste.** Every plan and rewrite takes into account what you approved,
+  what you rejected (when you reject, the office asks why; the answer is optional) and the text
+  you rewrote yourself. *📝 Notes* in a producer's chat holds standing instructions in your own
+  words ("set the videos in Indonesia", "no cats this week") and shows what they've learned.
+  Notes are saved in `content/notes/`, so the daily runs follow them too.
+- **One video, both platforms.** *Also post on Instagram* (or *on TikTok*) on an approved or
+  finished video puts the same plan, pictures and video on the other desk, approved, without
+  planning or drawing it again.
 - **Cards show the pictures.** For videos made from AI pictures, the card shows the pictures
   too; tap one to save it (for a photo carousel, say). *New pictures* draws them again for free.
 

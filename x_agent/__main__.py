@@ -24,6 +24,7 @@ import webbrowser
 
 import llm
 import local_env
+import taste
 
 from . import brain, text
 from .queue import PostQueue
@@ -153,7 +154,7 @@ def cmd_show(queue, args):
 
 def cmd_revise(queue, args):
     item = _unposted(queue, args.id)
-    item.update(brain.revise(brain.load_profile(), item, args.feedback), status="draft")
+    item.update(brain.revise(taste.with_taste(brain.load_profile(), "x", queue.items), item, args.feedback), status="draft")
     _print_item(item)
 
 
@@ -226,7 +227,7 @@ def cmd_autopilot(queue, args, x_client=None, claude=None):
 
 
 def _generate(queue, count, theme, use_web, client=None, unattended=False):
-    profile = brain.load_profile()
+    profile = taste.with_taste(brain.load_profile(), "x", queue.items)
     ideas = brain.generate_ideas(profile, count, theme, queue.recent_hooks(), use_web, client, unattended)
     for idea in ideas:
         problems = text.problems(idea["posts"])

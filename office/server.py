@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+import taste
 from shorts import cli as shorts_cli
 
 from . import desks, phone
@@ -37,6 +38,7 @@ ACTIONS = {
     "publish": "publishing",
     "new_clips": "finding new clips",
     "restore": "restoring",
+    "copy": "copying",
 }
 MAX_UPLOAD = 500 * 1024 * 1024
 X_INTENT = "https://x.com/intent/post?text="  # opens X's composer with the text filled in (free)
@@ -77,6 +79,14 @@ class OfficeApp:
         if f"{desk_key}:{item_id}" in self.jobs:
             raise ValueError(f"#{item_id} is being worked on; edit it when that's done")
         desk.edit(item_id, changes)
+
+    def notes(self, desk_key):
+        self.desks[desk_key]  # only real desks
+        return {"notes": taste.read_notes(desk_key), "learned": taste.summary(desk_key, self.desks[desk_key][1].queue().items)}
+
+    def save_notes(self, desk_key, text):
+        self.desks[desk_key]
+        taste.save_notes(desk_key, text)
 
     def library(self):
         """Every item on every desk, newest first."""
@@ -146,12 +156,22 @@ class OfficeApp:
                 out["pictures"] = [f"/media/{desk_key}/{int(item_id)}/{n}" for n in names]
         return out
 
-    def action(self, desk_key, item_id, action):
+    def action(self, desk_key, item_id, action, reason=""):
         agent_key, desk = self.desks[desk_key]
         item = desk.item(item_id)
         if action not in self._actions(desk_key, item) or action == "share":
             raise ValueError(f"can't {action} #{item_id} while it is {item['status']}")
-        if action in ("approve", "reject", "mark_posted", "restore"):
+        if action == "reject":
+            desk.reject(item_id, reason)
+            return
+        if action == "copy":
+            other_key = OTHER_VIDEO_DESK[desk_key]
+            other_agent, other = self.desks[other_key]
+            new = desk.copy_to(other, item_id)
+            ready = "The video is ready: Publish when you like." if new["status"] == "rendered" else "Render it when you like."
+            self.office.notify(other_agent, f"Copied from {desk.title} #{item_id}: [[{other_key}:{new['id']}]] {ready}")
+            return
+        if action in ("approve", "mark_posted", "restore"):
             getattr(desk, action)(item_id)
             return
         job = f"{desk_key}:{item_id}"
@@ -211,6 +231,11 @@ class OfficeApp:
 
     def _actions(self, desk_key, item):
         actions = _actions(desk_key, item)
+        other = OTHER_VIDEO_DESK.get(desk_key)
+        if other in self.desks and item["status"] in ("approved", "rendered", "sent", "posted") and not (
+            item.get("copied_to") or item.get("copied_from")
+        ):
+            actions = [*actions, "copy"]  # the same video on the other platform
         if desk_key == "x" and "post" in actions and not self.desks["x"][1].api_ready():
             actions = ["share", "mark_posted", "reject"]  # no paid X API: post it yourself
         return actions
@@ -236,6 +261,7 @@ class OfficeApp:
         return desk.video_path(item_id)
 
 
+OTHER_VIDEO_DESK = {"tiktok": "instagram", "instagram": "tiktok"}
 NEED_ORDER = ["failed", "review", "clips", "make", "watch", "finish"]
 
 
@@ -375,6 +401,8 @@ def make_handler(app):
                     return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
                 if parts == ["api", "phone"]:  # the phone links, with the login key: this computer only
                     return self._send(200, app.phone_links() if self._this_computer() else {"links": []})
+                if parts[:2] == ["api", "notes"] and len(parts) == 3:
+                    return self._send(200, app.notes(parts[2]))
                 if parts == ["api", "library"]:
                     return self._send(200, app.library())
                 if parts == ["api", "board"]:
@@ -423,7 +451,9 @@ def make_handler(app):
                 elif parts[:2] == ["api", "edit"] and len(parts) == 4:
                     app.edit(parts[2], int(parts[3]), body)
                 elif parts[:2] == ["api", "action"] and len(parts) == 4:
-                    app.action(parts[2], int(parts[3]), body.get("action", ""))
+                    app.action(parts[2], int(parts[3]), body.get("action", ""), body.get("reason", ""))
+                elif parts[:2] == ["api", "notes"] and len(parts) == 3:
+                    app.save_notes(parts[2], body.get("notes", ""))
                 elif parts == ["api", "checkin"]:
                     app.office.checkin()
                 elif parts == ["api", "sync"]:

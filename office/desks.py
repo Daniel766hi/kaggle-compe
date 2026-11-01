@@ -6,9 +6,11 @@ reachable from the buttons in the office, so nothing goes out without a click fr
 
 import argparse
 import os
+import shutil
 import threading
 from pathlib import Path
 
+import taste
 from shorts import cli as shorts_cli
 from shorts import plans, render
 from x_agent import brain, text
@@ -43,12 +45,12 @@ class Desk:
             out[item["status"]] = out.get(item["status"], 0) + 1
         return out
 
-    def reject(self, item_id):
+    def reject(self, item_id, reason=""):
         with self.lock:
             q = self.queue()
             if q.get(item_id)["status"] in self.published:
                 raise ValueError(f"#{item_id} is already published")
-            q.set_status(item_id, "rejected")
+            q.set_status(item_id, "rejected", **({"reject_reason": str(reason).strip()[:300]} if str(reason).strip() else {}))
             q.save()
 
     def restore(self, item_id):
@@ -75,6 +77,7 @@ class Desk:
                 raise ValueError("The title can't be empty")
             item["hook"] = hook
             self._edit(item, changes)
+            item["owner_wording"] = self._wording(item)  # the team learns the owner's style from it
             if item["status"] == "approved" and self.problems(item):
                 q.set_status(item_id, "draft")  # approve it again once it fits
             q.save()
@@ -124,6 +127,9 @@ class XDesk(Desk):
             raise ValueError("Every post in the thread needs text")
         item["posts"] = posts
 
+    def _wording(self, item):
+        return " / ".join(item["posts"])[:400]
+
     def mark_posted(self, item_id):
         """You posted it yourself from the 'Open in X' button."""
         with self.lock:
@@ -134,8 +140,9 @@ class XDesk(Desk):
             q.save()
 
     def create_drafts(self, count, theme=""):
-        profile = brain.load_profile()
-        ideas = brain.generate_ideas(profile, count, theme, self.queue().recent_hooks(), True, self.claude)
+        q = self.queue()
+        profile = taste.with_taste(brain.load_profile(), self.key, q.items)
+        ideas = brain.generate_ideas(profile, count, theme, q.recent_hooks(), True, self.claude)
         for idea in ideas:
             if text.problems(idea["posts"]):
                 idea.update(brain.revise(profile, idea, "Fix this: " + "; ".join(text.problems(idea["posts"])), self.claude))
@@ -145,7 +152,7 @@ class XDesk(Desk):
         item = self.item(item_id)
         if item.get("tweet_ids"):
             raise ValueError(f"#{item_id} is already on X")
-        new = brain.revise(brain.load_profile(), item, feedback, self.claude)
+        new = brain.revise(taste.with_taste(brain.load_profile(), self.key, self.queue().items), item, feedback, self.claude)
         with self.lock:
             q = self.queue()
             q.get(item_id).update(new, status="draft")
@@ -192,8 +199,8 @@ class VideoDesk(Desk):
         return plans.problems(self.platform, item)
 
     def create_drafts(self, count, theme=""):
-        profile = self.platform.profile
         q = self.queue()
+        profile = taste.with_taste(self.platform.profile, self.key, q.items)
         ideas = plans.generate(self.platform, profile, count, theme, q.recent_hooks(), True, self.claude,
                                searches=plans.recent_searches(q.items))
         for idea in ideas:
@@ -208,7 +215,8 @@ class VideoDesk(Desk):
             raise ValueError(f"#{item_id} is already rendered; plan a new video instead")
         if item["status"] in self.published:
             raise ValueError(f"#{item_id} is already published; plan a new video instead")
-        new = plans.revise(self.platform, self.platform.profile, item, feedback, self.claude)
+        profile = taste.with_taste(self.platform.profile, self.key, self.queue().items)
+        new = plans.revise(self.platform, profile, item, feedback, self.claude)
         with self.lock:
             q = self.queue()
             q.get(item_id).update(new, status="draft")
@@ -229,6 +237,39 @@ class VideoDesk(Desk):
             if changed and item["status"] == "rendered":  # the words are burned into the video: make it again
                 item["status"] = "approved"
                 self.video_path(item["id"]).unlink(missing_ok=True)
+
+    def _wording(self, item):
+        texts = " / ".join(s["on_screen_text"] for s in item["shots"])
+        return f"on screen: {texts}; caption: {item.get('caption', '')}"[:400]
+
+    def copy_to(self, other, item_id):
+        """The same approved video for the other platform: no new plan, no new pictures. Button only."""
+        item = self.item(item_id)
+        if item["status"] not in ("approved", "rendered", "sent", "posted"):
+            raise ValueError(f"#{item_id} needs to be approved first")
+        if item.get("copied_to"):
+            raise ValueError(f"#{item_id} is already on {other.title}")
+        plan = {k: item[k] for k in ("pillar", "hook", "shots", "voiceover", "caption", "sources", "fact_check") if k in item}
+        with other.lock:
+            q = other.queue()
+            new = q.add(plan, status="approved")
+            new.update(copied_from=f"{self.key}:{item_id}", approved_by="office")
+            if item.get("clips"):
+                new["clips"] = item["clips"]
+            source, target = self.video_path(item_id).parent, other.video_path(new["id"]).parent
+            for folder in ("pictures", "uploads"):  # the AI pictures and your own clips come along
+                if (source / folder).is_dir():
+                    shutil.copytree(source / folder, target / folder, dirs_exist_ok=True)
+            if self.video_path(item_id).exists():  # already made: the other platform gets the same video
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(self.video_path(item_id), other.video_path(new["id"]))
+                q.set_status(new["id"], "rendered")
+            q.save()
+        with self.lock:
+            q = self.queue()
+            q.get(item_id)["copied_to"] = f"{other.key}:{new['id']}"
+            q.save()
+        return new
 
     def mark_posted(self, item_id, url=""):
         """You posted the video yourself (downloaded it, or finished it from your TikTok inbox). Button only."""

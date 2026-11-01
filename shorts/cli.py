@@ -11,6 +11,7 @@ from typing import Callable
 
 import llm
 import local_env
+import taste
 from x_agent.brain import load_profile
 
 from . import images, plans, render
@@ -132,7 +133,8 @@ def cmd_show(platform, queue, args):
 
 def cmd_revise(platform, queue, args):
     item = _unrendered(queue, args.id)
-    item.update(plans.revise(platform, platform.profile, item, args.feedback), status="draft")
+    profile = taste.with_taste(platform.profile, platform.name, queue.items)
+    item.update(plans.revise(platform, profile, item, args.feedback), status="draft")
     item.pop("clips", None)  # a stock video gets fresh clips for the new plan
     _print_item(platform, item)
 
@@ -231,7 +233,7 @@ def cmd_autopilot(platform, queue, args, claude=None, hf=None, client=None, asse
 
 
 def _generate(platform, queue, count, theme, use_web, client=None, unattended=False):
-    profile = platform.profile
+    profile = taste.with_taste(platform.profile, platform.name, queue.items)
     new = plans.generate(platform, profile, count, theme, queue.recent_hooks(), use_web, client, unattended,
                          plans.recent_searches(queue.items))
     for plan in new:

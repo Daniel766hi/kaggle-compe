@@ -36,6 +36,7 @@ ACTIONS = {
     "render": "rendering the video",
     "publish": "publishing",
     "new_clips": "finding new clips",
+    "restore": "restoring",
 }
 MAX_UPLOAD = 500 * 1024 * 1024
 X_INTENT = "https://x.com/intent/post?text="  # opens X's composer with the text filled in (free)
@@ -68,6 +69,22 @@ class OfficeApp:
                 "last": thread.feed[-1] if thread.feed else None,
             })  # fmt: skip
         return {"agents": agents, "jobs": self.jobs, "syncing": self.syncing}
+
+    def edit(self, desk_key, item_id, changes):
+        _, desk = self.desks[desk_key]
+        if f"{desk_key}:{item_id}" in self.jobs:
+            raise ValueError(f"#{item_id} is being worked on; edit it when that's done")
+        desk.edit(item_id, changes)
+
+    def library(self):
+        """Every item on every desk, newest first."""
+        rows = []
+        for desk_key, (agent_key, desk) in self.desks.items():
+            for item in desk.queue().items:
+                at = item.get(f"{item['status']}_at") or item.get("created_at", "")
+                rows.append({"desk": desk_key, "agent": agent_key, "id": item["id"], "hook": item["hook"],
+                             "status": item["status"], "at": at, "url": item.get("url", "")})  # fmt: skip
+        return sorted(rows, key=lambda r: r["at"], reverse=True)
 
     def board(self):
         """Everything that needs you, across all desks, plus what went out lately."""
@@ -115,6 +132,9 @@ class OfficeApp:
             out["uploads"] = uploads
             if not all(uploads):  # clips still missing: nothing to render yet
                 out["actions"] = [a for a in out["actions"] if a not in ("render", "publish")]
+        out["editable"] = desk.editable(item) and not out["job"]
+        if desk_key != "x":
+            out["caption_to_post"] = desk.caption_to_post(item)
         if desk_key != "x" and desk.video_path(item_id).exists():
             out["video"] = f"/media/{desk_key}/{int(item_id)}.mp4"
         if desk_key != "x":
@@ -129,7 +149,7 @@ class OfficeApp:
         item = desk.item(item_id)
         if action not in self._actions(desk_key, item) or action == "share":
             raise ValueError(f"can't {action} #{item_id} while it is {item['status']}")
-        if action in ("approve", "reject", "mark_posted"):
+        if action in ("approve", "reject", "mark_posted", "restore"):
             getattr(desk, action)(item_id)
             return
         job = f"{desk_key}:{item_id}"
@@ -205,7 +225,7 @@ class OfficeApp:
         return desk.video_path(item_id)
 
 
-NEED_ORDER = ["failed", "review", "clips", "make", "watch"]
+NEED_ORDER = ["failed", "review", "clips", "make", "watch", "finish"]
 
 
 def _need(desk, item):
@@ -220,12 +240,16 @@ def _need(desk, item):
         return "clips" if uploads is not None and not all(uploads) else "make"
     if status == "rendered":
         return "watch"
+    if status == "sent":  # in your TikTok inbox until you post it there
+        return "finish"
     return None
 
 
 def _actions(desk_key, item):
     """The buttons an item's card shows."""
     status = item["status"]
+    if status == "rejected":
+        return ["restore"]
     if desk_key == "x":
         if status in ("draft", "failed") and not item.get("tweet_ids"):  # never re-post a partly posted thread
             return ["approve", "reject"]
@@ -236,7 +260,12 @@ def _actions(desk_key, item):
         return ["render", "publish", "reject"]
     if status in ("rendered", "failed") and item.get("clips"):  # rendered: publish without paying again
         free = shorts_cli.is_free(item)  # stock clips or AI pictures: free to swap
-        return ["publish", "new_clips", "reject"] if free else ["publish", "reject"]
+        actions = ["publish", "new_clips", "reject"] if free else ["publish", "reject"]
+        return actions[:1] + ["mark_posted"] + actions[1:] if status == "rendered" else actions
+    if status == "sent":  # in your TikTok inbox: say when you've posted it
+        return ["mark_posted"]
+    if status == "rejected":
+        return ["restore"]
     return ["approve", "reject"] if status in ("draft", "failed") else []
 
 
@@ -335,6 +364,8 @@ def make_handler(app):
                     return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
                 if parts == ["api", "phone"]:  # the phone links, with the login key: this computer only
                     return self._send(200, app.phone_links() if self._this_computer() else {"links": []})
+                if parts == ["api", "library"]:
+                    return self._send(200, app.library())
                 if parts == ["api", "board"]:
                     return self._send(200, app.board())
                 if parts == ["api", "state"]:
@@ -378,6 +409,8 @@ def make_handler(app):
                     app.chat(parts[2], body.get("text", ""))
                 elif parts[:2] == ["api", "read"] and len(parts) == 3:
                     app.mark_read(parts[2], body.get("upto", 0))
+                elif parts[:2] == ["api", "edit"] and len(parts) == 4:
+                    app.edit(parts[2], int(parts[3]), body)
                 elif parts[:2] == ["api", "action"] and len(parts) == 4:
                     app.action(parts[2], int(parts[3]), body.get("action", ""))
                 elif parts == ["api", "checkin"]:

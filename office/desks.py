@@ -51,6 +51,35 @@ class Desk:
             q.set_status(item_id, "rejected")
             q.save()
 
+    def restore(self, item_id):
+        """Bring a rejected item back as a draft. Button only."""
+        with self.lock:
+            q = self.queue()
+            if q.get(item_id)["status"] != "rejected":
+                raise ValueError(f"#{item_id} isn't rejected")
+            q.set_status(item_id, "draft", error="")
+            q.save()
+
+    def editable(self, item):
+        return item["status"] not in (*self.published, "rejected")
+
+    def edit(self, item_id, changes):
+        """Your own wording for an item: the hook plus the desk's own fields. Button only."""
+        with self.lock:
+            q = self.queue()
+            item = q.get(item_id)
+            if not self.editable(item):
+                raise ValueError(f"#{item_id} is {item['status']} and can't be edited")
+            hook = str(changes.get("hook", item["hook"])).strip()
+            if not hook:
+                raise ValueError("The title can't be empty")
+            item["hook"] = hook
+            self._edit(item, changes)
+            if item["status"] == "approved" and self.problems(item):
+                q.set_status(item_id, "draft")  # approve it again once it fits
+            q.save()
+            return item
+
     def approve(self, item_id):
         with self.lock:
             q = self.queue()
@@ -86,6 +115,14 @@ class XDesk(Desk):
     def api_ready(self):
         """Posting through X's API costs money; without its keys you post yourself, for free."""
         return self.x_client is not None or all(os.environ.get(k) for k in ENV_KEYS)
+
+    def _edit(self, item, changes):
+        if item.get("tweet_ids"):
+            raise ValueError(f"#{item['id']} is already partly on X")
+        posts = [str(p).strip() for p in changes.get("posts", item["posts"])]
+        if not posts or not all(posts):
+            raise ValueError("Every post in the thread needs text")
+        item["posts"] = posts
 
     def mark_posted(self, item_id):
         """You posted it yourself from the 'Open in X' button."""
@@ -178,6 +215,38 @@ class VideoDesk(Desk):
             q.get(item_id).pop("clips", None)  # stock clips or pictures are made again for the new plan
             q.save()
         return self.item(item_id)
+
+    def _edit(self, item, changes):
+        if "caption" in changes:
+            item["caption"] = str(changes["caption"]).strip()
+        if "texts" in changes:
+            texts = [str(t).strip() for t in changes["texts"]]
+            if len(texts) != len(item["shots"]) or not all(texts):
+                raise ValueError("Every shot needs its on-screen text")
+            changed = [s["on_screen_text"] for s in item["shots"]] != texts
+            for shot, words in zip(item["shots"], texts):
+                shot["on_screen_text"] = words
+            if changed and item["status"] == "rendered":  # the words are burned into the video: make it again
+                item["status"] = "approved"
+                self.video_path(item["id"]).unlink(missing_ok=True)
+
+    def mark_posted(self, item_id, url=""):
+        """You posted the video yourself (downloaded it, or finished it from your TikTok inbox). Button only."""
+        with self.lock:
+            q = self.queue()
+            if q.get(item_id)["status"] not in ("rendered", "sent"):
+                raise ValueError(f"#{item_id} needs a finished video first")
+            q.set_status(item_id, "posted", posted_by="owner", error="", **({"url": url} if url else {}))
+            q.save()
+
+    def caption_to_post(self, item):
+        """The caption as it should go out: with stock-clip credits, or (Instagram) an AI note."""
+        if self.key == "instagram":
+            from instagram_agent.__main__ import final_caption
+
+            return final_caption(item)
+        credit = render.credits(item.get("clips", []))
+        return f"{item['caption']}\n\n{credit}" if credit else item["caption"]
 
     def render(self, item_id):
         """Make the video without publishing it (spends Higgsfield credits). Button only."""

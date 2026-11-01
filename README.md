@@ -378,6 +378,14 @@ python -m office                    # opens http://127.0.0.1:8765 (--phone / --a
   everything that needs you across all desks: drafts to review, clips to add, posts and videos
   ready to make or watch, and anything that didn't go out, plus what was published lately. Tap a
   row to open its card; each card shows where it is: plan, approved, video ready, published.
+- **Edit it yourself.** *Edit* on a card changes the title, the post text (with a character
+  count), a video's caption or its on-screen text. Changing on-screen text sends a rendered video
+  back to *Render preview*, because the words are part of the video.
+- **Post videos yourself.** Finished videos have *Download video* and *Copy caption*, so you can
+  post them from your phone without any API keys, then press *I posted it*. TikTok videos sent to
+  your inbox wait under *Post from your TikTok inbox* until you press it.
+- **Restore** brings back something you rejected, and *Everything your team has made* (at the
+  bottom of the Today board) lists every item with filters.
 - **Cards show the pictures.** For videos made from AI pictures, the card shows the pictures
   too; tap one to save it (for a photo carousel, say). *New pictures* draws them again for free.
 

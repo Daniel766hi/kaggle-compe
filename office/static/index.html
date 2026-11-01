@@ -32,7 +32,7 @@
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
   button:hover { border-color: var(--muted); }
   button.primary, a.button.primary, label.button.primary { background: var(--you); border-color: var(--you); color: #fff; }
-  a.button, label.button { display: inline-block; cursor: pointer; text-decoration: none; border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
+  a.button, label.button { display: inline-block; cursor: pointer; text-decoration: none; color: var(--ink); background: var(--panel); border-radius: 8px; border: 1px solid var(--line); padding: 6px 12px; }
   button.danger { color: var(--bad); }
   button:disabled { opacity: .5; cursor: default; }
   main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; flex: 1; min-height: 0; }
@@ -120,6 +120,15 @@
   .steps span { flex: 1; text-align: center; padding-top: 6px; border-top: 3px solid var(--line); }
   .steps span.done { border-color: var(--good); color: var(--good); }
   .steps span.now { border-color: var(--you); color: var(--you); font-weight: 600; }
+  .edit label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  .edit input, .edit textarea { width: 100%; font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .edit textarea { min-height: 70px; resize: vertical; max-height: none; }
+  .edit .count { font-size: 11px; color: var(--muted); text-align: right; }
+  .edit .count.over { color: var(--bad); font-weight: 600; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+  .filters button { font-size: 13px; padding: 3px 10px; border-radius: 999px; }
+  .filters button.on { background: var(--you); border-color: var(--you); color: #fff; }
+  .library-link { margin-top: 18px; width: 100%; }
   .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 20; padding: 16px; }
   .overlay .sheet { background: var(--panel); color: var(--ink); border-radius: 16px; padding: 16px; max-width: 560px; width: 100%; max-height: 90vh; overflow: auto; }
   .overlay .sheet .card { box-shadow: none; margin-top: 0; }
@@ -161,6 +170,11 @@
   <div class="sheet-head"><button id="item-chat"></button><button id="item-close" aria-label="Close">✕</button></div>
   <div id="item-card"></div>
 </div></div>
+<div id="library-panel" class="overlay" hidden><div class="sheet">
+  <div class="sheet-head"><b>Everything your team has made</b><button id="library-close" aria-label="Close">✕</button></div>
+  <div class="filters" id="library-filters"></div>
+  <div id="library-rows"></div>
+</div></div>
 <div id="phone-panel" hidden><div class="sheet">
   <h2>Open the office on your phone</h2>
   <div id="phone-links"></div>
@@ -193,13 +207,15 @@ const CHIPS = {
 };
 const DESK_NAMES = { x: "X", tiktok: "TikTok", instagram: "Instagram" };
 const LABELS = { approve: "Approve", reject: "Reject", post: "Post to X now", render: "Render preview",
-                 share: "Open in X", mark_posted: "I posted it", new_clips: "New clips",
+                 share: "Open in X", mark_posted: "I posted it", new_clips: "New clips", restore: "Restore",
                  publish: { tiktok: "Send to TikTok inbox", instagram: "Publish Reel" } };
 const CONFIRM = {
   post: "Post this to X now? It will be public.",
   publish: { tiktok: "Render it (if needed) and send it to your TikTok inbox?",
              instagram: "Render it (if needed) and publish this Reel? It will be public." },
-  mark_posted: "Mark this as posted? Do it after you've posted it in X.",
+  mark_posted: { x: "Mark this as posted? Do it after you've posted it in X.",
+                 tiktok: "Mark this video as posted? Do it after you've posted it on TikTok yourself.",
+                 instagram: "Mark this Reel as posted? Do it after you've posted it on Instagram yourself." },
 };
 const NEEDS = {
   failed: { title: "Didn't go out", cta: "Look" },
@@ -207,7 +223,11 @@ const NEEDS = {
   clips: { title: "Add your clips", cta: "Add clips" },
   make: { title: "Ready to make", cta: { x: "Post", tiktok: "Make video", instagram: "Make Reel" } },
   watch: { title: "Watch and publish", cta: "Watch" },
+  finish: { title: "Post from your TikTok inbox", cta: "Done?" },
 };
+const FILTERS = [["all", "All"], ["draft", "Drafts"], ["approved", "Approved"], ["rendered", "Video ready"],
+                 ["published", "Published"], ["failed", "Didn't go out"], ["rejected", "Rejected"]];
+let libraryFilter = "all";
 const STEPS = { x: ["Draft", "Approved", "Posted"], video: ["Plan", "Approved", "Video ready", "Published"] };
 let state = { agents: [] }, current = null, lastId = 0, seen = {}, boardJson = "";
 
@@ -279,8 +299,10 @@ async function renderBoard() {
     html += `<h3>Recently published</h3>`;
     html += board.done.map((r) => row(r, r.status === "sent" ? "In TikTok inbox" : "Live")).join("");
   }
+  html += `<button class="library-link">📚 Everything your team has made</button>`;
   for (const el of [$("today-main"), $("today-floor")]) {
     el.innerHTML = html;
+    el.querySelector(".library-link").onclick = showLibrary;
     el.querySelectorAll(".row").forEach((b) => (b.onclick = () => showItem(b.dataset.desk, b.dataset.id)));
   }
 }
@@ -328,17 +350,21 @@ async function loadCard(el) {
         `<label class="button ${it.uploads[i] ? "" : "primary"}">${it.uploads[i] ? "Replace clip ✓" : "Add clip"}<input type="file" accept="video/*" data-shot="${i + 1}" hidden></label>`}</div></li>`).join("")}</ol>`;
     } else if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
     if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
-    if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>`;
+    if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>
+      <div class="buttons"><a class="button" href="${it.video}" download="${desk}-${it.id}.mp4">⬇ Download video</a>
+      <button type="button" data-copy-caption>Copy caption</button></div>`;
     if (it.pictures) body += `<div class="muted">The AI pictures (tap to save, e.g. for a photo carousel):</div><div class="pictures">${it.pictures.map((u) =>
       `<a href="${u}" target="_blank" download><img src="${u}?t=${Date.now()}" alt="AI picture" loading="lazy"></a>`).join("")}</div>`;
     if (it.fact_check) body += `<div class="note warn">Check before approving: ${esc(it.fact_check)}</div>`;
     if (it.problems) body += `<div class="note bad">${it.problems.map(esc).join("<br>")}</div>`;
     if (it.error) body += `<div class="note bad">${esc(it.error)}</div>`;
     if (it.url) body += `<div><a href="${esc(it.url)}" target="_blank" rel="noopener">Open the post ↗</a></div>`;
+    if (it.editable) it.actions = [...it.actions, "edit"];
     if (it.actions.length && !it.job) {
       body += `<div class="buttons">${it.actions.map((act) => {
         if (act === "share") return it.share_urls.map((u, i) =>
           `<a class="button primary" href="${esc(u)}" target="_blank" rel="noopener">${it.share_urls.length > 1 ? `Open post ${i + 1} in X` : "Open in X"}</a>`).join("");
+        if (act === "edit") return `<button data-edit>✏️ Edit</button>`;
         const label = act === "new_clips" && it.pictures ? "New pictures" : typeof LABELS[act] === "object" ? LABELS[act][desk] : LABELS[act];
         const cls = act === "reject" ? "danger" : ["post", "render", "publish"].includes(act) ? "primary" : "";
         return `<button class="${cls}" data-act="${act}">${esc(label)}</button>`;
@@ -347,12 +373,67 @@ async function loadCard(el) {
     el.innerHTML = body;
     el.dataset.job = it.job ? "1" : "";
     el.querySelectorAll("button[data-act]").forEach((b) => (b.onclick = () => act(el, b.dataset.act)));
+    el.querySelectorAll("button[data-edit]").forEach((b) => (b.onclick = () => editCard(el, it)));
+    el.querySelectorAll("button[data-copy-caption]").forEach((b) => (b.onclick = () => navigator.clipboard.writeText(it.caption_to_post || it.caption || "")
+      .then(() => toast(desk === "tiktok" ? "Caption copied. On TikTok, also turn on the AI-generated content label." : "Caption copied."))
+      .catch(() => toast("Couldn't copy; select the caption text instead."))));
     el.querySelectorAll("button[data-copy]").forEach((b) => (b.onclick = () => navigator.clipboard.writeText(it.shots[b.dataset.copy].video_prompt)
       .then(() => toast("Prompt copied. Paste it into the AI video site.")).catch(() => toast("Couldn't copy; select the prompt text instead."))));
     el.querySelectorAll("input[data-shot]").forEach((f) => (f.onchange = () => f.files[0] && addClip(el, f.dataset.shot, f.files[0])));
   } catch (err) {
     el.innerHTML = `<span class="muted">#${el.dataset.id}: ${esc(err.message)}</span>`;
   }
+}
+
+function editCard(el, it) {
+  const desk = el.dataset.desk;
+  const counter = (id, limit) => `<div class="count" data-for="${id}" data-limit="${limit}"></div>`;
+  let form = `<div class="edit"><label>Title</label><input name="hook" value="${esc(it.hook)}">`;
+  if (it.posts) {
+    form += it.posts.map((p, i) => `<label>${it.posts.length > 1 ? `Post ${i + 1}` : "Post"}</label>
+      <textarea name="post" id="p${i}">${esc(p)}</textarea>${counter(`p${i}`, 280)}`).join("");
+  } else {
+    form += it.shots.map((s, i) => `<label>Shot ${i + 1}: on-screen text</label><input name="text" value="${esc(s.on_screen_text)}">`).join("");
+    form += `<label>Caption</label><textarea name="caption" id="cap">${esc(it.caption || "")}</textarea>${counter("cap", 2200)}`;
+    if (it.video) form += `<div class="note warn">Changing on-screen text makes the video again (Render preview), because the words are part of it.</div>`;
+  }
+  form += `<div class="buttons"><button class="primary" data-save>Save</button><button data-cancel>Cancel</button></div></div>`;
+  el.innerHTML = `<div class="top"><span>${DESK_NAMES[desk]} #${it.id}</span><span class="pill">editing</span></div>` + form;
+  const count = () => el.querySelectorAll(".count").forEach((c) => {
+    const n = $(c.dataset.for) ? [...$(c.dataset.for).value].length : 0;
+    c.textContent = `${n} / ${c.dataset.limit}`;
+    c.classList.toggle("over", n > +c.dataset.limit);
+  });
+  el.querySelectorAll("textarea").forEach((t) => (t.oninput = count));
+  count();
+  el.querySelector("[data-cancel]").onclick = () => loadCard(el);
+  el.querySelector("[data-save]").onclick = async () => {
+    const changes = { hook: el.querySelector('[name="hook"]').value };
+    if (it.posts) changes.posts = [...el.querySelectorAll('[name="post"]')].map((t) => t.value);
+    else { changes.texts = [...el.querySelectorAll('[name="text"]')].map((t) => t.value); changes.caption = el.querySelector('[name="caption"]').value; }
+    try { await api(`/api/edit/${desk}/${it.id}`, changes); toast("Saved."); }
+    catch (err) { toast(err.message); return; }
+    refreshCards(desk, it.id);
+    boardJson = ""; renderBoard();
+  };
+}
+
+async function showLibrary() {
+  let rows;
+  try { rows = await api("/api/library"); } catch (err) { toast(err.message); return; }
+  const published = (r) => ["posted", "sent"].includes(r.status);
+  const shown = rows.filter((r) => libraryFilter === "all" || (libraryFilter === "published" ? published(r) : r.status === libraryFilter));
+  $("library-filters").innerHTML = FILTERS.map(([key, label]) => {
+    const n = rows.filter((r) => key === "all" || (key === "published" ? published(r) : r.status === key)).length;
+    return `<button data-filter="${key}" class="${key === libraryFilter ? "on" : ""}">${label} ${n}</button>`;
+  }).join("");
+  $("library-filters").querySelectorAll("button").forEach((b) => (b.onclick = () => { libraryFilter = b.dataset.filter; showLibrary(); }));
+  const deskAgent = (d) => state.agents.find((a) => a.desk === d) || {};
+  $("library-rows").innerHTML = shown.map((r) => `<button class="row" data-desk="${r.desk}" data-id="${r.id}">
+      <span class="tag">${deskAgent(r.desk).emoji || ""} ${DESK_NAMES[r.desk]} #${r.id}</span><span class="hook">${esc(r.hook)}</span>
+      <span class="pill ${r.status}">${r.status}</span></button>`).join("") || `<div class="allclear">Nothing here yet.</div>`;
+  $("library-rows").querySelectorAll(".row").forEach((b) => (b.onclick = () => { $("library-panel").hidden = true; showItem(b.dataset.desk, b.dataset.id); }));
+  $("library-panel").hidden = false;
 }
 
 async function act(el, action) {
@@ -459,8 +540,10 @@ function home() {
 }
 $("back").onclick = home;
 $("item-close").onclick = () => ($("item-panel").hidden = true);
+$("library-close").onclick = () => ($("library-panel").hidden = true);
+$("library-panel").onclick = (e) => { if (e.target === $("library-panel")) $("library-panel").hidden = true; };
 $("item-panel").onclick = (e) => { if (e.target === $("item-panel")) $("item-panel").hidden = true; };
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("item-panel").hidden = true; $("phone-panel").hidden = true; } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("item-panel").hidden = true; $("phone-panel").hidden = true; $("library-panel").hidden = true; } });
 document.querySelector("header h1").onclick = home;
 document.querySelector("header h1").style.cursor = "pointer";
 $("checkin").onclick = async () => { await api("/api/checkin", {}).catch((e) => toast(e.message)); tick(); };

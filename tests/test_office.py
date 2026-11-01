@@ -14,6 +14,7 @@ from office import chat, server
 from office.chat import Office
 from office.desks import VideoDesk, XDesk
 from office.team import build_team
+from shorts import plans
 from tiktok_agent.__main__ import PLATFORM as TIKTOK
 from x_agent.queue import PostQueue
 from x_agent.x_client import XClient
@@ -187,7 +188,7 @@ def test_buttons_render_and_send_a_tiktok(office):
     q.save()
     app = server.OfficeApp(o)
     app.action("tiktok", 1, "approve")
-    assert app.item("tiktok", 1)["actions"] == ["render", "publish", "reject"]
+    assert app.item("tiktok", 1)["actions"] == ["render", "publish", "reject", "copy"]
     app.action("tiktok", 1, "publish")
     wait_for_jobs(app)
     assert app.item("tiktok", 1)["status"] == "sent"
@@ -394,7 +395,7 @@ def test_you_can_edit_restore_and_post_videos_yourself(office, tmp_path, monkeyp
     tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
     tq.set_status(1, "sent")
     tq.save()
-    assert app.item("tiktok", 1)["actions"] == ["mark_posted"]
+    assert app.item("tiktok", 1)["actions"] == ["mark_posted", "copy"]
     assert [r["kind"] for r in app.board()["needs"] if r["desk"] == "tiktok"] == ["finish"]
     app.action("tiktok", 1, "mark_posted")
     assert app.item("tiktok", 1)["status"] == "posted" and not app.item("tiktok", 1)["editable"]
@@ -429,3 +430,55 @@ def test_quiet_sync_only_speaks_up_about_updates_and_new_failures(office):
     said = [e["text"] for e in o.threads["maya"].feed]
     assert said == ["Sync with GitHub failed: no network",
                     "Synced with GitHub: ... Updates to the office were downloaded too: close it and open it again."]  # fmt: skip
+
+
+def test_the_team_learns_from_your_reviews_and_notes(office, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    o, _ = office()
+    app = server.OfficeApp(o)
+    tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    tq.add({**PLAN, "hook": "Cat meeting"})
+    tq.add({**PLAN, "hook": "Goat inspector"}, status="approved")
+    tq.save()
+    app.action("tiktok", 1, "reject", "too many cats")
+    assert app.item("tiktok", 1)["status"] == "rejected"
+    texts = [s["on_screen_text"] for s in PLAN["shots"]]
+    app.edit("tiktok", 2, {"texts": ["Hard hat on", *texts[1:]], "caption": "Safety first #goat"})
+    app.save_notes("tiktok", "Set the videos in Indonesia.")
+    notes = app.notes("tiktok")
+    assert notes["notes"] == "Set the videos in Indonesia." and "(why: too many cats)" in notes["learned"]
+
+    seen = {}
+
+    def generate(platform, profile, count, *args, **kwargs):
+        seen["profile"] = profile
+        return []
+
+    monkeypatch.setattr(plans, "generate", generate)
+    o.team["sari"].desk.create_drafts(1)
+    assert "Set the videos in Indonesia." in seen["profile"] and "Cat meeting (why: too many cats)" in seen["profile"]
+    assert "on screen: Hard hat on" in seen["profile"] and "- Goat inspector" in seen["profile"]
+
+
+def test_one_video_goes_to_both_platforms(office, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    o, _ = office()
+    app = server.OfficeApp(o)
+    tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    tq.add(PLAN, status="rendered")
+    tq.get(1)["clips"] = [{"video_url": "a", "source": "ai-picture:picture_1.png"}] * 3
+    tq.save()
+    built = tmp_path / "build" / "tiktok" / "1"
+    (built / "pictures").mkdir(parents=True)
+    (built / "pictures" / "picture_1.png").write_bytes(b"PNG")
+    (built / "video.mp4").write_bytes(b"MP4")
+    assert "copy" in app.item("tiktok", 1)["actions"]
+    app.action("tiktok", 1, "copy")
+    reel = app.item("instagram", 1)
+    assert reel["status"] == "rendered" and reel["video"] == "/media/instagram/1.mp4" and reel["pictures"]
+    assert (tmp_path / "build" / "instagram" / "1" / "video.mp4").read_bytes() == b"MP4"
+    assert "copy" not in app.item("tiktok", 1)["actions"] and "copy" not in reel["actions"]
+    assert "publish" in reel["actions"] and reel["caption_to_post"].endswith("Visuals made with AI.")
+    assert "Copied from TikTok #1: [[instagram:1]]" in o.threads["bima"].feed[-1]["text"]
+    with pytest.raises(ValueError):
+        app.action("tiktok", 1, "copy")

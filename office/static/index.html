@@ -175,6 +175,13 @@
   <div class="filters" id="library-filters"></div>
   <div id="library-rows"></div>
 </div></div>
+<div id="notes-panel" class="overlay" hidden><div class="sheet">
+  <div class="sheet-head"><b id="notes-title"></b><button id="notes-close" aria-label="Close">✕</button></div>
+  <p class="muted" style="margin-top:0">Things to keep in mind every time, in your own words. For example: "Set the videos in Indonesia", "No cats this week", "Keep captions under 100 characters".</p>
+  <div class="edit"><textarea id="notes-text" rows="6" maxlength="4000"></textarea></div>
+  <div class="buttons"><button class="primary" id="notes-save">Save notes</button></div>
+  <details style="margin-top:14px"><summary class="muted">What they've learned from your reviews</summary><pre id="notes-learned" class="muted" style="white-space:pre-wrap;font:13px/1.45 system-ui"></pre></details>
+</div></div>
 <div id="phone-panel" hidden><div class="sheet">
   <h2>Open the office on your phone</h2>
   <div id="phone-links"></div>
@@ -187,7 +194,8 @@
     <div id="chat-head" hidden>
       <button id="back" aria-label="Back to the office floor">←</button>
       <div class="avatar" id="head-avatar"></div>
-      <div><div class="name" id="head-name" style="font-weight:600"></div><div class="role" id="head-role" style="color:var(--muted);font-size:13px"></div></div>
+      <div style="flex:1;min-width:0"><div class="name" id="head-name" style="font-weight:600"></div><div class="role" id="head-role" style="color:var(--muted);font-size:13px"></div></div>
+      <button id="notes-open" hidden>📝 Notes</button>
     </div>
     <div id="today-main" class="today"></div>
     <div id="messages" hidden></div>
@@ -208,8 +216,11 @@ const CHIPS = {
 const DESK_NAMES = { x: "X", tiktok: "TikTok", instagram: "Instagram" };
 const LABELS = { approve: "Approve", reject: "Reject", post: "Post to X now", render: "Render preview",
                  share: "Open in X", mark_posted: "I posted it", new_clips: "New clips", restore: "Restore",
+                 copy: { tiktok: "Also post on Instagram", instagram: "Also post on TikTok" },
                  publish: { tiktok: "Send to TikTok inbox", instagram: "Publish Reel" } };
 const CONFIRM = {
+  copy: { tiktok: "Make this same video for Instagram too? It's approved there, so it goes out when you press Publish (or with the daily run, if that's on).",
+          instagram: "Make this same video for TikTok too? It's approved there, so it goes to your TikTok inbox when you press Send (or with the daily run, if that's on)." },
   post: "Post this to X now? It will be public.",
   publish: { tiktok: "Render it (if needed) and send it to your TikTok inbox?",
              instagram: "Render it (if needed) and publish this Reel? It will be public." },
@@ -440,8 +451,13 @@ async function act(el, action) {
   const desk = el.dataset.desk;
   const q = typeof CONFIRM[action] === "object" ? CONFIRM[action][desk] : CONFIRM[action];
   if (q && !confirm(q)) return;
+  let reason = "";
+  if (action === "reject") {
+    reason = prompt("Why not? (optional: the team learns your taste from it)", "");
+    if (reason === null) return;  // Cancel: don't reject
+  }
   el.querySelectorAll("button").forEach((b) => (b.disabled = true));
-  try { await api(`/api/action/${desk}/${el.dataset.id}`, { action }); }
+  try { await api(`/api/action/${desk}/${el.dataset.id}`, { action, reason }); }
   catch (err) { toast(err.message); }
   refreshCards(desk, el.dataset.id);
   boardJson = ""; renderBoard();
@@ -473,6 +489,7 @@ async function open(key) {
   $("chat-head").hidden = false; $("composer").hidden = false; $("messages").hidden = false; $("today-main").hidden = true;
   $("head-avatar").textContent = a.emoji; $("head-avatar").style.setProperty("--c", a.color);
   $("head-name").textContent = a.name; $("head-role").textContent = a.role;
+  $("notes-open").hidden = !a.desk;
   $("messages").innerHTML = '<div class="typing" id="typing" hidden></div>';
   $("chips").innerHTML = (CHIPS[key] || []).map((c) => `<button type="button">${esc(c)}</button>`).join("");
   $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => send(b.textContent)));
@@ -540,10 +557,28 @@ function home() {
 }
 $("back").onclick = home;
 $("item-close").onclick = () => ($("item-panel").hidden = true);
+$("notes-open").onclick = async () => {
+  const a = agent(current);
+  try {
+    const { notes, learned } = await api(`/api/notes/${a.desk}`);
+    $("notes-title").textContent = `Notes for ${a.name}`;
+    $("notes-text").value = notes;
+    const yours = (learned || "").replace(/The owner's/g, "Your").replace(/[Tt]he owner/g, "you");
+    $("notes-learned").textContent = yours || "Nothing yet: approve, reject (with a reason) or edit a few items first.";
+    $("notes-panel").hidden = false;
+    $("notes-text").focus();
+  } catch (err) { toast(err.message); }
+};
+$("notes-save").onclick = async () => {
+  const a = agent(current);
+  try { await api(`/api/notes/${a.desk}`, { notes: $("notes-text").value }); toast(`Saved. ${a.name} will follow these from now on.`); $("notes-panel").hidden = true; }
+  catch (err) { toast(err.message); }
+};
+$("notes-close").onclick = () => ($("notes-panel").hidden = true);
 $("library-close").onclick = () => ($("library-panel").hidden = true);
 $("library-panel").onclick = (e) => { if (e.target === $("library-panel")) $("library-panel").hidden = true; };
 $("item-panel").onclick = (e) => { if (e.target === $("item-panel")) $("item-panel").hidden = true; };
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("item-panel").hidden = true; $("phone-panel").hidden = true; $("library-panel").hidden = true; } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("item-panel").hidden = true; $("phone-panel").hidden = true; $("library-panel").hidden = true; $("notes-panel").hidden = true; } });
 document.querySelector("header h1").onclick = home;
 document.querySelector("header h1").style.cursor = "pointer";
 $("checkin").onclick = async () => { await api("/api/checkin", {}).catch((e) => toast(e.message)); tick(); };

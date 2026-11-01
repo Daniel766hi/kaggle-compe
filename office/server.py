@@ -69,6 +69,23 @@ class OfficeApp:
             })  # fmt: skip
         return {"agents": agents, "jobs": self.jobs, "syncing": self.syncing}
 
+    def board(self):
+        """Everything that needs you, across all desks, plus what went out lately."""
+        needs, done = [], []
+        for desk_key, (agent_key, desk) in self.desks.items():
+            for item in desk.queue().items:
+                kind = _need(desk, item)
+                row = {"desk": desk_key, "agent": agent_key, "id": item["id"], "hook": item["hook"], "status": item["status"],
+                       "job": self.jobs.get(f"{desk_key}:{item['id']}", "")}  # fmt: skip
+                if kind:
+                    needs.append({**row, "kind": kind})
+                elif item["status"] in desk.published:
+                    at = item.get(f"{item['status']}_at", "")
+                    done.append({**row, "url": item.get("url", ""), "at": at})
+        needs.sort(key=lambda r: (NEED_ORDER.index(r["kind"]), r["desk"], r["id"]))
+        done.sort(key=lambda r: r["at"], reverse=True)
+        return {"needs": needs, "done": done[:6]}
+
     def feed(self, key, after=0):
         return [e for e in self.office.threads[key].feed if e["id"] > after]
 
@@ -188,6 +205,24 @@ class OfficeApp:
         return desk.video_path(item_id)
 
 
+NEED_ORDER = ["failed", "review", "clips", "make", "watch"]
+
+
+def _need(desk, item):
+    """What an item is waiting on you for, or None."""
+    status = item["status"]
+    if status == "failed":
+        return "failed"
+    if status == "draft":
+        return "review"
+    if status == "approved":
+        uploads = desk.uploads(item) if hasattr(desk, "uploads") else None
+        return "clips" if uploads is not None and not all(uploads) else "make"
+    if status == "rendered":
+        return "watch"
+    return None
+
+
 def _actions(desk_key, item):
     """The buttons an item's card shows."""
     status = item["status"]
@@ -300,6 +335,8 @@ def make_handler(app):
                     return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
                 if parts == ["api", "phone"]:  # the phone links, with the login key: this computer only
                     return self._send(200, app.phone_links() if self._this_computer() else {"links": []})
+                if parts == ["api", "board"]:
+                    return self._send(200, app.board())
                 if parts == ["api", "state"]:
                     return self._send(200, app.state())
                 if parts[:2] == ["api", "feed"] and len(parts) == 3:

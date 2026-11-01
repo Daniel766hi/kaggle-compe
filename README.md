@@ -374,6 +374,10 @@ python -m office                    # opens http://127.0.0.1:8765 (--phone / --a
   a folder linked to GitHub: the setup scripts install Git and link a folder that came from a ZIP,
   keeping your `.env`, plans and videos.
 
+- **Today board.** When no chat is open (on a phone: at the top of the screen), the office lists
+  everything that needs you across all desks: drafts to review, clips to add, posts and videos
+  ready to make or watch, and anything that didn't go out, plus what was published lately. Tap a
+  row to open its card; each card shows where it is: plan, approved, video ready, published.
 - **Cards show the pictures.** For videos made from AI pictures, the card shows the pictures
   too; tap one to save it (for a photo carousel, say). *New pictures* draws them again for free.
 

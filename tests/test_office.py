@@ -339,3 +339,24 @@ q = PostQueue({str(tmp_path / "q.json")!r}); q.add({{"pillar": "p", "hook": "Kam
     result = subprocess.run([sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", code],
                             capture_output=True, text=True, encoding="utf-8")  # fmt: skip
     assert result.returncode == 0, result.stderr
+
+
+def test_today_board_lists_what_needs_you_across_desks(office, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    o, _ = office()
+    xq = PostQueue(o.team["raka"].desk.queue_path)
+    xq.add(IDEA)
+    posted = xq.add({**IDEA, "hook": "Old news"}, status="approved")
+    xq.set_status(posted["id"], "posted", url="https://x.com/i/web/status/1")
+    xq.save()
+    tq = TIKTOK.queue(o.team["sari"].desk.queue_path)
+    tq.add(PLAN, status="rendered")
+    tq.add(PLAN, status="failed")
+    tq.add(PLAN, status="rejected")
+    tq.save()
+    board = server.OfficeApp(o).board()
+    assert [(r["desk"], r["id"], r["kind"]) for r in board["needs"]] == [
+        ("tiktok", 2, "failed"), ("x", 1, "review"), ("tiktok", 1, "watch"),
+    ]  # fmt: skip
+    assert board["needs"][0]["agent"] == "sari"
+    assert [(r["desk"], r["id"], r["url"]) for r in board["done"]] == [("x", 2, "https://x.com/i/web/status/1")]

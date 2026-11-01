@@ -53,9 +53,12 @@ def main(argv=None):
     elif in_codespace:  # reached through GitHub's port forwarding, which only lets you in
         app.password = os.environ.get("OFFICE_PASSWORD") or None
         app.any_host = True
+    app.auto_sync = os.environ.get("OFFICE_AUTO_SYNC") == "on" and os.path.isdir(".git")
     server = serve(app, args.port, args.checkin_minutes, host)
     url = f"http://127.0.0.1:{args.port}"
     print(f"AI Office is open at {url}  (Ctrl+C to close)")
+    if app.auto_sync:
+        print(f"It syncs with GitHub by itself every {args.checkin_minutes} minutes (the daily runs are on).")
     _report_setup()
 
     tunnel = None

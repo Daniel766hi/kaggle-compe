@@ -54,6 +54,8 @@ class OfficeApp:
         self.password = None  # set: phones may log in (python -m office --phone)
         self.links = []  # [{"label", "url"}] for opening the office on a phone
         self.any_host = False  # behind GitHub Codespaces' private port forwarding
+        self.auto_sync = False  # sync with GitHub at every check-in (python -m automate turns it on)
+        self.sync_error = ""
 
     def state(self):
         agents = []
@@ -181,17 +183,26 @@ class OfficeApp:
             self.jobs.pop(job, None)
             self.office.checkin()
 
-    def sync(self):
-        """Pull the queues the scheduled runs changed, then push yours (content/ only)."""
+    def sync(self, quiet=False):
+        """Pull the queues the scheduled runs changed, then push yours (content/ only).
+
+        quiet: the office's own sync every check-in; Maya only speaks up about office updates, or
+        about a failure the first time it happens.
+        """
         if self.syncing:
             raise ValueError("already syncing")
         self.syncing = True
 
         def run():
             try:
-                self.office.notify("maya", self.git())
+                result = self.git()
+                self.sync_error = ""
+                if not quiet or "Updates to the office" in result:
+                    self.office.notify("maya", result)
             except Exception as e:
-                self.office.notify("maya", f"Sync with GitHub failed: {e}")
+                if not quiet or str(e) != self.sync_error:
+                    self.office.notify("maya", f"Sync with GitHub failed: {e}")
+                self.sync_error = str(e)
             finally:
                 self.syncing = False
                 self.office.checkin()
@@ -444,7 +455,10 @@ def serve(app, port=8765, checkin_minutes=30, host="127.0.0.1"):
     def checkins():
         while True:
             try:
-                app.office.checkin()
+                if app.auto_sync and not app.syncing:
+                    app.sync(quiet=True)  # it checks in when done
+                else:
+                    app.office.checkin()
             except Exception:
                 logging.exception("check-in failed")
             stop.wait(checkin_minutes * 60)

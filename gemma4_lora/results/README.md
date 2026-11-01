@@ -51,3 +51,22 @@ The builder now uses 5.
   reproduce before and after the edit, then run the related existing test file, with 36 tool calls.
 - RFT data: 62 examples (40 tasks), length median 13,982 tokens, 17 longer than 16,384 (cut at the end),
   39% of tokens trained, 831,772 tokens after the cut.
+
+# RFT result (2026-11-01): not better, slower; not submitted
+
+`gemma4-lora-rft` v2: LoRA r=16 on the 62 resolved collected runs (40 tasks), MAX_LEN 8192 (v1 at 16k ran
+out of memory on every example: head_dim 512 attention falls back to a full score matrix), tool outputs
+cut to 600 characters. Nearly every run was cut at 8,192 tokens (median length 8,192), so training saw
+mostly the first half of each run. Train loss 0.23 -> 0.18, 0 OOM.
+
+`gemma4-eval-v3`, 24 held-out tasks, runs one at a time, official compaction (5), test packages installed
+(`eval_v3_holdout24_rows.jsonl`):
+
+| config | resolved | mean s/task | 8-min time-outs |
+|---|---|---|---|
+| baseline | 4 / 24 | 299 | 4 |
+| v6_public | 4 / 24 | 298 | 5 |
+| RFT | 3 / 24 | 349 | 9 |
+
+Paired: baseline vs RFT 1 vs 0 discordant; baseline vs v6 0 vs 0. RFT is 17% slower per task, which
+risks the 12-hour limit; with the cut at 8k it learned to explore but not to finish.

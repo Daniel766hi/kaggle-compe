@@ -390,7 +390,7 @@ def test_office_new_clips_button_swaps_the_footage(tmp_path, monkeypatch):
             break
         time.sleep(0.02)
     first = {c["source"] for c in tiktok.item(1)["clips"]}
-    assert app.item("tiktok", 1)["actions"] == ["publish", "new_clips", "reject"]
+    assert app.item("tiktok", 1)["actions"] == ["publish", "mark_posted", "new_clips", "reject"]
     app.action("tiktok", 1, "new_clips")
     for _ in range(200):
         if not app.jobs:
@@ -755,7 +755,7 @@ def test_make_draws_a_picture_plan_and_new_pictures_are_free(tmp_path, monkeypat
     args = argparse.Namespace(id=1, no_upload=True)
     assert cli.cmd_make(TIKTOK, q, args, None, FakeUploader(), assemble) == 0
     assert drawn == [cli.Path("build/tiktok/1/pictures")] and q.get(1)["status"] == "rendered"
-    assert server._actions("tiktok", q.get(1)) == ["publish", "new_clips", "reject"]
+    assert server._actions("tiktok", q.get(1)) == ["publish", "mark_posted", "new_clips", "reject"]
     cli.cmd_make(TIKTOK, q, argparse.Namespace(id=1, no_upload=True, new_clips=True), None, FakeUploader(), assemble)
     assert len(drawn) == 2  # drawn again, for free
     assert "Visuals made with AI." in ig_main.final_caption(q.get(1))

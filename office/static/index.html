@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Office</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 <style>
   :root {
     --bg: #f6f4ef; --panel: #ffffff; --ink: #1f2328; --muted: #6b7280; --line: #e5e1d8;
@@ -20,10 +21,13 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
          height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
-  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header button { display: inline-flex; align-items: center; gap: 6px; }
   header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
   button:hover { border-color: var(--muted); }
@@ -92,7 +96,34 @@
   #chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
   #chips button { font-size: 13px; padding: 3px 10px; border-radius: 999px; }
   #composer form { display: flex; gap: 8px; }
+  textarea:focus { outline: none; border-color: var(--you); }
   textarea { flex: 1; resize: none; font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 42px; max-height: 160px; }
+  .today { padding: 20px; overflow-y: auto; }
+  .today h2 { font-size: 20px; margin: 0 0 4px; }
+  .today .summary { color: var(--muted); margin-bottom: 16px; }
+  .today h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 8px; display: flex; gap: 8px; align-items: center; }
+  .today h3 .count { background: var(--bubble); color: var(--ink); border-radius: 999px; padding: 0 8px; letter-spacing: 0; }
+  .row { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left;
+         background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--shadow); }
+  .row:hover { border-color: var(--you); }
+  .row .tag { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .row .hook { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .row .cta { color: var(--you); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .row.failed { border-left: 4px solid var(--bad); }
+  .row a { color: var(--you); }
+  .allclear { text-align: center; padding: 28px 12px; color: var(--muted); background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; }
+  .allclear b { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
+  #floor .today { padding: 0 0 8px; }
+  #today-floor { display: none; }
+  #today-main { flex: 1; min-height: 0; }
+  .steps { display: flex; gap: 4px; margin: 2px 0 8px; font-size: 11px; color: var(--muted); }
+  .steps span { flex: 1; text-align: center; padding-top: 6px; border-top: 3px solid var(--line); }
+  .steps span.done { border-color: var(--good); color: var(--good); }
+  .steps span.now { border-color: var(--you); color: var(--you); font-weight: 600; }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 20; padding: 16px; }
+  .overlay .sheet { background: var(--panel); color: var(--ink); border-radius: 16px; padding: 16px; max-width: 560px; width: 100%; max-height: 90vh; overflow: auto; }
+  .overlay .sheet .card { box-shadow: none; margin-top: 0; }
+  .sheet-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   #empty { margin: auto; text-align: center; color: var(--muted); max-width: 420px; padding: 24px; }
   #toast { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
   .toast { background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 12px; padding: 10px 14px; max-width: 320px; cursor: pointer; }
@@ -103,16 +134,33 @@
     body.chatting #chat { display: flex; }
     #back { display: inline-block; }
     header h1 small { display: none; }
+    #today-floor { display: block; }
+    #today-main { display: none; }
+    .overlay { place-items: end center; padding: 0; }
+    .overlay .sheet { border-radius: 16px 16px 0 0; max-height: 92vh; }
+  }
+  @media (max-width: 560px) {
+    header { gap: 8px; padding: 10px 12px; }
+    header h1 { font-size: 17px; }
+    header button .label { display: none; }
+    header button { padding: 6px 10px; }
+    .row { grid-template-columns: 1fr auto; }
+    .row .tag { grid-column: 1 / -1; }
+    .row .hook { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   }
 </style>
 </head>
 <body>
 <header>
   <h1>🏢 AI Office <small>your content team</small></h1>
-  <button id="checkin" title="Ask everyone to check their queues now">Check in</button>
-  <button id="sync" title="Pull the scheduled runs' changes and push your approvals">Sync with GitHub</button>
-  <button id="phone" title="Open the office on your phone" hidden>📱 Phone</button>
+  <button id="checkin" title="Ask everyone to check their queues now" aria-label="Check in"><span aria-hidden="true">↻</span><span class="label">Check in</span></button>
+  <button id="sync" title="Pull the scheduled runs' changes and push your approvals" aria-label="Sync with GitHub"><span aria-hidden="true">⇅</span><span class="label">Sync with GitHub</span></button>
+  <button id="phone" title="Open the office on your phone" aria-label="Phone" hidden><span aria-hidden="true">📱</span><span class="label">Phone</span></button>
 </header>
+<div id="item-panel" class="overlay" hidden><div class="sheet">
+  <div class="sheet-head"><button id="item-chat"></button><button id="item-close" aria-label="Close">✕</button></div>
+  <div id="item-card"></div>
+</div></div>
 <div id="phone-panel" hidden><div class="sheet">
   <h2>Open the office on your phone</h2>
   <div id="phone-links"></div>
@@ -120,14 +168,15 @@
   <button id="phone-close">Close</button>
 </div></div>
 <main>
-  <section id="floor"><h2>Office floor</h2><div id="desks"></div></section>
+  <section id="floor"><div id="today-floor" class="today"></div><h2>Your team</h2><div id="desks"></div></section>
   <section id="chat">
     <div id="chat-head" hidden>
       <button id="back" aria-label="Back to the office floor">←</button>
       <div class="avatar" id="head-avatar"></div>
       <div><div class="name" id="head-name" style="font-weight:600"></div><div class="role" id="head-role" style="color:var(--muted);font-size:13px"></div></div>
     </div>
-    <div id="messages"><div id="empty">Pick someone on the office floor to start chatting.<br><br>They'll also message you here when something needs you: drafts to review, a finished video, a post that didn't go out.</div></div>
+    <div id="today-main" class="today"></div>
+    <div id="messages" hidden></div>
     <div id="composer" hidden>
       <div id="chips"></div>
       <form id="form"><textarea id="input" rows="1" placeholder="Message…"></textarea><button class="primary" id="send">Send</button></form>
@@ -152,7 +201,15 @@ const CONFIRM = {
              instagram: "Render it (if needed) and publish this Reel? It will be public." },
   mark_posted: "Mark this as posted? Do it after you've posted it in X.",
 };
-let state = { agents: [] }, current = null, lastId = 0, seen = {};
+const NEEDS = {
+  failed: { title: "Didn't go out", cta: "Look" },
+  review: { title: "Review", cta: "Review" },
+  clips: { title: "Add your clips", cta: "Add clips" },
+  make: { title: "Ready to make", cta: { x: "Post", tiktok: "Make video", instagram: "Make Reel" } },
+  watch: { title: "Watch and publish", cta: "Watch" },
+};
+const STEPS = { x: ["Draft", "Approved", "Posted"], video: ["Plan", "Approved", "Video ready", "Published"] };
+let state = { agents: [] }, current = null, lastId = 0, seen = {}, boardJson = "";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -176,7 +233,7 @@ function toast(text, key) {
 function renderDesks() {
   $("desks").innerHTML = state.agents.map((a) => {
     const dot = a.status ? "busy" : a.needs ? "needs" : "idle";
-    const line = a.status ? `${a.status}…` : a.last ? a.last.text.replace(/\[\[\w+:\d+\]\]/g, "📄") : "Free to chat";
+    const line = a.status ? `${a.status}…` : a.last ? cardNames(a.last.text) : "Free to chat";
     return `<div class="desk ${a.key === current ? "active" : ""}" data-key="${a.key}" style="--c:${a.color}">
       <div class="avatar">${a.emoji}<span class="dot ${dot}"></span></div>
       <div class="meta"><div class="name">${esc(a.name)}</div><div class="role">${esc(a.role)}</div><div class="last">${esc(line)}</div></div>
@@ -185,6 +242,57 @@ function renderDesks() {
   document.querySelectorAll(".desk").forEach((d) => (d.onclick = () => open(d.dataset.key)));
   const unread = state.agents.reduce((n, a) => n + (a.key === current ? 0 : a.unread), 0);
   document.title = unread ? `(${unread}) AI Office` : "AI Office";
+}
+
+function cardNames(text) {  // [[tiktok:2]] -> TikTok #2, for previews and pop-ups
+  return text.replace(/\[\[(x|tiktok|instagram):(\d+)\]\]/g, (_, d, id) => `${DESK_NAMES[d]} #${id}`);
+}
+
+function steps(it) {
+  const names = it.desk === "x" ? STEPS.x : STEPS.video;
+  const at = { draft: 0, approved: 1, rendered: 2, sent: names.length - 1, posted: names.length - 1 }[it.status];
+  if (at === undefined) return "";
+  return `<div class="steps">${names.map((n, i) => `<span class="${i < at || (i === at && i === names.length - 1) ? "done" : i === at ? "now" : ""}">${n}</span>`).join("")}</div>`;
+}
+
+async function renderBoard() {
+  let board;
+  try { board = await api("/api/board"); } catch { return; }
+  const json = JSON.stringify(board);
+  if (json === boardJson) return;
+  boardJson = json;
+  const deskAgent = (d) => state.agents.find((a) => a.desk === d) || {};
+  const row = (r, cta) => `<button class="row ${r.kind || ""}" data-desk="${r.desk}" data-id="${r.id}">
+      <span class="tag">${deskAgent(r.desk).emoji || ""} ${DESK_NAMES[r.desk]} #${r.id}</span><span class="hook">${esc(r.hook)}</span>
+      <span class="cta">${r.job ? "⏳ " + esc(r.job) : esc(cta)} →</span></button>`;
+  let html = `<h2>Today</h2>`;
+  const n = board.needs.length;
+  html += `<div class="summary">${n ? `${n} thing${n > 1 ? "s" : ""} need${n > 1 ? "" : "s"} you.` : "Nothing needs you right now."}</div>`;
+  if (!n) html += `<div class="allclear"><b>All caught up 🎉</b>Ask Maya to plan the week, or pick a teammate below and ask for ideas.</div>`;
+  for (const [kind, info] of Object.entries(NEEDS)) {
+    const rows = board.needs.filter((r) => r.kind === kind);
+    if (!rows.length) continue;
+    html += `<h3>${info.title} <span class="count">${rows.length}</span></h3>`;
+    html += rows.map((r) => row(r, typeof info.cta === "object" ? info.cta[r.desk] : info.cta)).join("");
+  }
+  if (board.done.length) {
+    html += `<h3>Recently published</h3>`;
+    html += board.done.map((r) => row(r, r.status === "sent" ? "In TikTok inbox" : "Live")).join("");
+  }
+  for (const el of [$("today-main"), $("today-floor")]) {
+    el.innerHTML = html;
+    el.querySelectorAll(".row").forEach((b) => (b.onclick = () => showItem(b.dataset.desk, b.dataset.id)));
+  }
+}
+
+function showItem(desk, id) {
+  const a = state.agents.find((x) => x.desk === desk);
+  $("item-card").innerHTML = `<div class="card" data-desk="${desk}" data-id="${id}"><span class="muted">Loading…</span></div>`;
+  loadCard($("item-card").firstChild);
+  $("item-chat").textContent = a ? `💬 Chat with ${a.name}` : "";
+  $("item-chat").hidden = !a;
+  $("item-chat").onclick = () => { $("item-panel").hidden = true; open(a.key); };
+  $("item-panel").hidden = false;
 }
 
 function format(text) {
@@ -211,7 +319,7 @@ async function loadCard(el) {
     const it = await api(`/api/item/${el.dataset.desk}/${el.dataset.id}`);
     const desk = it.desk;
     let body = `<div class="top"><span>${DESK_NAMES[desk]} #${it.id}</span><span class="pill ${it.status}">${it.status}</span>${it.job ? `<span>⏳ ${esc(it.job)}…</span>` : ""}</div>`;
-    body += `<div class="hook">${esc(it.hook)}</div>`;
+    body += `<div class="hook">${esc(it.hook)}</div>` + steps(it);
     if (it.posts) body += it.posts.map((p, i) => `<blockquote>${it.posts.length > 1 ? `<span class="muted">${i + 1}/${it.posts.length}</span> ` : ""}${esc(p)}</blockquote>`).join("");
     if (it.shots && it.uploads) {  // you make these clips on a free AI video website
       body += `<div class="muted">Make each clip on a free AI video site such as <a href="https://dreamina.capcut.com" target="_blank" rel="noopener">Dreamina</a> (5 s, 9:16): copy the prompt, generate, download, then add it here.</div>`;
@@ -255,6 +363,7 @@ async function act(el, action) {
   try { await api(`/api/action/${desk}/${el.dataset.id}`, { action }); }
   catch (err) { toast(err.message); }
   refreshCards(desk, el.dataset.id);
+  boardJson = ""; renderBoard();
 }
 
 async function addClip(el, shot, file) {
@@ -280,7 +389,7 @@ async function open(key) {
   current = key; lastId = 0;
   document.body.classList.add("chatting");
   const a = agent(key);
-  $("chat-head").hidden = false; $("composer").hidden = false;
+  $("chat-head").hidden = false; $("composer").hidden = false; $("messages").hidden = false; $("today-main").hidden = true;
   $("head-avatar").textContent = a.emoji; $("head-avatar").style.setProperty("--c", a.color);
   $("head-name").textContent = a.name; $("head-role").textContent = a.role;
   $("messages").innerHTML = '<div class="typing" id="typing" hidden></div>';
@@ -297,6 +406,10 @@ async function pollFeed() {
   const entries = await api(`/api/feed/${key}?after=${lastId}`);
   if (key !== current) return;
   entries.forEach(addMessage);
+  if (!lastId && !entries.length && !$("hello")) {
+    const a = agent(key);
+    $("messages").insertAdjacentHTML("afterbegin", `<div id="hello" class="msg system">Say hi to ${esc(a.name)}: ask for ideas, or tap a suggestion below.</div>`);
+  }
   if (entries.length) {
     lastId = entries[entries.length - 1].id;
     $("messages").scrollTop = $("messages").scrollHeight;
@@ -323,13 +436,14 @@ async function tick() {
     for (const a of state.agents) {
       const before = prev.agents.find((p) => p.key === a.key);
       if (before && a.last && (!before.last || a.last.id > before.last.id) && a.last.from !== "you" && a.key !== current) {
-        const text = `${a.emoji} ${a.name}: ${a.last.text.replace(/\[\[\w+:(\d+)\]\]/g, "#$1").slice(0, 140)}`;
+        const text = `${a.emoji} ${a.name}: ${cardNames(a.last.text).slice(0, 140)}`;
         toast(text, a.key);
         if (document.hidden && window.Notification && Notification.permission === "granted") new Notification(`${a.name} (${a.role})`, { body: a.last.text.replace(/\[\[\w+:(\d+)\]\]/g, "#$1").slice(0, 200) });
       }
     }
     $("sync").disabled = state.syncing;
     renderDesks();
+    renderBoard();
     await pollFeed();
     document.querySelectorAll('.card[data-job="1"]').forEach(loadCard);
   } catch (err) { console.warn(err); }
@@ -338,7 +452,17 @@ async function tick() {
 $("form").onsubmit = (e) => { e.preventDefault(); send($("input").value); };
 $("input").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("input").value); } };
 $("input").oninput = () => { $("input").style.height = "auto"; $("input").style.height = Math.min($("input").scrollHeight, 160) + "px"; };
-$("back").onclick = () => { current = null; document.body.classList.remove("chatting"); renderDesks(); };
+function home() {
+  current = null; document.body.classList.remove("chatting");
+  $("chat-head").hidden = true; $("composer").hidden = true; $("messages").hidden = true; $("today-main").hidden = false;
+  renderDesks(); boardJson = ""; renderBoard();
+}
+$("back").onclick = home;
+$("item-close").onclick = () => ($("item-panel").hidden = true);
+$("item-panel").onclick = (e) => { if (e.target === $("item-panel")) $("item-panel").hidden = true; };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("item-panel").hidden = true; $("phone-panel").hidden = true; } });
+document.querySelector("header h1").onclick = home;
+document.querySelector("header h1").style.cursor = "pointer";
 $("checkin").onclick = async () => { await api("/api/checkin", {}).catch((e) => toast(e.message)); tick(); };
 $("sync").onclick = async () => { await api("/api/sync", {}).then(() => toast("Syncing with GitHub… Maya will tell you when it's done.")).catch((e) => toast(e.message)); };
 $("phone").onclick = () => ($("phone-panel").hidden = false);

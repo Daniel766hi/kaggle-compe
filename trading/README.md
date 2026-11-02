@@ -53,6 +53,25 @@ through. It should also keep doing that in paper trading for weeks, on data it h
 Change one thing at a time. `freqtrade hyperopt` can tune the two RSI levels, but heavy tuning
 mostly fits noise.
 
+## The trading lab: which strategy is actually best?
+
+`trading/lab/` backtests many strategies under exactly the same conditions on real prices, and
+ranks them honestly:
+- **Data:** 30 big coins, two years. The first year checks each strategy; the second is data it
+  has never been judged on.
+- **Money:** a 1,000 USDT pretend wallet, up to 6 trades at once, the exchange's normal fees.
+- **Strategies:** this folder's TrendPullback, plus the best-known open-source ones at fixed
+  versions. These are [NostalgiaForInfinity](https://github.com/iterativv/NostalgiaForInfinity)
+  X8, the most widely used community strategy, and 11 classics from
+  [freqtrade-strategies](https://github.com/freqtrade/freqtrade-strategies).
+
+A strategy **passes** only if it made money in both years, beat simply holding in at least one,
+and its worst fall stayed under 35%. Ranking is by its weaker year, so one lucky year doesn't win.
+
+It runs on GitHub's servers, not on your computer: in your repository, open **Actions → Trading
+lab → Run workflow**. It takes one to a few hours. The ranked table appears on the run's page
+(and as a download).
+
 ## If you ever use real money
 
 Don't, until paper trading has worked for at least a month. Then:

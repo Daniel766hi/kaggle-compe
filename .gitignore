@@ -20,3 +20,4 @@ trading/user_data/*.sqlite*
 trading/lab/work/
 trading/lab/results.json
 trading/lab/report.md
+trading/lab/config.json

@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": 1,
+    "status": "draft",
+    "pillar": "Analytics craft",
+    "hook": "Building automated data pipelines for Kaggle",
+    "posts": [
+      "Maintaining free datasets like the Indonesia daily weather archive on Kaggle teaches you the value of robust pipelines. When an API changes or a schema shifts, automated checks catch it before downstream users notice."
+    ],
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-11-02T08:07:13+00:00"
+  },
+  {
+    "id": 2,
+    "status": "draft",
+    "pillar": "Analytics craft",
+    "hook": "Using scripts to automate repetitive data gathering",
+    "posts": [
+      "Automating data collection for daily exchange rates or air quality metrics saves hours, but the real work is in handling edge cases. Missing timestamps and null values break models faster than bad logic."
+    ],
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-11-02T08:07:13+00:00"
+  },
+  {
+    "id": 3,
+    "status": "draft",
+    "pillar": "Early-career lessons",
+    "hook": "Building in public as an analyst",
+    "posts": [
+      "Sharing your data projects and pipelines in public forces you to write cleaner code and document your assumptions. It turns private experimentation into a public record of how you solve problems."
+    ],
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-11-02T08:07:13+00:00"
+  }
+]

@@ -137,5 +137,124 @@
         "picture": "build\\tiktok\\4\\pictures\\picture_3.png"
       }
     ]
+  },
+  {
+    "id": 5,
+    "status": "approved",
+    "pillar": "Animals doing human jobs badly",
+    "hook": "When your barista only makes one drink",
+    "shots": [
+      {
+        "image_prompt": "A fluffy white Pomeranian dog wearing a tiny black apron standing behind an espresso machine, bright cafe setting, morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the dog taps its tiny paw impatiently on the counter",
+        "camera": "zoom_in",
+        "on_screen_text": "my new local barista"
+      },
+      {
+        "image_prompt": "A fluffy white Pomeranian dog wearing a tiny black apron staring blankly at a single glass of plain water, bright cafe setting, morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the dog tilts its head with zero remorse",
+        "camera": "pan_left",
+        "on_screen_text": "he only serves tap water"
+      },
+      {
+        "image_prompt": "A fluffy white Pomeranian dog wearing a tiny black apron looking aggressively proud next to an empty mug, bright cafe setting, morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the dog snorts and looks away proudly",
+        "camera": "zoom_out",
+        "on_screen_text": "that will be five dollars"
+      },
+      {
+        "image_prompt": "A fluffy white Pomeranian dog wearing a tiny black apron sitting behind the counter with a closed sign, bright cafe setting, morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the dog closes its eyes for a nap",
+        "camera": "pan_right",
+        "on_screen_text": "we are closing early"
+      },
+      {
+        "image_prompt": "A fluffy white Pomeranian dog wearing a tiny black apron sleeping soundly behind the counter, bright cafe setting, morning light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the dog snores slightly",
+        "camera": "zoom_in",
+        "on_screen_text": "no refunds"
+      }
+    ],
+    "voiceover": "My new local barista is very strict. He only serves tap water and closes early.",
+    "caption": "Five star service guaranteed. #funnyanimals #doglife #barista",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-11-02T08:03:58+00:00",
+    "approved_at": "2026-11-02T08:09:04+00:00",
+    "approved_by": "office"
+  },
+  {
+    "id": 6,
+    "status": "rendered",
+    "pillar": "Dramatic overreactions to tiny things",
+    "hook": "Betrayed by the vegetable",
+    "shots": [
+      {
+        "image_prompt": "A chubby orange tabby cat staring in sheer horror at a single green cucumber on the floor, living room rug, soft indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the cat widens its eyes in absolute shock",
+        "camera": "zoom_in",
+        "on_screen_text": "the betrayal"
+      },
+      {
+        "image_prompt": "A chubby orange tabby cat arching its back dramatically away from a single green cucumber on the floor, living room rug, soft indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the cat slowly backs away with puffed fur",
+        "camera": "zoom_out",
+        "on_screen_text": "an unprovoked attack"
+      },
+      {
+        "image_prompt": "A chubby orange tabby cat clinging to the sofa cushions while staring at a single green cucumber on the floor, living room rug, soft indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the cat gasps dramatically",
+        "camera": "pan_up",
+        "on_screen_text": "nowhere is safe"
+      },
+      {
+        "image_prompt": "A chubby orange tabby cat hiding behind a table leg and glaring at a single green cucumber on the floor, living room rug, soft indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the cat squints suspiciously",
+        "camera": "pan_left",
+        "on_screen_text": "plotting revenge"
+      },
+      {
+        "image_prompt": "A chubby orange tabby cat knocking a glass off the table while staring at a single green cucumber on the floor, living room rug, soft indoor light, photorealistic photo, shot on a phone, vertical composition, the animal fills the frame",
+        "action": "the cat knocks the glass down with zero hesitation",
+        "camera": "zoom_in",
+        "on_screen_text": "match is yours"
+      }
+    ],
+    "voiceover": "My cat experienced the ultimate betrayal today. The cucumber wins again.",
+    "caption": "Peace was never an option. #funnyanimals #cats #cucumber",
+    "sources": [],
+    "fact_check": "",
+    "created_at": "2026-11-02T08:03:58+00:00",
+    "approved_at": "2026-11-02T08:07:47+00:00",
+    "approved_by": "office",
+    "clips": [
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\tiktok\\6\\pictures\\moving_1.mp4",
+        "source": "ai-picture:picture_1.png",
+        "picture": "build\\tiktok\\6\\pictures\\picture_1.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\tiktok\\6\\pictures\\moving_2.mp4",
+        "source": "ai-picture:picture_2.png",
+        "picture": "build\\tiktok\\6\\pictures\\picture_2.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\tiktok\\6\\pictures\\moving_3.mp4",
+        "source": "ai-picture:picture_3.png",
+        "picture": "build\\tiktok\\6\\pictures\\picture_3.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\tiktok\\6\\pictures\\moving_4.mp4",
+        "source": "ai-picture:picture_4.png",
+        "picture": "build\\tiktok\\6\\pictures\\picture_4.png"
+      },
+      {
+        "video_url": "C:\\Users\\Daniel Silalahi\\ai-office\\build\\tiktok\\6\\pictures\\moving_5.mp4",
+        "source": "ai-picture:picture_5.png",
+        "picture": "build\\tiktok\\6\\pictures\\picture_5.png"
+      }
+    ],
+    "rendered_at": "2026-11-02T08:08:56+00:00",
+    "error": ""
   }
 ]

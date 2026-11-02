@@ -21,10 +21,11 @@ for s in CombinedBinHAndCluc ClucMay72018 BbandRsi; do
 done
 
 docker pull -q "$IMAGE"
-# Run as this runner's user, so the files Freqtrade writes stay ours to read and change.
-run_as=(--user "$(id -u):$(id -g)" -e HOME=/tmp)
-ft() { docker run --rm "${run_as[@]}" -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
-py() { docker run --rm "${run_as[@]}" --entrypoint python -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
+# Freqtrade runs as its own user in the container: let it write to the shared folders. The files
+# this script writes (config.json) stay the runner's, and Freqtrade only reads them.
+chmod -R a+rwX work .
+ft() { docker run --rm -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
+py() { docker run --rm --entrypoint python -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
 
 # GitHub's servers are in the US; some exchanges refuse US visitors. Use the first that answers.
 EXCHANGE=""

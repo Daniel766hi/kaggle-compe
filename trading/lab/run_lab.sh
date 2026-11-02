@@ -30,8 +30,8 @@ py() { docker run --rm "${run_as[@]}" --entrypoint python -v "$PWD/work/user_dat
 EXCHANGE=""
 for ex in binance okx kucoin gate; do
   python3 make_config.py "$ex" > config.json
-  if ft list-pairs --config /lab/config.json --quote USDT -1 >/dev/null 2>&1; then EXCHANGE=$ex; break; fi
-  echo "$ex didn't answer from here"
+  if ft list-pairs --config /lab/config.json --quote USDT -1 > probe.log 2>&1; then EXCHANGE=$ex; break; fi
+  echo "$ex didn't answer from here:"; tail -n 5 probe.log
 done
 [ -n "$EXCHANGE" ] || { echo "No exchange reachable"; exit 1; }
 echo "Exchange: $EXCHANGE"

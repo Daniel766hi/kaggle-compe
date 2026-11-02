@@ -84,6 +84,10 @@ def free_setup(monkeypatch):
     monkeypatch.delenv("STOCK_SITE", raising=False)
     monkeypatch.delenv("AI_PROVIDER", raising=False)
     monkeypatch.delenv("VIDEO_SOURCE", raising=False)
+    llm._resting.clear()  # which free AIs are resting after a limit: fresh for every test
+    monkeypatch.setenv("AI_LOCAL_FALLBACK", "off")  # never reach for a real Ollama from the tests
+    for key in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "CEREBRAS_API_KEY", "GROQ_MODEL", "OPENROUTER_MODEL"):
+        monkeypatch.delenv(key, raising=False)
     for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_FALLBACK_MODEL", "GEMINI_THINKING", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "DASHSCOPE_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     for key in ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"):
@@ -584,7 +588,7 @@ def test_gemini_answers_in_json_and_waits_out_its_rate_limit(monkeypatch):
 def test_gemini_explains_a_used_up_free_limit(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "g-key")
     session = FakeGemini(statuses=[429, 429, 429, 429])
-    with pytest.raises(llm.LLMError, match="free limit"):
+    with pytest.raises(llm.LLMError, match="free AI limits"):
         llm.gemini_chat([{"role": "user", "content": "hi"}], session=session, sleep=lambda s: None)
 
 
@@ -797,3 +801,83 @@ def test_gemini_models_without_thinking_settings_still_answer(monkeypatch):
     session = NoThinking({"role": "assistant", "content": "ready"})
     assert llm.gemini_chat([{"role": "user", "content": "hi"}], session=session)["content"] == "ready"
     assert "reasoning_effort" not in session.calls[-1]["body"]
+
+
+class FakeClouds:
+    """Answers by provider: a list of statuses per base URL fragment, then a reply."""
+
+    def __init__(self, plan):
+        self.plan, self.calls = plan, []
+
+    def post(self, url, json, headers, timeout):
+        self.calls.append((url, json))
+        for fragment, statuses in self.plan.items():
+            if fragment in url:
+                status = statuses.pop(0) if statuses else 200
+                if status != 200:
+                    body = {"error": {"message": "quota exceeded for requests per day" if status == 429 else "nope"}}
+                    return FakeResponse(body, status)
+                return FakeResponse({"choices": [{"message": {"role": "assistant", "content": f"from {fragment}"}}]})
+        raise AssertionError(url)
+
+
+def test_when_gemini_is_out_the_next_free_ai_answers(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "g")
+    monkeypatch.setenv("GROQ_API_KEY", "q")
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    assert llm.provider() == "gemini" and "Groq" in llm.describe()
+    clouds = FakeClouds({"generativelanguage": [429] * 4, "groq": []})
+    history = [{"role": "user", "content": "hi"},
+               {"role": "assistant", "content": None, "tool_calls": [{"id": "1", "type": "function",
+                "function": {"name": "f", "arguments": "{}"}, "extra_content": {"google": {"thought_signature": "s"}}}]},
+               {"role": "tool", "tool_call_id": "1", "content": "ok"}]  # fmt: skip
+    assert llm.gemini_chat(history, session=clouds, sleep=lambda s: None)["content"] == "from groq"
+    groq_url, groq_body = clouds.calls[-1]
+    assert groq_url == "https://api.groq.com/openai/v1/chat/completions" and groq_body["model"] == "openai/gpt-oss-120b"
+    assert "extra_content" not in groq_body["messages"][1]["tool_calls"][0] and "reasoning_effort" not in groq_body
+    # Gemini said "per day": it rests for an hour, so the next question goes straight to Groq
+    clouds.calls.clear()
+    assert llm.gemini_chat([{"role": "user", "content": "again"}], session=clouds)["content"] == "from groq"
+    assert [url for url, _ in clouds.calls] == ["https://api.groq.com/openai/v1/chat/completions"]
+
+
+def test_a_free_ai_without_structured_output_is_asked_for_json_in_words(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "q")
+
+    class NoSchema(FakeClouds):
+        def post(self, url, json, headers, timeout):
+            self.calls.append((url, json))
+            if json["response_format"]["type"] == "json_schema":
+                resp = FakeResponse({"error": {"message": "response_format json_schema is not supported"}}, 400)
+                resp.text = "response_format json_schema is not supported"
+                return resp
+            return FakeResponse({"choices": [{"message": {"role": "assistant", "content": '{"ideas": []}'}}]})
+
+    session = NoSchema({})
+    assert llm.json_answer("system", "request", {"type": "object", "properties": {"ideas": {"type": "array"}}}, session) == {"ideas": []}
+    last = session.calls[-1][1]
+    assert last["response_format"] == {"type": "json_object"} and "matching this schema" in last["messages"][-1]["content"]
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_a_shot_without_a_clip_can_be_an_ai_picture(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    fake = FakePictures(picture_bytes(tmp_path))
+    tiktok = VideoDesk(TIKTOK, tmp_path / "t.json", pictures=fake)
+    team = build_team(XDesk(tmp_path / "x.json"), tiktok, VideoDesk(INSTAGRAM, tmp_path / "i.json"))
+    app = server.OfficeApp(Office(team, tmp_path / "data", engine=OllamaEngine(FakeOllama())))
+    q = TIKTOK.queue(tmp_path / "t.json")
+    q.add(UPLOAD_PLAN, status="approved")
+    q.save()
+    render.save_upload(cli.upload_folder(TIKTOK, 1), 1, b"clip", "dreamina.mp4")  # one clip made on a video site
+    render.save_upload(cli.upload_folder(TIKTOK, 1), 2, b"clip", "kling.mp4")
+    assert app.item("tiktok", 1)["can_draw"] and app.item("tiktok", 1)["uploads"] == [True, True, False]
+    app.picture_shot("tiktok", 1, 3)  # Dreamina's credits ran out: draw the last shot
+    for _ in range(600):
+        if not app.jobs:
+            break
+        time.sleep(0.05)
+    assert app.item("tiktok", 1)["uploads"] == [True, True, True]
+    assert fake.calls[0][0] == UPLOAD_PLAN["shots"][2]["video_prompt"]
+    assert "All shots are ready" in app.office.threads["sari"].feed[-1]["text"]
+    assert "render" in app.item("tiktok", 1)["actions"]

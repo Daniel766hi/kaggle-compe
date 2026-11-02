@@ -213,6 +213,8 @@ const CHIPS = {
   sari: ["What's waiting for me?", "Draft 2 animal sketches", "Something with a cat"],
   bima: ["What's waiting for me?", "Draft 2 animal sketches", "Something set in Indonesia"],
 };
+const VIDEO_SITES = [["Dreamina", "https://dreamina.capcut.com"], ["Google Flow", "https://labs.google/flow"],
+                     ["Kling", "https://klingai.com"], ["PixVerse", "https://app.pixverse.ai"], ["Hailuo", "https://hailuoai.video"]];
 const DESK_NAMES = { x: "X", tiktok: "TikTok", instagram: "Instagram" };
 const LABELS = { approve: "Approve", reject: "Reject", post: "Post to X now", render: "Render preview",
                  share: "Open in X", mark_posted: "I posted it", new_clips: "New clips", restore: "Restore",
@@ -355,10 +357,13 @@ async function loadCard(el) {
     body += `<div class="hook">${esc(it.hook)}</div>` + steps(it);
     if (it.posts) body += it.posts.map((p, i) => `<blockquote>${it.posts.length > 1 ? `<span class="muted">${i + 1}/${it.posts.length}</span> ` : ""}${esc(p)}</blockquote>`).join("");
     if (it.shots && it.uploads) {  // you make these clips on a free AI video website
-      body += `<div class="muted">Make each clip on a free AI video site such as <a href="https://dreamina.capcut.com" target="_blank" rel="noopener">Dreamina</a> (5 s, 9:16): copy the prompt, generate, download, then add it here.</div>`;
+      body += `<div class="muted">Make each clip on a free AI video site (5 s, 9:16): copy the prompt, generate, download, then add it here.
+        Each site has its own daily free credits, so when one runs out, use the next: ${VIDEO_SITES.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${n}</a>`).join(" · ")}.
+        ${it.can_draw ? "Or press 🖼 AI picture to fill a shot with a free AI picture instead." : ""}</div>`;
       body += `<ol>${it.shots.map((s, i) => `<li>“${esc(s.on_screen_text)}”<div class="prompt">${esc(s.video_prompt)}</div>
         <div class="shot-buttons"><button type="button" data-copy="${i}">Copy prompt</button>${it.status === "draft" || !it.actions.length ? "" :
-        `<label class="button ${it.uploads[i] ? "" : "primary"}">${it.uploads[i] ? "Replace clip ✓" : "Add clip"}<input type="file" accept="video/*" data-shot="${i + 1}" hidden></label>`}</div></li>`).join("")}</ol>`;
+        `<label class="button ${it.uploads[i] ? "" : "primary"}">${it.uploads[i] ? "Replace clip ✓" : "Add clip"}<input type="file" accept="video/*" data-shot="${i + 1}" hidden></label>
+         ${it.can_draw && !it.job ? `<button type="button" data-draw="${i + 1}" title="Fill this shot with a free AI picture and a camera move">🖼 AI picture</button>` : ""}`}</div></li>`).join("")}</ol>`;
     } else if (it.shots) body += `<ol>${it.shots.map((s) => `<li>“${esc(s.on_screen_text)}” <span class="muted">— ${esc(s.search_query || s.image_prompt)}</span></li>`).join("")}</ol>`;
     if (it.caption) body += `<div class="muted">Caption: ${esc(it.caption)}</div>`;
     if (it.video) body += `<video src="${it.video}?t=${Date.now()}" controls playsinline></video>
@@ -391,6 +396,11 @@ async function loadCard(el) {
     el.querySelectorAll("button[data-copy]").forEach((b) => (b.onclick = () => navigator.clipboard.writeText(it.shots[b.dataset.copy].video_prompt)
       .then(() => toast("Prompt copied. Paste it into the AI video site.")).catch(() => toast("Couldn't copy; select the prompt text instead."))));
     el.querySelectorAll("input[data-shot]").forEach((f) => (f.onchange = () => f.files[0] && addClip(el, f.dataset.shot, f.files[0])));
+    el.querySelectorAll("button[data-draw]").forEach((b) => (b.onclick = async () => {
+      try { await api(`/api/picture-shot/${desk}/${it.id}/${b.dataset.draw}`, {}); toast(`Drawing shot ${b.dataset.draw}… about 10 seconds.`); }
+      catch (err) { toast(err.message); }
+      refreshCards(desk, it.id);
+    }));
   } catch (err) {
     el.innerHTML = `<span class="muted">#${el.dataset.id}: ${esc(err.message)}</span>`;
   }

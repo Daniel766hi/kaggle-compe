@@ -7,12 +7,13 @@ reachable from the buttons in the office, so nothing goes out without a click fr
 import argparse
 import os
 import shutil
+import tempfile
 import threading
 from pathlib import Path
 
 import taste
 from shorts import cli as shorts_cli
-from shorts import plans, render
+from shorts import images, plans, render
 from x_agent import brain, text
 from x_agent.queue import PostQueue
 from x_agent.x_client import ENV_KEYS, XClient, XError, post_url
@@ -318,6 +319,25 @@ class VideoDesk(Desk):
             raise ValueError(f"#{item_id} has no shot {shot}")
         with self.lock:
             return render.save_upload(shorts_cli.upload_folder(self.platform, item_id), int(shot), data, filename)
+
+    def picture_shot(self, item_id, shot):
+        """No clip for a shot (the video site's daily credits ran out, say)? Draw it as a free AI
+        picture with a camera move, and use that as the shot's clip. Button only."""
+        item = self.item(item_id)
+        if not shorts_cli.is_upload(item):
+            raise ValueError(f"#{item_id} doesn't take your own clips")
+        if item["status"] in self.published:
+            raise ValueError(f"#{item_id} is already published")
+        if not 1 <= int(shot) <= len(item["shots"]):
+            raise ValueError(f"#{item_id} has no shot {shot}")
+        pictures = self.pictures or images.CloudflareImages()
+        with tempfile.TemporaryDirectory() as tmp:
+            picture = Path(tmp) / "picture.png"
+            picture.write_bytes(pictures.generate(item["shots"][int(shot) - 1]["video_prompt"]))
+            clip = images.camera_move(picture, Path(tmp) / "clip.mp4", self.platform.seconds + render.FADE,
+                                      images.CAMERA[(int(shot) - 1) % len(images.CAMERA)])  # fmt: skip
+            with self.lock:
+                return render.save_upload(shorts_cli.upload_folder(self.platform, item_id), int(shot), clip.read_bytes(), "ai-picture.mp4")
 
     def video_path(self, item_id):
         return Path("build") / self.platform.name / str(int(item_id)) / "video.mp4"

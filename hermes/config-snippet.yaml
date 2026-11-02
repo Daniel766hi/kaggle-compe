@@ -1,0 +1,27 @@
+# Settings to merge into your Hermes config (~/.hermes/config.yaml, or
+# %LOCALAPPDATA%\hermes\config.yaml on native Windows). Open it with:  hermes config edit
+# Keep everything else the installer wrote. Secrets never go here; they go in .env
+# (use `hermes config set ANTHROPIC_API_KEY ...`, which writes .env for you).
+
+model:
+  # Closest to Claude Code: a Claude model with your own Anthropic API key (pay per token).
+  # Free alternative: provider "gemini" with GEMINI_API_KEY (free tier runs out quickly).
+  # Pick with `hermes model` instead of editing by hand if you prefer.
+  provider: "anthropic"
+  default: "claude-sonnet-5-5"
+
+approvals:
+  mode: manual          # ask before every risky command (rm -r, chmod, force push, ...)
+  cron_mode: deny       # scheduled jobs never run risky commands
+  deny:                 # never allowed, even if you approve by accident
+    - "git push --force*"
+    - "git push -f*"
+    - "git reset --hard origin*"
+    - "*curl*|*sh*"
+
+terminal:
+  backend: "local"
+  cwd: "."              # the folder you start hermes in
+
+# GitHub: Hermes drives GitHub through the `gh` CLI (bundled `github` skill + this repo's
+# `github-workflow` skill), so no MCP server is needed. Log in once with:  gh auth login

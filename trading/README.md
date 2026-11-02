@@ -72,6 +72,27 @@ It runs on GitHub's servers, not on your computer: in your repository, open **Ac
 lab → Run workflow**. It takes one to a few hours. The ranked table appears on the run's page
 (and as a download).
 
+### Results of the first run (2 November 2026)
+
+13 strategies, 30 coins, 2 years of real prices. "Worst fall" counts open trades at the market
+price, hour by hour.
+
+| Strategy | Year 1 | Year 2 (unseen) | Worst fall (year 1 / 2) | Note |
+|---|---|---|---|---|
+| NostalgiaForInfinity X8 | +102% (holding: +38%) | +31% (holding: −41%) | 35.4% / 26.4% | Best by far. Never sells at a loss: holds losing trades up to ~70 days. Misses the 35% limit by 0.4 points |
+| CombinedBinHAndCluc | −29% | −8% | 58.7% / 21.2% | |
+| TrendPullback (this folder) | −21% | −40% | 36.7% / 40.1% | |
+| 10 other classics | −1% to −97% | | | Most lost heavily |
+
+None passed every rule. NostalgiaForInfinity was the only one that made money in both years and
+beat holding. Its price is that it sits through deep, long dips instead of cutting losses. Past
+results don't promise future ones.
+
+To paper trade it, download `NostalgiaForInfinityX8.py` from its repository (the lab tested commit
+`c2e427d354131833ddacd1203b06166a959d30ad`) into `user_data/strategies/`, and change
+`--strategy TrendPullback` to `--strategy NostalgiaForInfinityX8` in `docker-compose.yml`. The
+config already uses the conditions the lab tested.
+
 ## If you ever use real money
 
 Don't, until paper trading has worked for at least a month. Then:

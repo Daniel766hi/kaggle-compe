@@ -9,7 +9,7 @@ FTS_COMMIT=f3340ce11f5bdf62f598522e64d1f5638eaa13f5    # freqtrade/freqtrade-str
 STRATEGIES=${STRATEGIES:-"TrendPullback NostalgiaForInfinityX8 CombinedBinHAndCluc ClucMay72018 BbandRsi Supertrend MultiMa Heracles Bandtastic Strategy005 Diamond PowerTower TrendRiderStrategy"}
 DAYS=${DAYS:-730}
 
-rm -rf work results.json && mkdir -p work/user_data/strategies
+rm -rf work results.json config.json && mkdir -p work/user_data/strategies
 cp ../user_data/strategies/*.py work/user_data/strategies/
 raw=https://raw.githubusercontent.com
 curl -fsSL "$raw/iterativv/NostalgiaForInfinity/$NFI_COMMIT/NostalgiaForInfinityX8.py" -o work/user_data/strategies/NostalgiaForInfinityX8.py
@@ -21,19 +21,23 @@ for s in CombinedBinHAndCluc ClucMay72018 BbandRsi; do
 done
 
 docker pull -q "$IMAGE"
+# Freqtrade runs as its own user in the container: let it write to the shared folders. The files
+# this script writes (config.json) stay the runner's, and Freqtrade only reads them.
+chmod -R a+rwX work .
 ft() { docker run --rm -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
 py() { docker run --rm --entrypoint python -v "$PWD/work/user_data:/freqtrade/user_data" -v "$PWD:/lab" "$IMAGE" "$@"; }
 
 # GitHub's servers are in the US; some exchanges refuse US visitors. Use the first that answers.
 EXCHANGE=""
 for ex in binance okx kucoin gate; do
-  python3 make_config.py "$ex" > work/user_data/config.json
-  if ft list-pairs --config /freqtrade/user_data/config.json --quote USDT -1 >/dev/null 2>&1; then EXCHANGE=$ex; break; fi
+  python3 make_config.py "$ex" > config.json
+  if ft list-pairs --config /lab/config.json --quote USDT -1 > probe.log 2>&1; then EXCHANGE=$ex; break; fi
+  echo "$ex didn't answer from here:"; tail -n 5 probe.log
 done
 [ -n "$EXCHANGE" ] || { echo "No exchange reachable"; exit 1; }
 echo "Exchange: $EXCHANGE"
 
-cfg=/freqtrade/user_data/config.json
+cfg=/lab/config.json
 ft download-data --config "$cfg" --timeframes 5m --days $((DAYS + 10))
 ft download-data --config "$cfg" --timeframes 15m 1h 4h 1d --days $((DAYS + 250))
 

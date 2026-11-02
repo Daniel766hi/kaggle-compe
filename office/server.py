@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import taste
 from shorts import cli as shorts_cli
+from shorts import images
 
 from . import desks, phone
 
@@ -142,6 +143,7 @@ class OfficeApp:
         uploads = desk.uploads(item) if desk_key != "x" else None
         if uploads is not None:
             out["uploads"] = uploads
+            out["can_draw"] = bool(desk.pictures or images.configured())
             if not all(uploads):  # clips still missing: nothing to render yet
                 out["actions"] = [a for a in out["actions"] if a not in ("render", "publish")]
         out["editable"] = desk.editable(item) and not out["job"]
@@ -239,6 +241,30 @@ class OfficeApp:
         if desk_key == "x" and "post" in actions and not self.desks["x"][1].api_ready():
             actions = ["share", "mark_posted", "reject"]  # no paid X API: post it yourself
         return actions
+
+    def picture_shot(self, desk_key, item_id, shot):
+        """Draw one shot as an AI picture, in the background (about 10 seconds)."""
+        agent_key, desk = self.desks[desk_key]
+        job = f"{desk_key}:{item_id}"
+        if job in self.jobs:
+            raise ValueError(f"#{item_id} is already being worked on")
+        if not (desk.pictures or images.configured()):
+            raise ValueError("AI pictures need the free Cloudflare keys (run the setup script)")
+        self.jobs[job] = f"drawing shot {int(shot)}"
+
+        def run():
+            try:
+                desk.picture_shot(item_id, shot)
+                item = desk.item(item_id)
+                if all(desk.uploads(item)):
+                    self.office.notify(agent_key, f"All shots are ready for [[{desk_key}:{item_id}]]. Click Render preview to see it.")
+            except Exception as e:
+                logging.exception("%s failed", job)
+                self.office.notify(agent_key, f"I couldn't draw shot {int(shot)} of [[{desk_key}:{item_id}]]: {e}")
+            finally:
+                self.jobs.pop(job, None)
+
+        threading.Thread(target=run, daemon=True).start()
 
     def add_clip(self, desk_key, item_id, shot, data, filename):
         agent_key, desk = self.desks[desk_key]
@@ -452,6 +478,8 @@ def make_handler(app):
                     app.edit(parts[2], int(parts[3]), body)
                 elif parts[:2] == ["api", "action"] and len(parts) == 4:
                     app.action(parts[2], int(parts[3]), body.get("action", ""), body.get("reason", ""))
+                elif parts[:2] == ["api", "picture-shot"] and len(parts) == 5:
+                    app.picture_shot(parts[2], int(parts[3]), int(parts[4]))
                 elif parts[:2] == ["api", "notes"] and len(parts) == 3:
                     app.save_notes(parts[2], body.get("notes", ""))
                 elif parts == ["api", "checkin"]:

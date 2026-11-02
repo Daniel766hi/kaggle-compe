@@ -50,6 +50,17 @@ while [ -z "$gemini" ]; do
   fi
 done
 
+if [ -n "$gemini" ] && [ -z "$("$PY" -m local_env get GROQ_API_KEY)" ]; then
+  echo "Optional: a free Groq key as a backup, for when Gemini's free limit is used up (about 1,000 more answers a day)."
+  echo "Sign in at console.groq.com, then API Keys -> Create API Key."
+  read -r -p "Paste your Groq API key (or press Enter to skip): " groq
+  if [ -n "$groq" ]; then
+    if curl -fsS -H "Authorization: Bearer $groq" https://api.groq.com/openai/v1/models >/dev/null; then
+      "$PY" -m local_env set GROQ_API_KEY "$groq"; echo "Groq works: the team switches to it when Gemini is busy."
+    else echo "Groq didn't accept that key; skipped (run this again to retry)."; fi
+  fi
+fi
+
 if [ -z "$gemini" ]; then
   step "Ollama (a free local AI, instead of Gemini)"
   if ! have ollama; then

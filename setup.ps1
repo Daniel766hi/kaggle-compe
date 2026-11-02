@@ -83,6 +83,19 @@ while (-not $gemini) {
     }
 }
 
+if ($gemini -and -not (& $venvPython -m local_env get GROQ_API_KEY)) {
+    Write-Host "Optional: a free Groq key as a backup, for when Gemini's free limit is used up (about 1,000 more answers a day)."
+    Write-Host "Sign in at console.groq.com, then API Keys -> Create API Key."
+    $groq = (Read-Host "Paste your Groq API key (or press Enter to skip)").Trim()
+    if ($groq) {
+        try {
+            Invoke-RestMethod "https://api.groq.com/openai/v1/models" -Headers @{ Authorization = "Bearer $groq" } -ErrorAction Stop | Out-Null
+            & $venvPython -m local_env set GROQ_API_KEY $groq
+            Write-Host "Groq works: the team switches to it when Gemini is busy." -ForegroundColor Green
+        } catch { Write-Host "Groq didn't accept that key; skipped (run this again to retry)." -ForegroundColor Yellow }
+    }
+}
+
 if (-not $gemini) {
     Step "Ollama (a free local AI, instead of Gemini)"
     $ollama = (Get-Command ollama -ErrorAction SilentlyContinue).Source

@@ -299,7 +299,13 @@ Or set it up by hand (`python -m local_env set NAME value` saves a key in `.env`
    click *Create API key*. Save it as `GEMINI_API_KEY`. `GEMINI_MODEL` picks another model
    (default `gemini-flash-latest`). The free tier allows a few requests a minute; the office
    waits and retries when it hits that. If the model doesn't answer within 150 seconds, the
-   office tries the lighter `gemini-flash-lite-latest` (`GEMINI_FALLBACK_MODEL`). It asks for
+   office tries the lighter `gemini-flash-lite-latest` (`GEMINI_FALLBACK_MODEL`).
+   **Backup AIs:** when Gemini is over its free limit, the office switches by itself to the next
+   free AI you have a key for, and skips the tired one for a while: Gemini's lighter model, then
+   Groq (`GROQ_API_KEY`, free at console.groq.com, about 1,000 answers a day; the setup script
+   asks), OpenRouter's free models (`OPENROUTER_API_KEY`), Cerebras (`CEREBRAS_API_KEY`), then
+   Ollama if it runs on your computer. `GROQ_MODEL`, `OPENROUTER_MODEL` and `CEREBRAS_MODEL`
+   change their models. `automate` copies these keys to GitHub too. It asks for
    short thinking (`GEMINI_THINKING=low`) so answers come quickly. `python -m llm` checks that
    the AI answers and how fast.
 2. **Cloudflare:** sign up free at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up), open
@@ -406,6 +412,9 @@ python -m office                    # opens http://127.0.0.1:8765 (--phone / --a
 - **Edit it yourself.** *Edit* on a card changes the title, the post text (with a character
   count), a video's caption or its on-screen text. Changing on-screen text sends a rendered video
   back to *Render preview*, because the words are part of the video.
+- **More than one free video site.** Clip prompts link to several free AI video sites (Dreamina,
+  Google Flow, Kling, PixVerse, Hailuo), each with its own daily credits. When they're all used
+  up, *🖼 AI picture* on a shot fills it with a free AI picture and a camera move (Cloudflare keys).
 - **Post videos yourself.** Finished videos have *Download video* and *Copy caption*, so you can
   post them from your phone without any API keys, then press *I posted it*. TikTok videos sent to
   your inbox wait under *Post from your TikTok inbox* until you press it.
@@ -473,6 +482,9 @@ office/            the AI Office web app (python -m office)
   phone.py         phone links, QR codes and the Cloudflare tunnel
   static/          the office page and the login page
 .devcontainer/     a GitHub Codespace that runs the office in the cloud
+automate.py        turns on the daily GitHub runs (copies your keys to GitHub secrets)
+taste.py           what the owner likes, learned from reviews and notes
+trading/           a paper-trading crypto bot (Freqtrade): fake money, real prices; see trading/README.md
 assets/music/      your royalty-free tracks for Reels (optional)
 tests/             offline tests with synthetic API payloads
 ```

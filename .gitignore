@@ -17,3 +17,6 @@ trading/user_data/hyperopt_results/
 trading/user_data/logs/
 trading/user_data/plot/
 trading/user_data/*.sqlite*
+trading/lab/work/
+trading/lab/results.json
+trading/lab/report.md

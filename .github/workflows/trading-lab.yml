@@ -1,0 +1,45 @@
+# The trading lab: backtests strategies on real prices on GitHub's servers and ranks them.
+# Only runs when started by hand (Actions tab -> Trading lab -> Run workflow). No keys, no money:
+# it downloads public price history and simulates. Third-party strategies come from fixed commits
+# of NostalgiaForInfinity and freqtrade-strategies (see trading/lab/run_lab.sh).
+name: Trading lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      strategies:
+        description: "Strategies to compare (space separated; empty = the default list)"
+        required: false
+        default: ""
+      days:
+        description: "Days of history: the first half checks a strategy, the second half is unseen"
+        required: false
+        default: "730"
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Backtest and rank
+        env:
+          STRATEGIES: ${{ inputs.strategies }} # passed as data, never run by the shell
+          DAYS: ${{ inputs.days }}
+        run: |
+          [ -n "$STRATEGIES" ] || unset STRATEGIES
+          case "$DAYS" in ''|*[!0-9]*) DAYS=730 ;; esac
+          export DAYS
+          bash trading/lab/run_lab.sh
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-lab-results
+          path: |
+            trading/lab/report.md
+            trading/lab/results.json
+          if-no-files-found: ignore

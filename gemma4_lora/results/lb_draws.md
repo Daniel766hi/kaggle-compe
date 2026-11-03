@@ -12,7 +12,8 @@ draws), so configs are compared by the mean of several draws, not by one score. 
 | 2026-10-28 | 57737224 | `agent/v6_public` (public v6 files, unchanged) | 4a65b9a7 | 0.15 | 9 | its public notebook drew 14; mean of 2 draws 11.5 |
 | 2026-10-29 | 57776956 | `agent/locate` draw 2 (same files as 57131199) | 5bf7501e | 0.18 | 11 | mean of 2 draws 11.5 |
 | 2026-10-30 | 57815856 | `agent/v6_public` draw 3 | 4a65b9a7 | 0.15 | 9 | v6 mean of 3 draws 10.67 |
-| 2026-11-01 | pending | `agent/locate` draw 3 | 5bf7501e | | | |
+| 2026-11-01 | 57877239 | `agent/locate` draw 3 | 5bf7501e | 0.13 | 8 | locate mean of 3 draws 10.33 |
+| 2026-11-03 | pending | `agent/v6_public` draw 4 | 4a65b9a7 | | | |
 
 Reference means from the census (2026-10-22): Budget-Fit 10.00 over 10 draws; Budget-Aware v2 8.71
 over 7 later draws (first draw 13).

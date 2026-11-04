@@ -365,3 +365,16 @@ def test_update_settings_can_make_a_dataset_public(tmp_path):
     api = FakeSettingsApi({"isPrivate": True})
     kaggle_sync.update_settings(api, tmp_path, REF, make_public=True)
     assert api.sent["isPrivate"] is False
+
+
+def test_kaggle_client_imports_with_the_declared_requirements():
+    """Dry runs and the other tests never load the Kaggle client, so a missing undeclared dependency
+    (kaggle 2.2.4 imports six without requiring it) only showed up as failing uploads."""
+    import os
+    import subprocess
+    import sys
+    env = {**os.environ, "KAGGLE_USERNAME": "test-user", "KAGGLE_KEY": "0" * 32}
+    env.pop("KAGGLE_API_TOKEN", None)
+    result = subprocess.run([sys.executable, "-c", "from kaggle.api.kaggle_api_extended import KaggleApi"],
+                            env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr[-2000:]

@@ -96,6 +96,12 @@ NOTEBOOKS = {
         "models": ["wikipedia-attention-decay-forecast/scikitLearn/default/1"],
         "tags": ["popular culture", "time series analysis", "regression", "data visualization"],
     },
+    "art-museums": {
+        "source": "notebooks/art_museums.py",
+        "title": "Who Gets Into the Museum? MoMA, Met, Cleveland",
+        "datasets": ["art-museum-collections-moma-met-cleveland"],
+        "tags": ["arts and entertainment", "culture and humanities", "exploratory data analysis", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

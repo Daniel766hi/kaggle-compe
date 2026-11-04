@@ -160,10 +160,12 @@ def years_in(text):
     short = text.str.extract(r"(\d{4})\s*[-–]\s*(\d{2})(?!\d)")
     short_end = pd.to_numeric(short[0], errors="coerce") // 100 * 100 + pd.to_numeric(short[1], errors="coerce")
     last = short_end.where(short_end.notna() & (short_end > last.fillna(-1e9)), last)
-    return first, last
+    future = THIS_YEAR + 1
+    return first.where(first <= future), last.where(last <= future)
 
 
-def year_number(series, low=-10000, high=2100):
+def year_number(series, low=-10000, high=None):
+    high = THIS_YEAR + 1 if high is None else high  # a later year is a typo (e.g. MoMA's "3000")
     n = pd.to_numeric(clean(series).str.extract(r"(-?\d{1,5})")[0], errors="coerce")
     return n.where((n >= low) & (n <= high) & (n != 0))
 

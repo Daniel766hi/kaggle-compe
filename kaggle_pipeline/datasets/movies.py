@@ -424,7 +424,9 @@ def build_tables(films, basic_rows, relation_rows, quantity_rows, review_rows):
     movies["n_cast"] = movies["film_id"].map(cast.groupby("film_id").size()).fillna(0)
     movies["color_type"] = movies["color"].map(color_type)
     movies["aspect_ratio_value"] = movies["aspect_ratio"].map(aspect_value)
-    movies["release_date"] = pd.to_datetime(movies["release_date"], errors="coerce")
+    released = pd.to_datetime(movies["release_date"], errors="coerce")
+    # Films exist from the 1870s; earlier dates are Wikidata placeholders such as "0001-01-01".
+    movies["release_date"] = released.where(released >= pd.Timestamp("1870-01-01"))
     movies["release_year"] = movies["release_date"].dt.year
     movies["title"] = movies["title"].fillna(movies["original_title"])
     return {"movies": movies, "movie_genres": genres, "movie_crew": crew, "movie_cast": cast, "movie_awards": awards}

@@ -378,3 +378,13 @@ def test_kaggle_client_imports_with_the_declared_requirements():
     result = subprocess.run([sys.executable, "-c", "from kaggle.api.kaggle_api_extended import KaggleApi"],
                             env=env, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr[-2000:]
+
+
+def test_conform_drops_dates_outside_the_nanosecond_range():
+    """pandas 3 parses '0001-01-01' (a Wikidata placeholder); the nanosecond cast used to fail on it."""
+    from kaggle_pipeline.frames import conform
+    from kaggle_pipeline.schema import Column, Table
+    table = Table(name="t", kind="history", description="d", key=("id",),
+                  columns=[Column("id", "integer", "id"), Column("day", "datetime", "day")])
+    out = conform(pd.DataFrame({"id": [1, 2, 3], "day": ["2020-05-01", "0001-01-01", None]}), table)
+    assert out["day"].tolist()[0] == pd.Timestamp("2020-05-01") and out["day"].isna().tolist() == [False, True, True]

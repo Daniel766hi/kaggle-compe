@@ -4,6 +4,10 @@ import pandas as pd
 
 from .schema import PANDAS_DTYPES
 
+# Nanosecond timestamps (the declared datetime dtype) only cover these years. pandas 3 parses dates
+# such as Wikidata's "0001-01-01" placeholder at a coarser unit, so they must be dropped before the cast.
+NS_FIRST, NS_LAST = pd.Timestamp("1677-09-22"), pd.Timestamp("2262-04-11")
+
 
 def conform(df, table):
     """Return df with exactly the table's columns, in order, with the declared dtypes,
@@ -14,7 +18,8 @@ def conform(df, table):
             df[col.name] = pd.NA
         series = df[col.name]
         if col.type == "datetime":
-            df[col.name] = pd.to_datetime(series, errors="coerce")
+            dates = pd.to_datetime(series, errors="coerce")
+            df[col.name] = dates.where((dates >= NS_FIRST) & (dates <= NS_LAST))
         elif col.type in ("number", "integer"):
             df[col.name] = pd.to_numeric(series, errors="coerce")
             if col.type == "integer":

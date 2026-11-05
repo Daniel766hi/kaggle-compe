@@ -51,6 +51,7 @@ class OfficeApp:
     def __init__(self, office, git=None):
         self.office = office
         self.desks = {a.desk.key: (k, a.desk) for k, a in office.team.items() if a.desk is not None}
+        self.trader = next(((k, a.trading) for k, a in office.team.items() if a.trading is not None), None)
         self.jobs = {}  # "tiktok:3" -> what's happening to it
         self.git = git or _git
         self.syncing = False
@@ -74,6 +75,40 @@ class OfficeApp:
                 "last": thread.feed[-1] if thread.feed else None,
             })  # fmt: skip
         return {"agents": agents, "jobs": self.jobs, "syncing": self.syncing}
+
+    def trading_status(self):
+        if self.trader is None:
+            return {"enabled": False}
+        try:
+            status = self.trader[1].summary()
+        except Exception as e:  # never break the board over the bot
+            status = {"running": False, "set_up": False, "error": str(e)}
+        return {"enabled": True, "job": self.jobs.get("trading", ""), **status}
+
+    def trading_control(self, action):
+        """Start or stop the trading bot, in the background (starting the first time can take long)."""
+        if self.trader is None:
+            raise ValueError("there's no trading desk")
+        if action not in ("start", "stop"):
+            raise ValueError(f"unknown action {action}")
+        if "trading" in self.jobs:
+            raise ValueError("the trading bot is already starting or stopping")
+        agent_key, trading = self.trader
+        self.jobs["trading"] = "starting the bot" if action == "start" else "stopping the bot"
+
+        def run():
+            try:
+                trading.control(action)
+                said = ("The trading bot is running (paper trading). I'll tell you when it closes trades."
+                        if action == "start" else "The trading bot is stopped. Its trades so far are kept.")  # fmt: skip
+                self.office.notify(agent_key, said)
+            except Exception as e:
+                logging.exception("trading %s failed", action)
+                self.office.notify(agent_key, f"I couldn't {action} the trading bot: {e}")
+            finally:
+                self.jobs.pop("trading", None)
+
+        threading.Thread(target=run, daemon=True).start()
 
     def edit(self, desk_key, item_id, changes):
         _, desk = self.desks[desk_key]
@@ -429,6 +464,8 @@ def make_handler(app):
                     return self._send(200, app.phone_links() if self._this_computer() else {"links": []})
                 if parts[:2] == ["api", "notes"] and len(parts) == 3:
                     return self._send(200, app.notes(parts[2]))
+                if parts == ["api", "trading"]:
+                    return self._send(200, app.trading_status())
                 if parts == ["api", "library"]:
                     return self._send(200, app.library())
                 if parts == ["api", "board"]:
@@ -474,6 +511,8 @@ def make_handler(app):
                     app.chat(parts[2], body.get("text", ""))
                 elif parts[:2] == ["api", "read"] and len(parts) == 3:
                     app.mark_read(parts[2], body.get("upto", 0))
+                elif parts[:2] == ["api", "trading"] and len(parts) == 3:
+                    app.trading_control(parts[2])
                 elif parts[:2] == ["api", "edit"] and len(parts) == 4:
                     app.edit(parts[2], int(parts[3]), body)
                 elif parts[:2] == ["api", "action"] and len(parts) == 4:

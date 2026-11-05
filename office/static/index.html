@@ -120,6 +120,11 @@
   .steps span { flex: 1; text-align: center; padding-top: 6px; border-top: 3px solid var(--line); }
   .steps span.done { border-color: var(--good); color: var(--good); }
   .steps span.now { border-color: var(--you); color: var(--you); font-weight: 600; }
+  .trade-box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+  .trade-box .big { font-size: 22px; font-weight: 700; }
+  .trade-box .up { color: var(--good); } .trade-box .down { color: var(--bad); }
+  .trade-box .open-trades { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
+  .trade-box .open-trades li { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding: 4px 0; }
   .edit label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
   .edit input, .edit textarea { width: 100%; font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
   .edit textarea { min-height: 70px; resize: vertical; max-height: none; }
@@ -211,6 +216,7 @@ const CHIPS = {
   maya: ["What needs me today?", "Plan this week's content", "Ask everyone to draft 2 ideas"],
   raka: ["What's waiting for me?", "Draft 3 posts", "Make #1 shorter"],
   sari: ["What's waiting for me?", "Draft 2 animal sketches", "Something with a cat"],
+  dewi: ["How is the bot doing?", "Explain the open trades", "How does it compare with holding BTC?"],
   bima: ["What's waiting for me?", "Draft 2 animal sketches", "Something set in Indonesia"],
 };
 const VIDEO_SITES = [["Dreamina", "https://dreamina.capcut.com"], ["Google Flow", "https://labs.google/flow"],
@@ -288,9 +294,32 @@ function steps(it) {
   return `<div class="steps">${names.map((n, i) => `<span class="${i < at || (i === at && i === names.length - 1) ? "done" : i === at ? "now" : ""}">${n}</span>`).join("")}</div>`;
 }
 
+function tradingBox(t) {
+  if (!t || !t.enabled) return "";
+  const dewi = state.agents.find((a) => a.key === "dewi");
+  const chat = dewi ? `<button data-chat="dewi">💬 Ask ${esc(dewi.name)}</button>` : "";
+  let body;
+  if (t.job) body = `<div class="muted">⏳ ${esc(t.job)}… (the first start downloads prices and can take a while)</div>`;
+  else if (!t.running) {
+    body = `<div>The bot isn't running.</div>` + (t.set_up ? "" : `<div class="muted">First set it up once: double-click <b>trading.cmd</b> in the trading folder and choose 1. Docker Desktop must be open.</div>`)
+      + `<div class="buttons"><button class="primary" data-trading="start">Start bot</button>${chat}</div>`;
+  } else if (t.error) {
+    body = `<div class="note bad">${esc(t.error)}</div><div class="buttons"><button class="danger" data-trading="stop">Stop bot</button>${chat}</div>`;
+  } else {
+    const dir = t.change_pct >= 0 ? "up" : "down";
+    body = `<div><span class="pill ${t.paper ? "" : "failed"}">${t.paper ? "pretend money" : "REAL money"}</span> <span class="muted">${esc(t.strategy)}</span></div>
+      <div class="big ${dir}">${t.wallet} ${esc(t.currency)} <span style="font-size:15px">(${t.change_pct >= 0 ? "+" : ""}${t.change_pct}% since the start)</span></div>
+      <div class="muted">Started with ${t.start}. Closed trades: ${t.closed} (${t.wins} won, ${t.losses} lost, ${t.closed_profit >= 0 ? "+" : ""}${t.closed_profit} ${esc(t.currency)}). Open: ${t.open.length}.</div>
+      ${t.open.length ? `<ul class="open-trades">${t.open.map((o) => `<li><span>${esc(o.pair)}</span><span class="${o.profit_pct >= 0 ? "up" : "down"}">${o.profit_pct >= 0 ? "+" : ""}${o.profit_pct}%</span></li>`).join("")}</ul>` : ""}
+      <div class="buttons"><button class="danger" data-trading="stop">Stop bot</button><a class="button" href="http://127.0.0.1:8080" target="_blank" rel="noopener">Bot dashboard ↗</a>${chat}</div>`;
+  }
+  return `<h3>Trading bot</h3><div class="trade-box">${body}</div>`;
+}
+
 async function renderBoard() {
-  let board;
-  try { board = await api("/api/board"); } catch { return; }
+  let board, trading;
+  try { [board, trading] = await Promise.all([api("/api/board"), api("/api/trading").catch(() => null)]); } catch { return; }
+  board.trading = trading;
   const json = JSON.stringify(board);
   if (json === boardJson) return;
   boardJson = json;
@@ -302,6 +331,7 @@ async function renderBoard() {
   const n = board.needs.length;
   html += `<div class="summary">${n ? `${n} thing${n > 1 ? "s" : ""} need${n > 1 ? "" : "s"} you.` : "Nothing needs you right now."}</div>`;
   if (!n) html += `<div class="allclear"><b>All caught up 🎉</b>Ask Maya to plan the week, or pick a teammate below and ask for ideas.</div>`;
+  html += tradingBox(board.trading);
   for (const [kind, info] of Object.entries(NEEDS)) {
     const rows = board.needs.filter((r) => r.kind === kind);
     if (!rows.length) continue;
@@ -316,6 +346,15 @@ async function renderBoard() {
   for (const el of [$("today-main"), $("today-floor")]) {
     el.innerHTML = html;
     el.querySelector(".library-link").onclick = showLibrary;
+    el.querySelectorAll("[data-chat]").forEach((b) => (b.onclick = () => open(b.dataset.chat)));
+    el.querySelectorAll("[data-trading]").forEach((b) => (b.onclick = async () => {
+      const go = b.dataset.trading === "start" || confirm("Stop the trading bot? Its open trades stay open and continue when you start it again.");
+      if (!go) return;
+      b.disabled = true;
+      try { await api(`/api/trading/${b.dataset.trading}`, {}); toast(b.dataset.trading === "start" ? "Starting the trading bot…" : "Stopping the trading bot…"); }
+      catch (err) { toast(err.message); }
+      boardJson = ""; renderBoard();
+    }));
     el.querySelectorAll(".row").forEach((b) => (b.onclick = () => showItem(b.dataset.desk, b.dataset.id)));
   }
 }

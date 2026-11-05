@@ -27,6 +27,7 @@ from .chat import Office
 from .desks import VideoDesk, XDesk
 from .server import OfficeApp, serve
 from .team import build_team
+from .trading import TradingDesk
 
 
 def main(argv=None):
@@ -44,7 +45,8 @@ def main(argv=None):
     args.anywhere = args.anywhere or mode == "anywhere"
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    team = build_team(XDesk(), VideoDesk(TIKTOK), VideoDesk(INSTAGRAM))
+    trading = TradingDesk()
+    team = build_team(XDesk(), VideoDesk(TIKTOK), VideoDesk(INSTAGRAM), trading if trading.folder.is_dir() else None)
     app = OfficeApp(Office(team, args.data_dir))
     in_codespace = os.environ.get("CODESPACES") == "true"  # GitHub logs you in to forwarded ports
     host = "0.0.0.0" if args.phone else "127.0.0.1"

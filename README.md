@@ -383,6 +383,7 @@ you can chat with each of them. They also message you when something needs you.
 | ✍️ | **Raka**, X writer | Drafts and revises posts from `x_agent/profile.md` |
 | 🎬 | **Sari**, TikTok producer | Plans funny animal sketches from `shorts/profile.md` |
 | 📸 | **Bima**, Instagram Reels producer | The same, for Reels |
+| 📈 | **Dewi**, trading analyst | Watches the paper-trading bot (`trading/`): how it's doing, what's open, what closed. Read-only |
 
 ```
 pip install -r requirements.txt
@@ -428,6 +429,12 @@ python -m office                    # opens http://127.0.0.1:8765 (--phone / --a
 - **One video, both platforms.** *Also post on Instagram* (or *on TikTok*) on an approved or
   finished video puts the same plan, pictures and video on the other desk, approved, without
   planning or drawing it again.
+- **Trading bot on the board.** The Today board shows the paper-trading bot (`trading/`): pretend
+  or real money, the wallet against its start, closed and open trades. It also has *Start bot* /
+  *Stop bot* (they run `trading/trading.ps1` or `trading.sh`; Docker Desktop must be open) and a
+  link to the bot's own dashboard. Dewi tells you when the bot closes trades and answers
+  questions with the real numbers. She never promises profits and can't start, stop or change
+  the bot.
 - **Cards show the pictures.** For videos made from AI pictures, the card shows the pictures
   too; tap one to save it (for a photo carousel, say). *New pictures* draws them again for free.
 

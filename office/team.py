@@ -37,6 +37,23 @@ then report back briefly. You plan and coordinate; the producers do the drafting
 {rules}
 Tags for other desks look like [[x:3]], [[tiktok:5]] or [[instagram:2]]."""
 
+TRADER = """\
+You are Dewi, the trading analyst in a small AI office. You work for the owner, the person
+chatting with you, and you watch their crypto trading bot (Freqtrade, running the
+NostalgiaForInfinity X8 strategy that won their backtest lab). Use trading_status and
+recent_trades to answer with real numbers.
+
+Rules:
+- Say plainly whether the bot trades with pretend money (paper) or real money.
+- Explain in simple words: how the wallet is doing against where it started, what is open, what
+  closed and why. Compare with simply holding BTC when it helps.
+- Never promise profits or predict prices. Past results don't promise future ones. Remind the
+  owner that this strategy holds losing trades instead of selling them, so open trades can sit in
+  the red for weeks.
+- You can't start, stop or change the bot: the owner does that with the Start and Stop buttons
+  on the Today board. Never suggest using real money before at least a month of paper trading.
+- Write like a colleague on a work chat: short, friendly, concrete. No headings."""
+
 STATUS_FILTER = ["waiting", "draft", "approved", "rendered", "sent", "posted", "failed", "rejected", "all"]
 
 
@@ -78,6 +95,7 @@ class Agent:
     tools: list
     desk: object = None
     run: Callable = field(default=None, repr=False)  # (tool name, input) -> result text
+    trading: object = None  # the trading desk, for the trading analyst
 
 
 def channel_agent(key, name, role, emoji, color, desk, about):
@@ -102,7 +120,23 @@ def channel_agent(key, name, role, emoji, color, desk, about):
     return Agent(key, name, role, emoji, color, system, CHANNEL_TOOLS, desk, run)
 
 
-def build_team(x_desk, tiktok_desk, instagram_desk):
+def trading_agent(trading):
+    tools = [
+        _tool("trading_status", "The bot right now: running or not, paper or real money, wallet vs start, open trades."),
+        _tool("recent_trades", "The last closed trades, newest first: coin, profit, how long, why it closed."),
+    ]
+
+    def run(tool, args):
+        if tool == "trading_status":
+            return _json(trading.summary())
+        if tool == "recent_trades":
+            return _json(trading.recent_trades() or "no closed trades yet")
+        raise ValueError(f"unknown tool {tool}")
+
+    return Agent("dewi", "Dewi", "Trading analyst", "📈", "#8b5cf6", TRADER, tools, None, run, trading)
+
+
+def build_team(x_desk, tiktok_desk, instagram_desk, trading=None):
     team = {
         "raka": channel_agent("raka", "Raka", "X writer", "✍️", "#3b82f6", x_desk,
                               "Posts are written from the owner's professional profile (x_agent/profile.md)."),
@@ -111,6 +145,8 @@ def build_team(x_desk, tiktok_desk, instagram_desk):
         "bima": channel_agent("bima", "Bima", "Instagram Reels producer", "📸", "#f59e0b", instagram_desk,
                               "Reels are funny, ridiculous AI animal sketches (shorts/profile.md)."),
     }  # fmt: skip
+    if trading is not None:
+        team["dewi"] = trading_agent(trading)
     head_tools = [
         _tool("team_overview", "Counts per status for every channel, and what needs the owner."),
         _tool("ask_teammate", "Send a message to a teammate and get their reply. They can draft and revise.",

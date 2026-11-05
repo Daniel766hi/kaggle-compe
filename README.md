@@ -354,6 +354,7 @@ The office works in a phone's browser, and there are three ways to reach it:
 
 | Where you are | How | Your computer |
 |---|---|---|
+| Anywhere, and only your devices can open it | `start-office.ps1 -Private` (or `OFFICE_PHONE=private`): [Tailscale](https://tailscale.com), a free private network. Install it on the computer and the phone, signed in to the same account. The office then answers only on this computer and that private network, plus the password | stays on |
 | Same Wi-Fi as your computer | `start-office.ps1 -Phone` (or `OFFICE_PHONE=wifi` in `.env`) | stays on |
 | Anywhere, even on mobile data | `start-office.ps1 -Anywhere` (or `OFFICE_PHONE=anywhere`): a free Cloudflare quick tunnel, no account needed. The setup script installs `cloudflared` | stays on |
 | Anywhere, computer off | A GitHub Codespace runs the office in the cloud (below) | can be off |

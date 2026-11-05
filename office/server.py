@@ -58,6 +58,7 @@ class OfficeApp:
         self.password = None  # set: phones may log in (python -m office --phone)
         self.links = []  # [{"label", "url"}] for opening the office on a phone
         self.any_host = False  # behind GitHub Codespaces' private port forwarding
+        self.only_on = None  # set: answer only on these local addresses (this computer and Tailscale)
         self.auto_sync = False  # sync with GitHub at every check-in (python -m automate turns it on)
         self.sync_error = ""
 
@@ -440,12 +441,20 @@ def make_handler(app):
             sent = cookie["office_key"].value if "office_key" in cookie else ""
             return hmac.compare_digest(sent, phone.login_key(app.password))
 
+        def _reachable(self):
+            """With a private link, requests that came in on any other network get nothing."""
+            return not app.only_on or self.connection.getsockname()[0] in app.only_on
+
         def _allowed(self):
+            if not self._reachable():
+                return False
             if app.password is None:
                 return self._local() or app.any_host
             return self._this_computer() or self._logged_in()
 
         def do_GET(self):
+            if not self._reachable():
+                return self._send(403, {"error": "this office only opens on its private network"})
             url = urlparse(self.path)
             parts = [p for p in url.path.split("/") if p]
             if app.password is not None and parts == ["login"]:
@@ -490,6 +499,8 @@ def make_handler(app):
                 return self._send(404, {"error": str(e)})
 
         def do_POST(self):
+            if not self._reachable():
+                return self._send(403, {"error": "this office only opens on its private network"})
             parts = [p for p in urlparse(self.path).path.split("/") if p]
             length = int(self.headers.get("Content-Length") or 0)
             if app.password is not None and parts == ["login"]:

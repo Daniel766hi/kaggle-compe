@@ -3,6 +3,7 @@
     python -m office                 # http://127.0.0.1:8765
     python -m office --phone         # also open it on a phone on the same Wi-Fi (QR code)
     python -m office --anywhere      # open it on your phone from anywhere (free Cloudflare tunnel)
+    python -m office --private       # a link only your own devices can open (Tailscale)
     python -m office --port 9000 --checkin-minutes 15 --no-browser
 
 Free by default: the agents think with Gemini (a free GEMINI_API_KEY) or a local model through
@@ -39,18 +40,26 @@ def main(argv=None):
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--phone", action="store_true", help="also open the office to phones on your Wi-Fi (asks for a password)")
     parser.add_argument("--anywhere", action="store_true", help="open it on your phone from anywhere, through a free Cloudflare tunnel")
+    parser.add_argument("--private", action="store_true", help="a link only your own devices can open (Tailscale private network)")
     args = parser.parse_args(argv)
     mode = (os.environ.get("OFFICE_PHONE") or "").strip().lower()  # saved by the setup script
     args.phone = args.phone or mode in ("wifi", "anywhere")
     args.anywhere = args.anywhere or mode == "anywhere"
+    args.private = args.private or mode == "private"
+    private_ip = phone.tailscale_address() if args.private else None
+    if args.private and not private_ip:
+        print("Private link: Tailscale isn't running. Install it (winget install --id tailscale.tailscale), sign in,")
+        print("install the Tailscale app on your phone with the same account, then open the office again.")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     trading = TradingDesk()
     team = build_team(XDesk(), VideoDesk(TIKTOK), VideoDesk(INSTAGRAM), trading if trading.folder.is_dir() else None)
     app = OfficeApp(Office(team, args.data_dir))
     in_codespace = os.environ.get("CODESPACES") == "true"  # GitHub logs you in to forwarded ports
-    host = "0.0.0.0" if args.phone else "127.0.0.1"
-    if args.phone or args.anywhere:
+    host = "0.0.0.0" if args.phone or private_ip else "127.0.0.1"
+    if private_ip and not args.phone:
+        app.only_on = {"127.0.0.1", "::1", private_ip}  # this computer and your private network, nothing else
+    if args.phone or args.anywhere or private_ip:
         app.password = phone.password()
     elif in_codespace:  # reached through GitHub's port forwarding, which only lets you in
         app.password = os.environ.get("OFFICE_PASSWORD") or None
@@ -69,6 +78,8 @@ def main(argv=None):
         address = phone.lan_address()
         if address:
             app.links.append({"label": "Phone on the same Wi-Fi", "url": f"http://{address}:{args.port}/?key={key}"})
+    if private_ip:
+        app.links.append({"label": "Private link (only your devices, via Tailscale)", "url": f"http://{private_ip}:{args.port}/?key={key}"})
     if args.anywhere:
         try:
             tunnel, public = phone.start_tunnel(args.port)
@@ -78,9 +89,9 @@ def main(argv=None):
     for link in app.links:
         print(f"\n{link['label']}: scan this with your phone's camera, or open {link['url']}")
         phone.print_qr(link["url"])
-    if app.password and (args.phone or args.anywhere):
+    if app.password and (args.phone or args.anywhere or private_ip):
         print(f"\nOffice password (if your phone asks): {app.password}")
-        if args.phone:
+        if args.phone or private_ip:
             print("If Windows asks whether Python may use the network, allow it on private networks.")
     if in_codespace:
         print("In a Codespace: open the Ports tab and click the address of port", args.port, "(keep it Private).")

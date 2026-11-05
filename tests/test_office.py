@@ -482,3 +482,33 @@ def test_one_video_goes_to_both_platforms(office, tmp_path, monkeypatch):
     assert "Copied from TikTok #1: [[instagram:1]]" in o.threads["bima"].feed[-1]["text"]
     with pytest.raises(ValueError):
         app.action("tiktok", 1, "copy")
+
+
+def test_tailscale_address_is_read_from_its_cli(monkeypatch):
+    from types import SimpleNamespace as NS
+
+    from office import phone
+
+    monkeypatch.setattr(phone.shutil, "which", lambda name: "/usr/bin/tailscale")
+    assert phone.tailscale_address(lambda *a, **k: NS(returncode=0, stdout="100.101.2.3\n")) == "100.101.2.3"
+    assert phone.tailscale_address(lambda *a, **k: NS(returncode=1, stdout="")) is None  # logged out
+    monkeypatch.setattr(phone.shutil, "which", lambda name: None)
+    monkeypatch.setattr(phone.os.path, "exists", lambda path: False)
+    assert phone.tailscale_address() is None
+
+
+def test_a_private_office_ignores_other_networks(office):
+    o, _ = office()
+    app = server.OfficeApp(o)
+    app.password = "pw"
+    app.only_on = {"10.255.255.254"}  # pretend the private network is elsewhere: 127.0.0.1 isn't on it
+    httpd = server.serve(app, port=0, checkin_minutes=60)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(f"http://127.0.0.1:{httpd.server_address[1]}/api/state")
+        assert e.value.code == 403
+        app.only_on = {"127.0.0.1", "::1"}
+        assert urllib.request.urlopen(f"http://127.0.0.1:{httpd.server_address[1]}/api/state").status == 200
+    finally:
+        httpd.shutdown()

@@ -140,16 +140,21 @@ step "Your phone"
 phone_mode=$("$PY" -m local_env get OFFICE_PHONE)
 if [ -z "$phone_mode" ]; then
   echo "You can open the office on your phone too (this computer has to stay on):"
+  echo "  private  - a link only your own devices can open, from anywhere (free Tailscale; recommended)"
   echo "  wifi     - when your phone is on the same Wi-Fi"
   echo "  anywhere - from anywhere, even on mobile data (a free Cloudflare tunnel)"
   echo "  no       - only on this computer"
-  read -r -p "Which one? (wifi / anywhere / no) " phone_mode
-  case "$phone_mode" in wifi|anywhere) ;; *) phone_mode=no ;; esac
+  read -r -p "Which one? (private / wifi / anywhere / no) " phone_mode
+  case "$phone_mode" in private|wifi|anywhere) ;; *) phone_mode=no ;; esac
   "$PY" -m local_env set OFFICE_PHONE "$phone_mode"
 fi
 if [ "$phone_mode" = anywhere ] && ! have cloudflared; then
   if have brew; then brew install cloudflared
   else echo "Install cloudflared: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"; fi
+fi
+if [ "$phone_mode" = private ] && ! have tailscale; then
+  if have brew; then brew install --cask tailscale; else curl -fsSL https://tailscale.com/install.sh | sh; fi
+  echo "Sign in to Tailscale (sudo tailscale up), and install the Tailscale app on your phone with the same account."
 fi
 [ "$phone_mode" != no ] && echo "When the office opens, click 'Phone' at the top and scan the QR code with your phone."
 

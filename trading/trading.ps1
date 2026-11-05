@@ -8,6 +8,17 @@ param([string]$Command = "menu")
 $ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 $ft = "/freqtrade/user_data/config.json"
+# The strategy the trading lab picked, at the exact version it tested (NostalgiaForInfinity, GPL-3.0).
+$nfiCommit = "c2e427d354131833ddacd1203b06166a959d30ad"
+$nfiFile = "user_data\strategies\NostalgiaForInfinityX8.py"
+
+function GetStrategy {
+    $stamp = "user_data\strategies\.nfi-version"
+    if ((Test-Path $nfiFile) -and (Test-Path $stamp) -and ((Get-Content $stamp) -eq $nfiCommit)) { return }
+    Write-Host "Downloading the NostalgiaForInfinity X8 strategy (the version the lab tested)..."
+    Invoke-WebRequest "https://raw.githubusercontent.com/iterativv/NostalgiaForInfinity/$nfiCommit/NostalgiaForInfinityX8.py" -OutFile $nfiFile -ErrorAction Stop
+    Set-Content $stamp $nfiCommit
+}
 
 function NeedDocker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -38,9 +49,11 @@ function Setup {
         ) | Set-Content .env -Encoding ascii
         Write-Host "Made the dashboard password (kept in trading\.env)."
     }
+    GetStrategy
     docker compose pull
-    Write-Host "Downloading 500 days of hourly prices (public data, no account needed)..." -ForegroundColor Cyan
-    docker compose run --rm freqtrade download-data --config $ft --timeframes 1h --days 500
+    Write-Host "Downloading a year of prices (public data, no account needed; takes a while)..." -ForegroundColor Cyan
+    docker compose run --rm freqtrade download-data --config $ft --timeframes 5m --days 380
+    docker compose run --rm freqtrade download-data --config $ft --timeframes 15m 1h 4h 1d --days 600
     if ($LASTEXITCODE) {
         Write-Host "The download failed. If the exchange is blocked on your network, open user_data\config.json," -ForegroundColor Yellow
         Write-Host "change ""name"": ""binance"" to ""okx"" or ""kucoin"", and run setup again."
@@ -51,8 +64,10 @@ function Setup {
 
 function Backtest {
     NeedDocker
+    GetStrategy
     $from = (Get-Date).AddDays(-365).ToString("yyyyMMdd")
-    docker compose run --rm freqtrade backtesting --config $ft --strategy TrendPullback --timerange "$from-" --export trades
+    Write-Host "Backtesting the last year. NostalgiaForInfinity is heavy: this can take 30-60 minutes." -ForegroundColor Cyan
+    docker compose run --rm freqtrade backtesting --config $ft --strategy NostalgiaForInfinityX8 --timerange "$from-" --export trades
     Write-Host "`nRead it like this: 'Tot Profit %' is the result, 'Max Drawdown' the worst fall on the way, 'Win%' the share of"
     Write-Host "winning trades. Compare with simply holding BTC ('Market change'). Past results don't promise future ones."
 }
@@ -60,6 +75,7 @@ function Backtest {
 function Start-Bot {
     NeedDocker
     if (-not (Test-Path .env)) { Setup }
+    GetStrategy
     docker compose up -d
     Write-Host "Paper trading is running (fake money, real prices). It keeps running in Docker until you stop it." -ForegroundColor Green
     Write-Host "Dashboard: http://127.0.0.1:8080   user: freqtrader   password: $(Password)"

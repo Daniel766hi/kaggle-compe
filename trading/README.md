@@ -31,14 +31,21 @@ The dashboard (FreqUI) shows open trades, profit, and a chart for each coin. Its
 
 ## What it trades
 
-- **Coins:** BTC, ETH, SOL, BNB, XRP against USDT, on hourly candles. Change them in
-  `user_data/config.json` under `pair_whitelist`.
+The bot runs **NostalgiaForInfinity X8**, the winner of the trading lab below, on 5-minute candles:
+up to 6 trades at once sharing the 1,000 USDT pretend wallet, across 30 big coins. It buys dips in
+many different ways and does not sell at a loss. It waits, and can buy more, until a trade
+recovers, sometimes for weeks. The starter strategy below stays in the folder as an alternative.
+
+### The starter strategy
+
+- **Coins:** the same 30 coins against USDT (`pair_whitelist` in `user_data/config.json`), on
+  hourly candles.
 - **Strategy:** `user_data/strategies/TrendPullback.py`:
   - **When it buys:** only in an uptrend (price above the 200-hour average). It waits for a short
     dip that is turning back up (RSI back above 35).
   - **When it sells:** when the move is stretched (RSI above 75), or the trend breaks.
-  - **Risk limits:** a 6% stop-loss, a trailing stop once a trade is 4% up, at most 3 trades at
-    once, and 100 USDT each.
+  - **Risk limits:** a 6% stop-loss and a trailing stop once a trade is 4% up. The config sets
+    the rest: at most 6 trades at once, sharing the wallet.
 
 ## How to judge it
 
@@ -88,10 +95,11 @@ None passed every rule. NostalgiaForInfinity was the only one that made money in
 beat holding. Its price is that it sits through deep, long dips instead of cutting losses. Past
 results don't promise future ones.
 
-To paper trade it, download `NostalgiaForInfinityX8.py` from its repository (the lab tested commit
-`c2e427d354131833ddacd1203b06166a959d30ad`) into `user_data/strategies/`, and change
-`--strategy TrendPullback` to `--strategy NostalgiaForInfinityX8` in `docker-compose.yml`. The
-config already uses the conditions the lab tested.
+**The paper bot now runs NostalgiaForInfinity X8.** `setup`, `backtest` and `start` download the
+exact version the lab tested (commit `c2e427d354131833ddacd1203b06166a959d30ad`) into
+`user_data/strategies/`, and the config uses the conditions the lab tested. To go back to the
+starter strategy, change `--strategy NostalgiaForInfinityX8` to `--strategy TrendPullback` in
+`docker-compose.yml`.
 
 ## If you ever use real money
 

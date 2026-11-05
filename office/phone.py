@@ -1,5 +1,9 @@
 """Open the office on your phone.
 
+`python -m office --private`: a link only your own devices can open, through Tailscale (a free
+private network: install it on the computer and the phone, signed in to the same account). The
+office then answers only on this computer and on that private network.
+
 `python -m office --phone`: the office also listens on your Wi-Fi, so a phone on the same Wi-Fi
 opens it from a link or a QR code. `--anywhere` adds a free Cloudflare quick tunnel (the
 `cloudflared` program, no account needed), so the phone can be on mobile data too. Either way
@@ -36,6 +40,22 @@ def password():
 def login_key(secret):
     """What the phone keeps in its cookie (and what the QR link carries) instead of the password."""
     return hmac.new(secret.encode(), b"ai-office-login", hashlib.sha256).hexdigest()[:32]
+
+
+TAILSCALE_WINDOWS = r"C:\Program Files\Tailscale\tailscale.exe"
+
+
+def tailscale_address(run=subprocess.run):
+    """This computer's address on your private Tailscale network (100.x.y.z), or None."""
+    exe = shutil.which("tailscale") or (TAILSCALE_WINDOWS if os.path.exists(TAILSCALE_WINDOWS) else None)
+    if not exe:
+        return None
+    try:
+        result = run([exe, "ip", "-4"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    lines = (result.stdout or "").split()
+    return lines[0] if result.returncode == 0 and lines and lines[0].startswith("100.") else None
 
 
 def lan_address():

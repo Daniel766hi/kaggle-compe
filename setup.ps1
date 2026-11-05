@@ -176,14 +176,20 @@ Step "Your phone"
 $phoneMode = & $venvPython -m local_env get OFFICE_PHONE
 if (-not $phoneMode) {
     Write-Host "You can open the office on your phone too (this computer has to stay on):"
+    Write-Host "  private  - a link only your own devices can open, from anywhere (free Tailscale; recommended)"
     Write-Host "  wifi     - when your phone is on the same Wi-Fi"
     Write-Host "  anywhere - from anywhere, even on mobile data (a free Cloudflare tunnel)"
     Write-Host "  no       - only on this computer"
-    $phoneMode = (Read-Host "Which one? (wifi / anywhere / no)").Trim().ToLower()
-    if ($phoneMode -notin @("wifi", "anywhere")) { $phoneMode = "no" }
+    $phoneMode = (Read-Host "Which one? (private / wifi / anywhere / no)").Trim().ToLower()
+    if ($phoneMode -notin @("private", "wifi", "anywhere")) { $phoneMode = "no" }
     & $venvPython -m local_env set OFFICE_PHONE $phoneMode
 }
 if ($phoneMode -eq "anywhere" -and -not (Have cloudflared)) { WingetInstall "Cloudflare.cloudflared"; RefreshPath }
+if ($phoneMode -eq "private" -and -not ((Have tailscale) -or (Test-Path "C:\Program Files\Tailscale\tailscale.exe"))) {
+    WingetInstall "tailscale.tailscale"; RefreshPath
+    Write-Host "Tailscale is installed. Open it from the Start menu and sign in (Google is fine)."
+    Write-Host "On your phone, install the Tailscale app and sign in with the same account."
+}
 if ($phoneMode -ne "no") { Write-Host "When the office opens, click 'Phone' at the top and scan the QR code with your phone." }
 
 Step "GitHub link (Sync with GitHub, and updates)"

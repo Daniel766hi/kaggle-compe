@@ -212,6 +212,8 @@ class Office:
 
     def _checkin(self):
         for key, agent in self.team.items():
+            if agent.trading is not None:
+                self._trading_checkin(key, agent)
             if agent.desk is None:
                 continue
             try:
@@ -248,6 +250,26 @@ class Office:
                 self.notify(key, "\n".join(lines))
             else:
                 thread.save()
+
+    def _trading_checkin(self, key, agent):
+        """Dewi says when the bot has closed trades since the last check-in."""
+        try:
+            status = agent.trading.summary()
+        except Exception as e:
+            logging.warning("trading check-in failed: %s", e)
+            return
+        if not status.get("running"):
+            return
+        thread = self.threads[key]
+        seen = thread.attention.get("closed")
+        closed = status.get("closed", 0)
+        if seen is not None and closed > seen:
+            money = "pretend money" if status.get("paper", True) else "REAL money"
+            self.notify(key, f"The bot closed {closed - seen} trade{'s' if closed - seen > 1 else ''} ({money}). "
+                             f"Wallet: {status.get('wallet')} {status.get('currency', 'USDT')} "
+                             f"({status.get('change_pct', 0):+.2f}% since the start), {len(status.get('open', []))} still open.")  # fmt: skip
+        thread.attention = {**thread.attention, "closed": closed}
+        thread.save()
 
     # --- the conversation loop ---------------------------------------------------------------
     def _turn(self, key, text, sender=None):
@@ -306,6 +328,11 @@ class Office:
                         "counts": agent.desk.counts(),
                         "needs_owner": [desks.summary(agent.desk, i) for i in waiting if i["status"] in ("draft", "failed", "rendered")][:10],
                     }  # fmt: skip
+                elif agent.trading is not None:
+                    try:
+                        overview[f"{agent.name} (trading bot)"] = agent.trading.summary()
+                    except Exception as e:  # the bot being off or unreadable mustn't break the overview
+                        overview[f"{agent.name} (trading bot)"] = {"error": str(e)}
             return json.dumps(overview, ensure_ascii=False, indent=1)
         if tool == "ask_teammate":
             key = args["teammate"]

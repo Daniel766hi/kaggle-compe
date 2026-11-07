@@ -12,8 +12,9 @@ Differences from build_train_l4.py:
   the end instead of dropped. MAX_LEN stays 8192: Gemma 4's global layers have head_dim 512, which
   the fused SDPA kernels do not support, so attention falls back to a full score matrix that grows
   with the square of the length (v1 at 16k ran out of memory on every example). Tool outputs, which
-  are context only, are cut to 600 characters to keep more of each run inside 8192 tokens.
+  are context only, are cut to 600 characters, and all but the last three to 200, so that whole runs fit in 8192 tokens.
 - The cross-entropy over the 262k vocabulary is computed in checkpointed chunks of positions.
+- Each run also gives an 'ending' example: older turns without reasoning, only the last 4 turns trained.
 - An out-of-memory example is skipped instead of ending the run.
 """
 
@@ -86,9 +87,17 @@ def trace_to_messages(prompt, entries):
                 c = c[:TOOL_CHARS - 300] + '\n...[truncated]...\n' + c[-300:]
             out.append({'role': 'tool', 'name': e.get('tool') or '', 'content': c})
     flush()
+    # Older tool outputs shrink further so that whole runs, including how they end, fit in MAX_LEN
+    # (v2 cut nearly every run at 8,192 tokens and the adapter learned to explore but not to finish).
+    tools_at = [i for i, m in enumerate(out) if m['role'] == 'tool']
+    for i in tools_at[:-KEEP_LAST_TOOLS]:
+        c = out[i]['content']
+        if len(c) > OLD_TOOL_CHARS:
+            out[i]['content'] = c[:OLD_TOOL_CHARS - 60] + '\n...[truncated]...\n' + c[-60:]
     return out
 
 TOOL_CHARS = 600
+OLD_TOOL_CHARS, KEEP_LAST_TOOLS = 200, 3
 files = sorted(glob.glob('/kaggle/input/**/collected/*.json', recursive=True))
 runs = [json.load(open(f)) for f in files]
 print('collected runs', len(runs), 'resolved', sum(bool(r['row'].get('resolved')) for r in runs))
@@ -103,7 +112,18 @@ for iid, rs in sorted(by_task.items()):
     for r in rs[:PER_TASK]:
         prompt = re.sub(r'Time allowance: [0-9.]+ minutes', f'Time allowance: {DEPLOYED_MINUTES} minutes', r['prompt'])
         train_rows.append({'instance_id': iid, 'messages': trace_to_messages(prompt, r['trace'])})
-print('train tasks', len(by_task), 'train runs', len(train_rows))
+# A second "ending" example per run: older turns lose their reasoning and only the last TAIL_TURNS
+# assistant turns are trained, so the end of a run (final checks, submit) fits inside MAX_LEN.
+TAIL_TURNS = 4
+for row in list(train_rows):
+    msgs = [dict(m) for m in row['messages']]
+    asst = [j for j, m in enumerate(msgs) if m['role'] == 'assistant']
+    if len(asst) <= TAIL_TURNS:
+        continue
+    for j in asst[:-TAIL_TURNS]:
+        msgs[j].pop('reasoning', None)
+    train_rows.append({'instance_id': row['instance_id'], 'messages': msgs, 'train_last': TAIL_TURNS})
+print('train tasks', len(by_task), 'train examples (full + ending)', len(train_rows))
 assert train_rows, 'no resolved runs found'
 m0 = train_rows[0]['messages']
 print('roles', [m['role'] for m in m0][:12], '| first call', next((m['tool_calls'][0]['function']['name'] for m in m0 if m.get('tool_calls')), None))
@@ -111,11 +131,17 @@ to_hf = lambda msgs: msgs  # trace_to_messages already returns HF chat format
 '''
 
 MODEL = l4.MODEL.replace(
+    "    spans, prev = [], render(msgs[:1])\n",
+    "    asst = [j for j, m in enumerate(msgs) if m['role'] == 'assistant']\n"
+    "    allowed = set(asst[-rec['train_last']:]) if rec.get('train_last') else set(asst)\n"
+    "    spans, prev = [], render(msgs[:1])\n").replace(
+    "        if msgs[i - 1]['role'] == 'assistant':\n",
+    "        if msgs[i - 1]['role'] == 'assistant' and (i - 1) in allowed:\n").replace(
     "    if len(ids) > MAX_LEN or not any(l != -100 for l in labels):\n        return None\n",
     "    ids, labels = ids[:MAX_LEN], labels[:MAX_LEN]  # long runs: keep the start, drop the end\n"
     "    if not any(l != -100 for l in labels):\n        return None\n").replace(
     "assert len(examples) >= 20, len(examples)", "assert len(examples) >= 10, len(examples)")
-assert "MAX_LEN = 8192" in MODEL and "keep the start" in MODEL and "len(examples) >= 10" in MODEL
+assert "(i - 1) in allowed" in MODEL and "MAX_LEN = 8192" in MODEL and "keep the start" in MODEL and "len(examples) >= 10" in MODEL
 
 OLD_LOSS = l4.TRAIN[l4.TRAIN.index("    hs = h[:-1]"):l4.TRAIN.index("    (loss / ACCUM).backward()")]
 NEW_LOSS = r'''    hs = h[:-1].index_select(0, sel.to(h.device))

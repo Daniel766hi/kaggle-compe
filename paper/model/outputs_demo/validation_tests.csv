@@ -1,0 +1,9 @@
+# DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS
+Test,Pass criterion,Observed,Pass
+A1 No programme -> system stays in equilibrium,max |relative egg price - 1| < 1e-6,0.00e+00,True
+"A2 10x programme demand -> price up, household consumption down","peak price > 1.2 and household ratio < 0.9; finite, no negative stocks","peak=3.00, hh_min=0.50",True
+"A3 Outbreak kills 100% of hens -> production collapses, price spikes, no negatives",min hens < 10% of initial; 1.5 < peak price <= ceiling; no negative stocks,"min hens=2,643,010, peak=3.00",True
+A4 No hatchery expansion possible -> higher prices than baseline,mean price (weeks 100-312) above baseline run,1.142 vs 1.023,True
+A5 Feed price doubles -> egg price rises during shock,price at week 140 above baseline run,1.102 vs 1.024,True
+A6 Instant roll-out (1 week) -> more suspensions than baseline (loop R1),peak suspended kitchens above baseline run,"2,373 vs 622",True
+B1 Integration error: TIME STEP 0.125 vs 0.0625,max |difference| < 1% of each variable's range,0.4347%,True

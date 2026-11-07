@@ -1,0 +1,11 @@
+pysd>=3.14
+ema_workbench>=3.0
+statsmodels
+platypus-opt
+seaborn
+shap>=0.45
+scikit-learn>=1.4
+scipy>=1.11
+pandas>=2.0
+numpy
+matplotlib

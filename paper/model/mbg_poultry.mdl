@@ -1,0 +1,942 @@
+{UTF-8}
+INITIAL TIME=
+	0
+	~	Week
+	~	Week 0 = first week of Jan 2024.
+	|
+
+FINAL TIME=
+	312
+	~	Week
+	~	Six years: 2024-2029.
+	|
+
+TIME STEP=
+	0.125
+	~	Week [0,?]
+	~	Halve this in the integration-error test.
+	|
+
+SAVEPER=
+	1
+	~	Week [0,?]
+	~	
+	|
+
+Programme start time=
+	52
+	~	Week
+	~	PLACEHOLDER: Jan 2025.
+	|
+
+Target kitchens=
+	30000
+	~	kitchen
+	~	PLACEHOLDER: verify against BGN target number of SPPG.
+	|
+
+Rollout duration=
+	78
+	~	Week
+	~	POLICY LEVER / UNCERTAINTY: weeks from start to full planned kitchens. Phased roll-out = longer.
+	|
+
+Rollout fraction=
+	MIN(1, MAX(0, (Time - Programme start time) / Rollout duration))
+	~	Dmnl
+	~	Share of target kitchens planned to be open.
+	|
+
+Planned kitchens=
+	Target kitchens * Rollout fraction
+	~	kitchen
+	~	
+	|
+
+Operational kitchens=
+	INTEG(Kitchen opening rate + Reinstatement rate - Suspension rate, 0)
+	~	kitchen
+	~	STOCK
+	|
+
+Suspended kitchens=
+	INTEG(Suspension rate - Reinstatement rate, 0)
+	~	kitchen
+	~	STOCK
+	|
+
+Kitchen opening delay=
+	4
+	~	Week
+	~	PLACEHOLDER
+	|
+
+Kitchen opening rate=
+	MAX(0, Planned kitchens - Operational kitchens - Suspended kitchens) / Kitchen opening delay
+	~	kitchen/Week
+	~	
+	|
+
+Reinstatement time=
+	8
+	~	Week
+	~	PLACEHOLDER: time for a suspended kitchen to reopen.
+	|
+
+Reinstatement rate=
+	Suspended kitchens / Reinstatement time
+	~	kitchen/Week
+	~	
+	|
+
+Base suspension fraction=
+	0.002
+	~	1/Week
+	~	UNCERTAINTY: weekly suspension probability at sustainable scaling.
+	|
+
+Sustainable opening capacity=
+	300
+	~	kitchen/Week
+	~	PLACEHOLDER: openings per week the system can supervise without quality loss.
+	|
+
+Scaling strain=
+	Kitchen opening rate / Sustainable opening capacity
+	~	Dmnl
+	~	
+	|
+
+Strain sensitivity=
+	2
+	~	Dmnl
+	~	UNCERTAINTY: loop R1 strength.
+	|
+
+Effect of scaling strain on suspension=
+	1 + Strain sensitivity * MAX(0, Scaling strain - 1)
+	~	Dmnl
+	~	
+	|
+
+Suspension rate=
+	Operational kitchens * Base suspension fraction * Effect of scaling strain on suspension
+	~	kitchen/Week
+	~	Loop R1: scaling strain -> suspensions.
+	|
+
+Beneficiaries per kitchen=
+	2800
+	~	person/kitchen
+	~	PLACEHOLDER: verify with BGN.
+	|
+
+Beneficiaries served=
+	Operational kitchens * Beneficiaries per kitchen
+	~	person
+	~	
+	|
+
+Programme coverage=
+	ZIDZ(Beneficiaries served, Target kitchens * Beneficiaries per kitchen)
+	~	Dmnl
+	~	OUTCOME
+	|
+
+Portions per beneficiary=
+	5
+	~	portion/(person*Week)
+	~	PLACEHOLDER: school days per week.
+	|
+
+Egg per beneficiary=
+	0.1
+	~	kg/(person*Week)
+	~	UNCERTAINTY: egg kg per beneficiary per week in the menu.
+	|
+
+Chicken per beneficiary=
+	0.15
+	~	kg/(person*Week)
+	~	UNCERTAINTY: chicken kg per beneficiary per week.
+	|
+
+Menu flexibility switch=
+	0
+	~	Dmnl
+	~	POLICY P4 (0/1): substitute protein when price is high.
+	|
+
+Max menu substitution=
+	0.5
+	~	Dmnl
+	~	Max share of egg/chicken replaced (fish, tempeh, tofu).
+	|
+
+Substitution price threshold=
+	1.15
+	~	Dmnl
+	~	Relative price above which substitution starts.
+	|
+
+Egg menu multiplier=
+	1 - Menu flexibility switch * Max menu substitution * MIN(1, MAX(0, (Relative egg price - Substitution price threshold) / 0.2))
+	~	Dmnl
+	~	
+	|
+
+Chicken menu multiplier=
+	1 - Menu flexibility switch * Max menu substitution * MIN(1, MAX(0, (Relative chicken price - Substitution price threshold) / 0.2))
+	~	Dmnl
+	~	
+	|
+
+MBG egg demand=
+	Beneficiaries served * Egg per beneficiary * Egg menu multiplier / 1000
+	~	t/Week
+	~	
+	|
+
+MBG chicken demand=
+	Beneficiaries served * Chicken per beneficiary * Chicken menu multiplier / 1000
+	~	t/Week
+	~	
+	|
+
+Forward contract share=
+	0
+	~	Dmnl
+	~	POLICY P3 (0-1): share of future programme demand contracted in advance with farmers.
+	|
+
+Contract lead time=
+	20
+	~	Week
+	~	How far ahead contracted demand is announced.
+	|
+
+Anticipated rollout fraction=
+	MIN(1, MAX(0, (Time + Contract lead time - Programme start time) / Rollout duration))
+	~	Dmnl
+	~	
+	|
+
+Anticipated MBG egg demand=
+	Target kitchens * Anticipated rollout fraction * Beneficiaries per kitchen * Egg per beneficiary / 1000
+	~	t/Week
+	~	
+	|
+
+Anticipated MBG chicken demand=
+	Target kitchens * Anticipated rollout fraction * Beneficiaries per kitchen * Chicken per beneficiary / 1000
+	~	t/Week
+	~	
+	|
+
+Cooperative sourcing share=
+	0.1
+	~	Dmnl
+	~	POLICY P2 (0-1): share bought directly from farmer groups/cooperatives.
+	|
+
+Intermediary margin=
+	0.15
+	~	Dmnl
+	~	UNCERTAINTY: mark-up charged by intermediaries.
+	|
+
+Egg procurement price=
+	Egg price * (1 + Intermediary margin * (1 - Cooperative sourcing share))
+	~	Rp/kg
+	~	
+	|
+
+Chicken procurement price=
+	Chicken price * (1 + Intermediary margin * (1 - Cooperative sourcing share))
+	~	Rp/kg
+	~	
+	|
+
+Programme protein cost=
+	(MBG egg sales * Egg procurement price + MBG chicken sales * Chicken procurement price) * 1000
+	~	Rp/Week
+	~	
+	|
+
+Protein cost per portion=
+	Programme protein cost / MAX(1, Beneficiaries served * Portions per beneficiary)
+	~	Rp/portion
+	~	OUTCOME
+	|
+
+Feed shock magnitude=
+	0
+	~	Dmnl
+	~	UNCERTAINTY: relative rise in world feed price during the shock.
+	|
+
+Feed shock time=
+	120
+	~	Week
+	~	
+	|
+
+Feed shock duration=
+	26
+	~	Week
+	~	
+	|
+
+Exogenous feed price index=
+	1 + Feed shock magnitude * PULSE(Feed shock time, Feed shock duration)
+	~	Dmnl
+	~	
+	|
+
+Broiler feed weight=
+	0.5
+	~	Dmnl
+	~	Feed use of a broiler relative to a layer.
+	|
+
+Total birds=
+	Laying hens + Pullets + Broilers in growout * Broiler feed weight
+	~	bird
+	~	
+	|
+
+Initial total birds=
+	INITIAL(Total birds)
+	~	bird
+	~	
+	|
+
+Feed price sensitivity to flock=
+	0.3
+	~	Dmnl
+	~	Loop B3 strength.
+	|
+
+Relative feed price=
+	Exogenous feed price index * (Total birds / Initial total birds) ^ Feed price sensitivity to flock
+	~	Dmnl
+	~	
+	|
+
+Egg mass=
+	0.06
+	~	kg/egg
+	~	
+	|
+
+Lay rate=
+	5.6
+	~	egg/(bird*Week)
+	~	PLACEHOLDER: verify.
+	|
+
+Production per hen=
+	Lay rate * Egg mass / 1000
+	~	t/(bird*Week)
+	~	
+	|
+
+Initial egg production=
+	105000
+	~	t/Week
+	~	PLACEHOLDER (~5.5 Mt/yr): replace with BPS data.
+	|
+
+Initial laying hens=
+	Initial egg production / Production per hen
+	~	bird
+	~	
+	|
+
+Productive life=
+	80
+	~	Week
+	~	PLACEHOLDER
+	|
+
+Rearing time=
+	18
+	~	Week
+	~	Pullet rearing to point of lay. PLACEHOLDER: verify.
+	|
+
+Laying hens=
+	INTEG(Maturation - Culling - Disease loss, Initial laying hens)
+	~	bird
+	~	STOCK
+	|
+
+Pullets=
+	INTEG(Pullet placement - Maturation, Initial laying hens / Productive life * Rearing time)
+	~	bird
+	~	STOCK (supply line)
+	|
+
+Maturation=
+	DELAY3(Pullet placement, Rearing time)
+	~	bird/Week
+	~	Third-order biological delay.
+	|
+
+Culling=
+	Laying hens / Productive life
+	~	bird/Week
+	~	
+	|
+
+Outbreak loss fraction=
+	0
+	~	Dmnl
+	~	UNCERTAINTY: share of hens lost in a disease outbreak (e.g. avian influenza).
+	|
+
+Outbreak time=
+	150
+	~	Week
+	~	
+	|
+
+Outbreak duration=
+	4
+	~	Week
+	~	
+	|
+
+Disease loss=
+	Laying hens * (-LN(1 - MIN(Outbreak loss fraction, 0.999))) * PULSE(Outbreak time, Outbreak duration) / Outbreak duration
+	~	bird/Week
+	~	Exponential loss so that exactly the stated fraction of hens is lost over the outbreak.
+	|
+
+Egg production=
+	Laying hens * Production per hen
+	~	t/Week
+	~	
+	|
+
+Egg spoilage fraction=
+	0.01
+	~	1/Week
+	~	
+	|
+
+Normal egg coverage=
+	2
+	~	Week
+	~	Normal inventory in the distribution chain, in weeks of demand.
+	|
+
+Reference household egg demand=
+	Initial egg production / (1 + Egg spoilage fraction * Normal egg coverage)
+	~	t/Week
+	~	Equilibrium household demand at baseline price.
+	|
+
+Egg inventory=
+	INTEG(Egg production - Egg sales - Egg spoilage, Reference household egg demand * Normal egg coverage)
+	~	t
+	~	STOCK
+	|
+
+Egg spoilage=
+	Egg inventory * Egg spoilage fraction
+	~	t/Week
+	~	
+	|
+
+Minimum delivery time=
+	0.5
+	~	Week
+	~	
+	|
+
+Egg available=
+	Egg inventory / Minimum delivery time
+	~	t/Week
+	~	
+	|
+
+Household egg elasticity=
+	-0.6
+	~	Dmnl
+	~	UNCERTAINTY: own-price elasticity (loop B2). Cite Indonesian demand studies.
+	|
+
+Household egg demand=
+	Reference household egg demand * Relative egg price ^ Household egg elasticity
+	~	t/Week
+	~	
+	|
+
+MBG egg sales=
+	MIN(MBG egg demand, Egg available)
+	~	t/Week
+	~	Programme has delivery priority.
+	|
+
+Household egg sales=
+	MIN(Household egg demand, Egg available - MBG egg sales)
+	~	t/Week
+	~	
+	|
+
+Egg sales=
+	MBG egg sales + Household egg sales
+	~	t/Week
+	~	
+	|
+
+Total egg demand=
+	MBG egg demand + Household egg demand
+	~	t/Week
+	~	
+	|
+
+Relative egg coverage=
+	(Egg inventory / MAX(1, Total egg demand)) / Normal egg coverage
+	~	Dmnl
+	~	
+	|
+
+Baseline egg price=
+	27000
+	~	Rp/kg
+	~	PLACEHOLDER: replace with Panel Harga Pangan baseline (2024).
+	|
+
+Normal egg margin=
+	0.1
+	~	Dmnl
+	~	
+	|
+
+Egg feed cost share=
+	0.7
+	~	Dmnl
+	~	PLACEHOLDER
+	|
+
+Base egg unit cost=
+	Baseline egg price / (1 + Normal egg margin)
+	~	Rp/kg
+	~	
+	|
+
+Egg unit cost=
+	Base egg unit cost * (Egg feed cost share * Relative feed price + 1 - Egg feed cost share)
+	~	Rp/kg
+	~	
+	|
+
+Price sensitivity to coverage=
+	1
+	~	Dmnl
+	~	UNCERTAINTY: how strongly traders raise price when stocks are short.
+	|
+
+Cost pull weight=
+	0.3
+	~	Dmnl
+	~	How strongly price is pulled toward cost plus normal margin.
+	|
+
+Maximum relative price=
+	3
+	~	Dmnl
+	~	UNCERTAINTY: price ceiling relative to baseline set by imports, substitutes and government market operations.
+	|
+
+Price adjustment time=
+	2
+	~	Week
+	~	
+	|
+
+Indicated egg price=
+	MIN(Maximum relative price * Baseline egg price, Egg price * Relative egg coverage ^ (-Price sensitivity to coverage) * (Egg unit cost * (1 + Normal egg margin) / Egg price) ^ Cost pull weight)
+	~	Rp/kg
+	~	
+	|
+
+Change in egg price=
+	(Indicated egg price - Egg price) / Price adjustment time
+	~	Rp/(kg*Week)
+	~	
+	|
+
+Egg price=
+	INTEG(Change in egg price, Baseline egg price)
+	~	Rp/kg
+	~	STOCK
+	|
+
+Relative egg price=
+	Egg price / Baseline egg price
+	~	Dmnl
+	~	OUTCOME
+	|
+
+Price expectation delay=
+	8
+	~	Week
+	~	UNCERTAINTY: farmer expectation-formation delay.
+	|
+
+Expected egg price=
+	SMOOTH(Egg price, Price expectation delay)
+	~	Rp/kg
+	~	
+	|
+
+Expected egg margin=
+	(Expected egg price - Egg unit cost) / Egg unit cost
+	~	Dmnl
+	~	
+	|
+
+Egg farmer margin=
+	(Egg price - Egg unit cost) / Egg unit cost
+	~	Dmnl
+	~	OUTCOME
+	|
+
+Investment sensitivity=
+	1.5
+	~	Dmnl
+	~	UNCERTAINTY: response of desired flock to expected margin (loop B1).
+	|
+
+Effect of margin on desired hens=
+	MAX(0.5, 1 + Investment sensitivity * (Expected egg margin - Normal egg margin))
+	~	Dmnl
+	~	
+	|
+
+Desired laying hens=
+	Laying hens * Effect of margin on desired hens + Forward contract share * MAX(0, Anticipated MBG egg demand - MBG egg demand) / Production per hen
+	~	bird
+	~	
+	|
+
+Expected hen loss=
+	SMOOTH(Culling + Disease loss, 4)
+	~	bird/Week
+	~	
+	|
+
+Desired pullets=
+	Expected hen loss * Rearing time
+	~	bird
+	~	
+	|
+
+Capacity adjustment time=
+	26
+	~	Week
+	~	
+	|
+
+Supply line weight=
+	0.5
+	~	Dmnl
+	~	UNCERTAINTY: 1 = farmers fully account for pullets in rearing; <1 causes overshoot.
+	|
+
+Hatchery capacity factor=
+	1.5
+	~	Dmnl
+	~	UNCERTAINTY: max pullet placement relative to baseline replacement.
+	|
+
+Max pullet placement=
+	Hatchery capacity factor * Initial laying hens / Productive life
+	~	bird/Week
+	~	
+	|
+
+Indicated pullet placement=
+	Expected hen loss + (Desired laying hens - Laying hens) / Capacity adjustment time + Supply line weight * (Desired pullets - Pullets) / Capacity adjustment time
+	~	bird/Week
+	~	
+	|
+
+Pullet placement=
+	MIN(Max pullet placement, MAX(0, Indicated pullet placement))
+	~	bird/Week
+	~	
+	|
+
+Household egg consumption ratio=
+	Household egg sales / Reference household egg demand
+	~	Dmnl
+	~	OUTCOME
+	|
+
+Initial chicken production=
+	73000
+	~	t/Week
+	~	PLACEHOLDER (~3.8 Mt/yr): replace with BPS data.
+	|
+
+Meat per bird=
+	1
+	~	kg/bird
+	~	PLACEHOLDER: carcass yield per broiler.
+	|
+
+Growout time=
+	5
+	~	Week
+	~	
+	|
+
+Growout mortality=
+	0.05
+	~	Dmnl
+	~	
+	|
+
+Initial DOC placement=
+	Initial chicken production * 1000 / Meat per bird / (1 - Growout mortality)
+	~	bird/Week
+	~	
+	|
+
+Broilers in growout=
+	INTEG(DOC placement - Broiler harvest - Growout mortality loss, Initial DOC placement * Growout time)
+	~	bird
+	~	STOCK
+	|
+
+Broiler harvest=
+	Broilers in growout / Growout time * (1 - Growout mortality)
+	~	bird/Week
+	~	
+	|
+
+Growout mortality loss=
+	Broilers in growout / Growout time * Growout mortality
+	~	bird/Week
+	~	
+	|
+
+Chicken production=
+	Broiler harvest * Meat per bird / 1000
+	~	t/Week
+	~	
+	|
+
+Chicken spoilage fraction=
+	0.02
+	~	1/Week
+	~	
+	|
+
+Normal chicken coverage=
+	1
+	~	Week
+	~	
+	|
+
+Reference household chicken demand=
+	Initial chicken production / (1 + Chicken spoilage fraction * Normal chicken coverage)
+	~	t/Week
+	~	
+	|
+
+Chicken inventory=
+	INTEG(Chicken production - Chicken sales - Chicken spoilage, Reference household chicken demand * Normal chicken coverage)
+	~	t
+	~	STOCK
+	|
+
+Chicken spoilage=
+	Chicken inventory * Chicken spoilage fraction
+	~	t/Week
+	~	
+	|
+
+Chicken available=
+	Chicken inventory / Minimum delivery time
+	~	t/Week
+	~	
+	|
+
+Household chicken elasticity=
+	-0.8
+	~	Dmnl
+	~	UNCERTAINTY
+	|
+
+Household chicken demand=
+	Reference household chicken demand * Relative chicken price ^ Household chicken elasticity
+	~	t/Week
+	~	
+	|
+
+MBG chicken sales=
+	MIN(MBG chicken demand, Chicken available)
+	~	t/Week
+	~	
+	|
+
+Household chicken sales=
+	MIN(Household chicken demand, Chicken available - MBG chicken sales)
+	~	t/Week
+	~	
+	|
+
+Chicken sales=
+	MBG chicken sales + Household chicken sales
+	~	t/Week
+	~	
+	|
+
+Total chicken demand=
+	MBG chicken demand + Household chicken demand
+	~	t/Week
+	~	
+	|
+
+Relative chicken coverage=
+	(Chicken inventory / MAX(1, Total chicken demand)) / Normal chicken coverage
+	~	Dmnl
+	~	
+	|
+
+Baseline chicken price=
+	35000
+	~	Rp/kg
+	~	PLACEHOLDER: replace with Panel Harga Pangan baseline (2024).
+	|
+
+Normal chicken margin=
+	0.1
+	~	Dmnl
+	~	
+	|
+
+Chicken feed cost share=
+	0.65
+	~	Dmnl
+	~	PLACEHOLDER
+	|
+
+Base chicken unit cost=
+	Baseline chicken price / (1 + Normal chicken margin)
+	~	Rp/kg
+	~	
+	|
+
+Chicken unit cost=
+	Base chicken unit cost * (Chicken feed cost share * Relative feed price + 1 - Chicken feed cost share)
+	~	Rp/kg
+	~	
+	|
+
+Indicated chicken price=
+	MIN(Maximum relative price * Baseline chicken price, Chicken price * Relative chicken coverage ^ (-Price sensitivity to coverage) * (Chicken unit cost * (1 + Normal chicken margin) / Chicken price) ^ Cost pull weight)
+	~	Rp/kg
+	~	
+	|
+
+Change in chicken price=
+	(Indicated chicken price - Chicken price) / Price adjustment time
+	~	Rp/(kg*Week)
+	~	
+	|
+
+Chicken price=
+	INTEG(Change in chicken price, Baseline chicken price)
+	~	Rp/kg
+	~	STOCK
+	|
+
+Relative chicken price=
+	Chicken price / Baseline chicken price
+	~	Dmnl
+	~	OUTCOME
+	|
+
+Expected chicken price=
+	SMOOTH(Chicken price, Price expectation delay / 2)
+	~	Rp/kg
+	~	Broiler farmers react faster (short cycle).
+	|
+
+Expected chicken margin=
+	(Expected chicken price - Chicken unit cost) / Chicken unit cost
+	~	Dmnl
+	~	
+	|
+
+Broiler investment sensitivity=
+	1
+	~	Dmnl
+	~	UNCERTAINTY
+	|
+
+Effect of margin on broiler placement=
+	MAX(0.5, 1 + Broiler investment sensitivity * (Expected chicken margin - Normal chicken margin))
+	~	Dmnl
+	~	
+	|
+
+Demand forecast time=
+	4
+	~	Week
+	~	
+	|
+
+Expected chicken demand=
+	SMOOTH(Total chicken demand, Demand forecast time)
+	~	t/Week
+	~	
+	|
+
+Inventory adjustment time=
+	2
+	~	Week
+	~	
+	|
+
+Desired chicken production=
+	(Expected chicken demand + Chicken spoilage) * Effect of margin on broiler placement + (Expected chicken demand * Normal chicken coverage - Chicken inventory) / Inventory adjustment time + Forward contract share * MAX(0, Anticipated MBG chicken demand - MBG chicken demand)
+	~	t/Week
+	~	
+	|
+
+DOC capacity factor=
+	1.3
+	~	Dmnl
+	~	UNCERTAINTY: max DOC supply relative to baseline (parent-stock constraint).
+	|
+
+Max DOC placement=
+	DOC capacity factor * Initial DOC placement
+	~	bird/Week
+	~	
+	|
+
+DOC placement=
+	MIN(Max DOC placement, MAX(0, Desired chicken production * 1000 / Meat per bird / (1 - Growout mortality)))
+	~	bird/Week
+	~	
+	|
+
+Household chicken consumption ratio=
+	Household chicken sales / Reference household chicken demand
+	~	Dmnl
+	~	OUTCOME
+	|
+
+\\\---/// Sketch information - do not modify anything except names
+V300  Do not put anything below this section - it will be ignored
+*View 1
+$192-192-192,0,Times New Roman|12||0-0-0|0-0-0|0-0-255|-1--1--1|-1--1--1|96,96,100,0
+///---\\\

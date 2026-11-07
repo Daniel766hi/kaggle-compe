@@ -1,0 +1,7 @@
+# DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS
+policy,"spike_removed (P0=1,P=0)","spike_added (P0=0,P=1)",p_exact
+P1 Phased roll-out,23,36,0.11747735024505848
+P2 Cooperative sourcing,0,0,1.0
+P3 Forward contracts,19,5,0.006610751152038574
+P4 Menu flexibility,62,5,1.4195339782113736e-13
+P5 Combined (P2+P3+P4),82,1,1.737079286361358e-23

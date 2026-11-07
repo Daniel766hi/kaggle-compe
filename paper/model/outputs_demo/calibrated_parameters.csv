@@ -1,5 +1,6 @@
 # DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS
-,calibrated
-Price expectation delay,20.0
-Investment sensitivity,3.9999999999999805
-Price sensitivity to coverage,0.2
+,estimate,lower_bound,upper_bound,at_bound,spread_across_starts
+Price expectation delay,29.99999999999599,2.0,30,True,7.383389075976482
+Investment sensitivity,3.5829479283580845,0.2,6,False,1.3954855152910761
+Price sensitivity to coverage,0.8677565072351084,0.1,3,False,0.4432644575115509
+Broiler investment sensitivity,0.2,0.2,4,True,1.2460749160909778e-14

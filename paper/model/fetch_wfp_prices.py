@@ -73,6 +73,27 @@ out = pd.DataFrame({"week": cal["week"].values, "rel_egg_price": cal["egg_rel_in
 out.to_csv(DATA_DIR / "historical_prices.csv", index=False)
 
 b = monthly.loc[monthly.index.str.startswith("2024")]
+# ---- long national series 2007-2026 for seasonal estimation (pre-programme seasonality)
+# 2007-01..2020-02: WFP "National Average" rows; from 2020-03: median across markets (months with
+# >= MIN_MARKETS markets; thinner months left missing). Levels are not compared across the splice:
+# seasonal_adjustment.py works with ratios to a centred 12-month moving average.
+NA_MAP = {"Eggs": "egg", "Meat (chicken, broiler)": "chicken"}
+MK_MAP = {"Eggs": "egg", "Meat (chicken)": "chicken"}
+na = raw[(raw["market"] == "National Average") & raw["commodity"].isin(NA_MAP) & (raw["date"] < "2020-03-01")]
+na = na.assign(series=na["commodity"].map(NA_MAP), month=na["date"].dt.to_period("M"))
+long_na = na.pivot_table(index="month", columns="series", values="price", aggfunc="mean")
+mk = raw[(raw["market"] != "National Average") & raw["commodity"].isin(MK_MAP) & (raw["pricetype"] == "Retail")
+         & (raw["date"] >= "2020-03-01")]
+mk = mk.assign(series=mk["commodity"].map(MK_MAP), month=mk["date"].dt.to_period("M"))
+agg = mk.groupby(["month", "series"]).agg(p=("price", "median"), n=("market", "nunique")).reset_index()
+agg.loc[agg["n"] < MIN_MARKETS, "p"] = float("nan")
+long_mk = agg.pivot(index="month", columns="series", values="p")
+long = pd.concat([long_na, long_mk]).sort_index()
+long = long[~long.index.duplicated(keep="first")]
+long.index = long.index.astype(str)
+long.to_csv(DATA_DIR / "wfp_national_monthly_long.csv")
+print(f"long series: {long.index.min()} to {long.index.max()}, {len(long)} months")
+
 print(monthly[["egg_n_markets", "egg_median_price", "egg_rel_index", "chicken_median_price",
                "chicken_rel_index", "week", "use_for_calibration"]].round(3).to_string())
 print(f"\nCalibration months: {len(out)} (excluded: {(~monthly['use_for_calibration']).sum()})")

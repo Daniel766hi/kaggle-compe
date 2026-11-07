@@ -183,10 +183,24 @@ def load_model():
     return _MODEL
 
 
+_CAL = None
+
+
+def calibrated() -> dict:
+    """Parameters estimated from real data by s02_validation.py (empty if not calibrated yet)."""
+    global _CAL
+    if _CAL is None:
+        f = DATA_DIR / "calibrated_parameters.csv"
+        _CAL = pd.read_csv(f, index_col=0)["estimate"].to_dict() if f.exists() else {}
+    return _CAL
+
+
 def run(params: dict | None = None, time_step: float | None = None,
-        columns: list[str] | None = None) -> pd.DataFrame:
+        columns: list[str] | None = None, use_calibrated: bool = True) -> pd.DataFrame:
     m = load_model()
-    kw = {"params": params or {}, "return_columns": columns or RETURN_COLS,
+    p = dict(calibrated()) if use_calibrated else {}
+    p.update(params or {})
+    kw = {"params": p, "return_columns": columns or RETURN_COLS,
           "return_timestamps": np.arange(0, 313, 1.0)}
     if time_step is not None:
         kw["time_step"] = time_step

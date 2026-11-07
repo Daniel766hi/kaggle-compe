@@ -108,51 +108,98 @@ def fit_stats(sim, obs):
 
 CAL_PARAMS = {"Price expectation delay": (2, 20), "Investment sensitivity": (0.2, 4),
               "Price sensitivity to coverage": (0.2, 3)}
+# parameters estimated from the real price data (joint egg + chicken fit)
+REAL_CAL_PARAMS = {"Price expectation delay": (2, 30), "Investment sensitivity": (0.2, 6),
+                   "Price sensitivity to coverage": (0.1, 3), "Broiler investment sensitivity": (0.2, 4)}
 
 
-def calibrate(obs: pd.Series, column="Relative egg price", x0=None):
-    names = list(CAL_PARAMS)
-    lo = np.array([CAL_PARAMS[n][0] for n in names])
-    hi = np.array([CAL_PARAMS[n][1] for n in names])
+def calibrate(targets: dict, params=None, z0=None, maxiter=400):
+    """Least squares over one or more series. targets = {model column: observed Series (index=week)}."""
+    params = params or CAL_PARAMS
+    names = list(params)
+    lo = np.array([params[n][0] for n in names])
+    hi = np.array([params[n][1] for n in names])
+    cols = list(targets)
 
     def loss(z):
         x = lo + (hi - lo) / (1 + np.exp(-z))          # keep inside bounds
-        sim = run(dict(zip(names, x)), columns=[column])[column].reindex(obs.index)
-        return float(np.mean((sim - obs) ** 2))
+        sim = run(dict(zip(names, x)), columns=cols, use_calibrated=False)
+        return float(sum(np.mean((sim[c].reindex(o.index) - o) ** 2) for c, o in targets.items()))
 
-    z0 = np.zeros(len(names)) if x0 is None else np.log((np.array(x0) - lo) / (hi - np.array(x0)))
-    r = minimize(loss, z0, method="Nelder-Mead", options={"maxiter": 250, "xatol": 1e-3, "fatol": 1e-9})
+    z0 = np.zeros(len(names)) if z0 is None else np.asarray(z0, float)
+    r = minimize(loss, z0, method="Nelder-Mead", options={"maxiter": maxiter, "xatol": 1e-3, "fatol": 1e-10})
     x = lo + (hi - lo) / (1 + np.exp(-r.x))
     return dict(zip(names, x)), r.fun
+
+
+def _start(args):
+    targets, z0 = args
+    return calibrate(targets, REAL_CAL_PARAMS, z0=z0)
 
 
 # D. parameter-recovery test on synthetic data (method check, not a result)
 true = {"Price expectation delay": 12.0, "Investment sensitivity": 2.2, "Price sensitivity to coverage": 1.4}
 rng = np.random.default_rng(1)
-synth = run(true, columns=["Relative egg price"])["Relative egg price"]
+synth = run(true, columns=["Relative egg price"], use_calibrated=False)["Relative egg price"]
 synth = synth.loc[52:200] + rng.normal(0, 0.003, len(synth.loc[52:200]))
-est, mse = calibrate(synth)
+est, mse = calibrate({"Relative egg price": synth})
 rec = pd.DataFrame({"true": true, "estimated": est})
 rec["abs_error_%"] = 100 * (rec["estimated"] - rec["true"]).abs() / rec["true"]
 save_table(rec, "parameter_recovery_test.csv")
 print("\nD. Parameter-recovery test (synthetic data, checks the calibration method):")
 print(rec.round(3).to_string())
 
-# C. behaviour reproduction with real data, if the user has supplied it
+# C. calibration + behaviour reproduction on real data (seasonally adjusted, eggs and chicken jointly)
 hist = DATA_DIR / "historical_prices.csv"
 if hist.exists():
+    from multiprocessing import Pool
     h = pd.read_csv(hist).set_index("week")
-    est, _ = calibrate(h["rel_egg_price"])
-    sim = run(est, columns=["Relative egg price"])["Relative egg price"].reindex(h.index)
-    stats = pd.DataFrame([fit_stats(sim, h["rel_egg_price"])], index=["egg"])
+    sa = "rel_egg_price_sa" in h.columns
+    eg, ck = ("rel_egg_price_sa", "rel_chicken_price_sa") if sa else ("rel_egg_price", "rel_chicken_price")
+    targets = {"Relative egg price": h[eg], "Relative chicken price": h[ck]}
+    starts = [np.zeros(len(REAL_CAL_PARAMS))] + [np.random.default_rng(k).normal(0, 1.2, len(REAL_CAL_PARAMS))
+                                                 for k in range(3)]
+    with Pool(4) as pool:
+        fits = pool.map(_start, [(targets, z) for z in starts])
+    fits = sorted(fits, key=lambda f: f[1])
+    est, best = fits[0]
+    starts_tbl = pd.DataFrame([{**f[0], "SSE": f[1]} for f in fits])
+    save_table(starts_tbl, "calibration_multistart.csv")
+    cal = pd.DataFrame({"estimate": est,
+                        "lower_bound": {k: v[0] for k, v in REAL_CAL_PARAMS.items()},
+                        "upper_bound": {k: v[1] for k, v in REAL_CAL_PARAMS.items()}})
+    width = cal["upper_bound"] - cal["lower_bound"]
+    cal["at_bound"] = ((cal["estimate"] - cal["lower_bound"]) < 0.02 * width) | \
+                      ((cal["upper_bound"] - cal["estimate"]) < 0.02 * width)
+    cal["spread_across_starts"] = starts_tbl[list(REAL_CAL_PARAMS)].std().reindex(cal.index)
+    cal.to_csv(DATA_DIR / "calibrated_parameters.csv")
+    save_table(cal, "calibrated_parameters.csv")
+
+    sim = run(est, columns=list(targets), use_calibrated=False).reindex(h.index)
+    rows = {}
+    for lab, c, o in [("egg (seasonally adjusted)", "Relative egg price", h[eg]),
+                      ("chicken (seasonally adjusted)", "Relative chicken price", h[ck])]:
+        rows[lab] = fit_stats(sim[c], o)
+    if sa:  # re-apply seasonal factors to compare with raw observations
+        rows["egg (raw, sim x seasonal factor)"] = fit_stats(sim["Relative egg price"] * h["season_egg"], h["rel_egg_price"])
+        rows["chicken (raw, sim x seasonal factor)"] = fit_stats(sim["Relative chicken price"] * h["season_chicken"],
+                                                                 h["rel_chicken_price"])
+    stats = pd.DataFrame(rows).T
     save_table(stats, "behaviour_reproduction.csv")
-    save_table(pd.Series(est, name="calibrated").to_frame(), "calibrated_parameters.csv")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(h.index, h["rel_egg_price"], "k.", ms=3, label="Observed (WFP/HDX, national median of market relatives)")
-    ax.plot(sim.index, sim, label="Simulated")
-    ax.set_xlabel("Week (0 = Jan 2024)"); ax.set_ylabel("Relative egg price"); ax.legend()
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.2))
+    for ax, c, o, t in [(axes[0], "Relative egg price", h[eg], "Eggs"),
+                        (axes[1], "Relative chicken price", h[ck], "Chicken")]:
+        full = run(est, columns=[c], use_calibrated=False)[c]
+        ax.plot(o.index, o, "k.", ms=5, label="Observed, seasonally adjusted (WFP/HDX)")
+        ax.plot(full.index, full, label="Simulated (calibrated)")
+        ax.axvline(52, color="grey", ls=":", lw=0.8)
+        ax.set_xlim(0, 160); ax.set_title(t); ax.set_xlabel("Week (0 = Jan 2024)")
+        ax.set_ylabel("Price relative to 2024")
+    axes[0].legend(fontsize=8)
     stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / "fig_behaviour_reproduction.png", dpi=150)
-    print("\nC. Behaviour reproduction:\n", stats.round(4).to_string())
+    print("\nC. Calibration (best of", len(fits), "starts):\n", cal.round(4).to_string())
+    print("\nBehaviour reproduction:\n", stats.round(4).to_string())
 else:
     print(f"\nC. Behaviour reproduction skipped: add {hist.name} (see data/README.md).")
 

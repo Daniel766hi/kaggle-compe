@@ -15,10 +15,12 @@ chains* (template: `../MBG_SD_ML_paper_template.docx`).
 | `mbg_poultry.mdl` | Vensim model (155 variables): MBG roll-out, kitchen suspensions, egg (layer) sector, broiler sector, feed, prices, policy levers. Opens in Vensim PLE; equations load, **the diagram view is empty — draw the stock-and-flow diagram yourself** (Vensim: *Model → Text Editor* to read equations; drag existing variables onto the view). |
 | `common.py` | Uncertainty ranges, policy definitions, outcome indicators, run helper. **Edit ranges here.** |
 | `s01_baseline.py` | Baseline vs no-programme run → `fig_baseline_dynamics.png` |
-| `s02_validation.py` | Extreme-condition tests, integration-error test, parameter-recovery test, behaviour reproduction (when real data are present) |
+| `s02_validation.py` | Extreme-condition tests, integration-error test, parameter-recovery test; joint egg + chicken calibration (multi-start) on seasonally adjusted data → `data/calibrated_parameters.csv`, which every later run uses |
 | `s03_ensemble.py` | Latin Hypercube ensemble; every policy runs on the same scenarios (paired design); each scenario also runs without the programme (counterfactual) |
 | `s04_scenario_discovery.py` | Classifier benchmark, CART rules, SHAP, PRIM, one-at-a-time comparison, early-warning classifier |
 | `s05_policy_comparison.py` | Spike probabilities (Wilson CI), Wilcoxon signed-rank vs P0 (Holm), rank-biserial effect sizes, McNemar, Friedman, trade-off plot |
+| `fetch_wfp_prices.py` | Downloads WFP/HDX retail prices for Indonesia; builds the national monthly index (2023–2026) and long series (2007–2026) |
+| `seasonal_adjustment.py` | Estimates Lebaran and calendar seasonality on pre-MBG data (2007–2023) and seasonally adjusts the calibration series |
 | `prepare_price_data.py` | Converts raw Panel Harga Pangan prices → `data/historical_prices.csv` |
 | `parameter_sheet.py` | Writes `data/parameter_sheet.csv`: every constant with tag, units, range — fill in value/source/justification (becomes your parameter appendix) |
 | `run_all.py` | Runs everything in order |

@@ -148,7 +148,7 @@ if hist.exists():
     save_table(stats, "behaviour_reproduction.csv")
     save_table(pd.Series(est, name="calibrated").to_frame(), "calibrated_parameters.csv")
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(h.index, h["rel_egg_price"], "k.", ms=3, label="Historical (Panel Harga Pangan)")
+    ax.plot(h.index, h["rel_egg_price"], "k.", ms=3, label="Observed (WFP/HDX, national median of market relatives)")
     ax.plot(sim.index, sim, label="Simulated")
     ax.set_xlabel("Week (0 = Jan 2024)"); ax.set_ylabel("Relative egg price"); ax.legend()
     stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / "fig_behaviour_reproduction.png", dpi=150)

@@ -1,0 +1,4 @@
+World Food Programme (WFP). Indonesia - Food Prices. Humanitarian Data Exchange.
+https://data.humdata.org/dataset/72cc0659-142b-41af-821a-cb981a852617/resource/2c0e732c-1d93-4366-8f19-0397064ac5d7/download/wfp_food_prices_idn.csv
+Licence: CC BY-IGO. Accessed: 2026-11-07.
+Extract: commodities ['Eggs', 'Meat (chicken)'], retail, IDR/kg, market level, from 2023-01.

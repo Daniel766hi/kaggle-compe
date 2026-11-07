@@ -504,9 +504,9 @@ Relative egg coverage=
 	|
 
 Baseline egg price=
-	27000
+	28140
 	~	Rp/kg
-	~	PLACEHOLDER: replace with Panel Harga Pangan baseline (2024).
+	~	From data: 2024 mean of monthly national median retail price, WFP/HDX Indonesia Food Prices (see data/raw/SOURCE.txt).
 	|
 
 Normal egg margin=
@@ -810,9 +810,9 @@ Relative chicken coverage=
 	|
 
 Baseline chicken price=
-	35000
+	35704
 	~	Rp/kg
-	~	PLACEHOLDER: replace with Panel Harga Pangan baseline (2024).
+	~	From data: 2024 mean of monthly national median retail price, WFP/HDX Indonesia Food Prices (see data/raw/SOURCE.txt).
 	|
 
 Normal chicken margin=

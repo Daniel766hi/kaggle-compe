@@ -30,21 +30,27 @@ Programme start time=
 	|
 
 Target kitchens=
-	30000
+	27794
 	~	kitchen
-	~	PLACEHOLDER: verify against BGN target number of SPPG.
+	~	From data: fitted so that modelled operational SPPG match BGN counts (fit_rollout.py, data/rollout_fit.csv).
 	|
 
-Rollout duration=
-	78
+Rollout midpoint=
+	92.44
 	~	Week
-	~	POLICY LEVER / UNCERTAINTY: weeks from start to full planned kitchens. Phased roll-out = longer.
+	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py).
+	|
+
+Rollout steepness=
+	7.93
+	~	Week
+	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py). POLICY P1 (phased roll-out) increases it.
 	|
 
 Rollout fraction=
-	MIN(1, MAX(0, (Time - Programme start time) / Rollout duration))
+	IF THEN ELSE(Time >= Programme start time, 1 / (1 + EXP(-(Time - Rollout midpoint) / Rollout steepness)), 0)
 	~	Dmnl
-	~	Share of target kitchens planned to be open.
+	~	Logistic (S-shaped) roll-out fitted to observed SPPG counts.
 	|
 
 Planned kitchens=
@@ -126,9 +132,9 @@ Suspension rate=
 	|
 
 Beneficiaries per kitchen=
-	2800
+	2850
 	~	person/kitchen
-	~	PLACEHOLDER: verify with BGN.
+	~	From data: BGN, 55.1 million / 19,188 SPPG (end 2025) = 2,872; 65 million / 21,897 (Feb 2026) = 2,968; Sep 2026 sources imply approx. 1,950-2,070 (conflicting). UNCERTAINTY.
 	|
 
 Beneficiaries served=
@@ -150,15 +156,15 @@ Portions per beneficiary=
 	|
 
 Egg per beneficiary=
-	0.1
+	0.15
 	~	kg/(person*Week)
-	~	UNCERTAINTY: egg kg per beneficiary per week in the menu.
+	~	Evidence: Bapanas planning assumption of eggs 3x/week (approx. 0.165 kg); BGN head estimate 480 kt/yr for 82.9 million (approx. 0.11 kg); Agriculture Minister 700 kt/yr (approx. 0.16 kg). UNCERTAINTY.
 	|
 
 Chicken per beneficiary=
-	0.15
+	0.18
 	~	kg/(person*Week)
-	~	UNCERTAINTY: chicken kg per beneficiary per week.
+	~	Evidence: Agriculture Minister 1.1 Mt/yr for full programme (approx. 0.255 kg); Bapanas SPPG need 222.7 kt in 2025; another report 70 kt/yr. Wide UNCERTAINTY.
 	|
 
 Menu flexibility switch=
@@ -216,7 +222,7 @@ Contract lead time=
 	|
 
 Anticipated rollout fraction=
-	MIN(1, MAX(0, (Time + Contract lead time - Programme start time) / Rollout duration))
+	IF THEN ELSE(Time + Contract lead time >= Programme start time, 1 / (1 + EXP(-(Time + Contract lead time - Rollout midpoint) / Rollout steepness)), 0)
 	~	Dmnl
 	~	
 	|
@@ -342,9 +348,9 @@ Production per hen=
 	|
 
 Initial egg production=
-	105000
+	121950
 	~	t/Week
-	~	PLACEHOLDER (~5.5 Mt/yr): replace with BPS data.
+	~	From Bapanas Proyeksi Neraca Pangan 2025 (via media): 2025 production 6.52 Mt, +2.78% vs 2024, so 2024 approx. 6.34 Mt/yr. VERIFY with BPS.
 	|
 
 Initial laying hens=
@@ -584,7 +590,7 @@ Relative egg price=
 Price expectation delay=
 	8
 	~	Week
-	~	UNCERTAINTY: farmer expectation-formation delay.
+	~	UNCERTAINTY: farmer expectation-formation delay. Not identified by the price data (calibration moved it between 2 and 30 weeks); fixed at 8 weeks and explored over 4-16 in the ensemble. Find a literature value.
 	|
 
 Expected egg price=
@@ -678,9 +684,9 @@ Household egg consumption ratio=
 	|
 
 Initial chicken production=
-	73000
+	73660
 	~	t/Week
-	~	PLACEHOLDER (~3.8 Mt/yr): replace with BPS data.
+	~	From Bapanas Proyeksi Neraca Pangan 2025 (via media): 2025 production 4.25 Mt, +10.95% vs 2024, so 2024 approx. 3.83 Mt/yr. VERIFY with BPS.
 	|
 
 Meat per bird=

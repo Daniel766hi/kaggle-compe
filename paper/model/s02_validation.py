@@ -64,8 +64,8 @@ tests.append(("A5 Feed price doubles -> egg price rises during shock",
               f"{df.loc[140, 'Relative egg price']:.3f} vs {base.loc[140, 'Relative egg price']:.3f}",
               sane(df) and df.loc[140, "Relative egg price"] > base.loc[140, "Relative egg price"]))
 
-df = run({"Rollout duration": 1}, columns=COLS)
-tests.append(("A6 Instant roll-out (1 week) -> more suspensions than baseline (loop R1)",
+df = run({"Rollout steepness": 0.5}, columns=COLS)
+tests.append(("A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions than baseline (loop R1)",
               "peak suspended kitchens above baseline run",
               f"{df['Suspended kitchens'].max():,.0f} vs {base['Suspended kitchens'].max():,.0f}",
               sane(df) and df["Suspended kitchens"].max() > base["Suspended kitchens"].max()))
@@ -109,8 +109,10 @@ def fit_stats(sim, obs):
 CAL_PARAMS = {"Price expectation delay": (2, 20), "Investment sensitivity": (0.2, 4),
               "Price sensitivity to coverage": (0.2, 3)}
 # parameters estimated from the real price data (joint egg + chicken fit)
-REAL_CAL_PARAMS = {"Price expectation delay": (2, 30), "Investment sensitivity": (0.2, 6),
-                   "Price sensitivity to coverage": (0.1, 3), "Broiler investment sensitivity": (0.2, 4)}
+# Price expectation delay is NOT estimated: earlier runs showed it is not identified by 29 monthly
+# observations (it moved between both bounds). It is fixed in the .mdl and explored in the ensemble.
+REAL_CAL_PARAMS = {"Investment sensitivity": (0.2, 6), "Price sensitivity to coverage": (0.1, 3),
+                   "Broiler investment sensitivity": (0.0, 4)}
 
 
 def calibrate(targets: dict, params=None, z0=None, maxiter=400):

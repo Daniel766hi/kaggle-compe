@@ -29,9 +29,12 @@ DEMO_STAMP = "DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS"
 # --------------------------------------------------------------------- uncertainties
 # name in model: (low, high).  Justify every range in the paper (Table: uncertainties).
 UNCERTAINTIES: dict[str, tuple[float, float]] = {
-    "Rollout duration": (52, 104),
-    "Egg per beneficiary": (0.05, 0.15),
-    "Chicken per beneficiary": (0.08, 0.22),
+    "Rollout midpoint": (86, 100),      # fitted 92.4 (fit_rollout.py)
+    "Rollout steepness": (5, 12),       # fitted 7.9
+    "Target kitchens": (24000, 32000),  # fitted 27,794; BGN target 32,000
+    "Beneficiaries per kitchen": (2000, 3000),
+    "Egg per beneficiary": (0.10, 0.18),
+    "Chicken per beneficiary": (0.08, 0.26),
     "Price expectation delay": (4, 16),
     "Investment sensitivity": (0.5, 3.0),
     "Supply line weight": (0.1, 1.0),
@@ -55,12 +58,13 @@ BASE_LEVERS = {"Cooperative sourcing share": 0.1, "Forward contract share": 0.0,
 
 
 def _policy(name, levers=None, rollout_mult=1.0):
+    """rollout_mult > 1 slows the S-shaped roll-out (larger steepness = more gradual)."""
     def apply(scn: dict) -> dict:
         p = dict(scn)
         p.update(BASE_LEVERS)
         if levers:
             p.update(levers)
-        p["Rollout duration"] = scn["Rollout duration"] * rollout_mult
+        p["Rollout steepness"] = scn["Rollout steepness"] * rollout_mult
         return p
     apply.__name__ = name
     return apply

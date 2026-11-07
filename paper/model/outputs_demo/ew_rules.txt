@@ -1,10 +1,10 @@
-|--- obs_rel_egg_price <= 1.01
-|   |--- obs_opening_rate <= 324.29
-|   |   |--- weights: [27.00, 38.00] class: 1
-|   |--- obs_opening_rate >  324.29
-|   |   |--- weights: [75.00, 28.00] class: 0
-|--- obs_rel_egg_price >  1.01
-|   |--- obs_rel_egg_price <= 1.02
-|   |   |--- weights: [54.00, 118.00] class: 1
-|   |--- obs_rel_egg_price >  1.02
-|   |   |--- weights: [0.00, 60.00] class: 1
+|--- obs_rel_chicken_price <= 1.01
+|   |--- obs_opening_rate <= 74.56
+|   |   |--- weights: [35.00, 156.00] class: 1
+|   |--- obs_opening_rate >  74.56
+|   |   |--- weights: [48.00, 64.00] class: 1
+|--- obs_rel_chicken_price >  1.01
+|   |--- obs_opening_rate <= 160.81
+|   |   |--- weights: [0.00, 52.00] class: 1
+|   |--- obs_opening_rate >  160.81
+|   |   |--- weights: [7.00, 38.00] class: 1

@@ -262,8 +262,9 @@ para("The model has four interacting sectors simulated weekly from January 2024 
      "time step 0.125 weeks). Its causal structure is shown in Figure 2 and its stock-and-flow structure in "
      "Figure 3; all equations are listed in Appendix A.")
 for txt in [
-    "Programme sector. Planned kitchens (SPPG) increase linearly from the programme start to the target over the "
-    "roll-out duration. Kitchens open after an opening delay and can be suspended. The weekly suspension fraction "
+    "Programme sector. Planned kitchens (SPPG) follow a logistic (S-shaped) roll-out whose final size, midpoint "
+    "and steepness were fitted so that modelled operational kitchens reproduce BGN's reported counts (Section 3.4). "
+    "Kitchens open after an opening delay and can be suspended. The weekly suspension fraction "
     "rises when the opening rate exceeds a sustainable opening capacity, representing strain on supervision, "
     "staff and suppliers during rapid scaling (reinforcing loop R1). Suspended kitchens reopen after a "
     "reinstatement time. Programme demand for eggs and chicken equals beneficiaries served multiplied by the menu "
@@ -290,23 +291,45 @@ doc.add_heading("3.3 Policies", 2)
 caption("Table 2. Policy levers")
 table(pd.DataFrame([
     ["P0 Baseline", "Current roll-out; cooperative sourcing share 0.1; no forward contracts; fixed menu"],
-    ["P1 Phased roll-out", "Roll-out duration × 1.75 [[justify from BGN plans]]"],
+    ["P1 Phased roll-out", "Roll-out steepness × 1.75, i.e. a more gradual S-curve [[justify from BGN plans]]"],
     ["P2 Cooperative sourcing", "Direct purchase share from farmer groups 0.6 (reduces intermediary mark-up)"],
     ["P3 Forward contracts", "80% of future programme demand contracted 20 weeks ahead"],
     ["P4 Menu flexibility", "Up to 50% substitution when relative price > 1.15"],
     ["P5 Combined", "P2 + P3 + P4"]], columns=["Policy", "Implementation"]), index=False)
 doc.add_heading("3.4 Data and parameters", 2)
-para("Baseline production was taken from [[BPS source, year]]; prices from Badan Pangan Nasional's Panel Harga "
-     "Pangan ([[period]]); household elasticities from [[QUAIDS studies on SUSENAS]]; programme targets, kitchen "
-     "numbers and menus from [[BGN sources]]; and biological parameters from [[sources]]. Appendix B lists every "
-     "parameter with its value and source.")
+para("Prices. Monthly retail prices of chicken eggs and chicken meat were taken from the World Food Programme's "
+     "Indonesia food price dataset on the Humanitarian Data Exchange (WFP, [[access date]]; CC BY-IGO), which "
+     "covers about 200 markets. Because WFP publishes no recent national average and the set of reporting markets "
+     "varies, each market's price was expressed relative to its own 2024 mean, and the national index for each "
+     "month is the median of these relatives. Months with fewer than 100 reporting markets, and the incomplete "
+     "latest month, were excluded, leaving 29 monthly observations (January 2024 to October 2026). Baseline prices "
+     "were set to the 2024 mean of monthly national medians (Rp 28,140/kg for eggs; Rp 35,704/kg for chicken).")
+para("Programme roll-out. Reported numbers of operational SPPG and beneficiaries were compiled from BGN releases "
+     "and press reports for August 2025 to September 2026 [[cite each; replace secondary sources]]. The roll-out "
+     "parameters were estimated by least squares so that modelled operational kitchens match these counts. "
+     "Beneficiaries per kitchen (about 2,850) were derived from the same reports. Menu quantities were set from "
+     "planning figures reported by Bapanas, BGN and the Ministry of Agriculture (about 0.11–0.17 kg of egg and "
+     "0.08–0.26 kg of chicken per beneficiary per week) [[cite]], and are treated as uncertain.")
+para("Production. Baseline production was derived from Bapanas' 2025 food balance projections (egg production "
+     "6.52 Mt, chicken meat 4.25 Mt, with stated growth rates over 2024) [[cite; verify with BPS]]. Household "
+     "price elasticities were taken from [[QUAIDS studies on SUSENAS]], and biological parameters from "
+     "[[sources]]. Appendix B lists every parameter with its value and source.")
 doc.add_heading("3.5 Validation", 2)
 para("Following Barlas (1996) and Sterman (2000), the model was subjected to dimensional consistency checks; "
      "extreme-condition tests (no programme, ten-fold programme demand, loss of all laying hens, no hatchery "
      "expansion, doubled feed price, instantaneous roll-out); an integration-error test comparing time steps of "
      "0.125 and 0.0625 weeks; a parameter-recovery test applying the calibration procedure to synthetic data with "
      "known parameters; and behaviour reproduction against historical prices, assessed with MAPE, R² and Theil "
-     "inequality statistics. Parameters were calibrated by minimising squared error with the Nelder–Mead algorithm.")
+     "inequality statistics.")
+para("Because the model contains no seasonal demand, seasonality was removed from the price data before "
+     "calibration. Using the WFP national series for 2007–2023 (pre-programme; March 2020 to December 2021 "
+     "excluded), the log ratio of price to its centred 12-month moving average was regressed on calendar-month "
+     "dummies and on the shares of the 30 days before and after Idul Fitri falling in each month, with HAC "
+     "standard errors. The fitted seasonal factors were divided out of the 2024–2026 series. The remaining "
+     "behavioural parameters (farmers' investment sensitivity for layers and broilers, and price sensitivity to "
+     "inventory coverage) were then estimated jointly on the seasonally adjusted egg and chicken series by "
+     "minimising the sum of squared errors (Nelder–Mead, four starting points). The price-expectation delay was "
+     "not identifiable from the data and was fixed at [[value, source]] and explored in the ensemble.")
 doc.add_heading("3.6 Exploratory ensemble and outcome indicators", 2)
 para(f"[[N]] scenarios were drawn by Latin Hypercube sampling over {len(UNCERTAINTIES)} uncertain parameters "
      "(Table 3). Each policy was run on the same scenarios (common random numbers), giving a paired design, and each "
@@ -345,10 +368,22 @@ if v is not None:
     caption("Table 4. Validation tests"); table(v, index=False)
 else:
     missing("validation_tests.csv")
+sr = read("seasonal_regression.csv")
+if sr is not None:
+    keep = sr[sr["term"].isin(["eid_pre", "eid_post", "m12", "R2", "n_obs"])]
+    caption("Table 4b. Pre-programme seasonal regression (selected terms)"); table(keep, fmt=4, index=False)
+rf = MODEL / "data" / "rollout_fit.csv"
+if rf.exists():
+    caption("Table 4c. Roll-out fit: reported vs modelled operational SPPG")
+    table(pd.read_csv(rf), fmt=3, index=False)
+cp = MODEL / "data" / "calibrated_parameters.csv"
+if cp.exists():
+    caption("Table 4d. Calibrated parameters (best of four starts)")
+    table(pd.read_csv(cp, index_col=0), fmt=4)
 b = read("behaviour_reproduction.csv", index_col=0)
 if b is not None:
     caption("Table 5. Behaviour reproduction (fit to historical prices)"); table(b, fmt=4)
-    figure("fig_behaviour_reproduction.png", 13)
+    caption("Figure 4. Simulated vs observed (seasonally adjusted) prices"); figure("fig_behaviour_reproduction.png", 15.5)
 else:
     write_here("Behaviour reproduction: add real price data, run s02_validation.py (Table 5, Figure 4)")
 write_here("Describe validation results")

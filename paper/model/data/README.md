@@ -1,4 +1,8 @@
-# Data you need to collect
+# Data
+
+**Prices are already in:** `python fetch_wfp_prices.py` downloads WFP retail prices for Indonesia (HDX, CC BY-IGO), keeps an extract in `raw/` with `SOURCE.txt`, and writes `wfp_national_monthly.csv` and `historical_prices.csv` (calibration series). Panel Harga Pangan exports can still be added with `prepare_price_data.py` as a cross-check.
+
+## Still to collect
 
 | Data | Where | Used for |
 |---|---|---|

@@ -102,6 +102,12 @@ NOTEBOOKS = {
         "datasets": ["art-museum-collections-moma-met-cleveland"],
         "tags": ["arts and entertainment", "culture and humanities", "exploratory data analysis", "data visualization"],
     },
+    "supply-chain": {
+        "source": "notebooks/supply_chain_monitor.py",
+        "title": "Supply Chains from Space: Red Sea & Indonesia",
+        "datasets": ["global-supply-chain-monitor-ports-chokepoints"],
+        "tags": ["economics", "international relations", "time series analysis", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

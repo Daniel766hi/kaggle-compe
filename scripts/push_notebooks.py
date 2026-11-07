@@ -108,6 +108,18 @@ NOTEBOOKS = {
         "datasets": ["global-supply-chain-monitor-ports-chokepoints"],
         "tags": ["economics", "international relations", "time series analysis", "data visualization"],
     },
+    "olist-promise": {
+        "source": "notebooks/olist_promise_cliff.py",
+        "title": "The Promise Cliff: Delivery Dates vs Reviews",
+        "datasets": ["olistbr/brazilian-ecommerce"],
+        "tags": ["e-commerce services", "regression", "time series analysis", "data visualization"],
+    },
+    "dataco-audit": {
+        "source": "notebooks/dataco_leakage_audit.py",
+        "title": "98% Accuracy Is a Leak: Auditing DataCo",
+        "datasets": ["shashwatwork/dataco-smart-supply-chain-for-big-data-analysis"],
+        "tags": ["classification", "data cleaning", "exploratory data analysis", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",
@@ -138,7 +150,8 @@ def build_folder(name, owner, public, folder):
         "is_private": not public,
         "enable_gpu": False,
         "enable_internet": cfg.get("internet", False),
-        "dataset_sources": [f"{owner}/{d}" for d in cfg["datasets"]],
+        # "slug" is one of ours; "owner/slug" is someone else's dataset.
+        "dataset_sources": [d if "/" in d else f"{owner}/{d}" for d in cfg["datasets"]],
         "model_sources": [f"{owner}/{m}" for m in cfg.get("models", [])],
         "keywords": cfg["tags"],
     }

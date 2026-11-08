@@ -70,3 +70,20 @@ mostly the first half of each run. Train loss 0.23 -> 0.18, 0 OOM.
 
 Paired: baseline vs RFT 1 vs 0 discordant; baseline vs v6 0 vs 0. RFT is 17% slower per task, which
 risks the 12-hour limit; with the cut at 8k it learned to explore but not to finish.
+
+# RFT v3 result (2026-11-08): same resolve count, much slower; not submitted
+
+`gemma4-lora-rft` v3: older tool outputs cut to 200 characters (last three to 600) and one extra
+"ending" example per run (older turns without reasoning, only the last 4 turns trained): 113 examples
+(11 endings had no trained token inside 8,192), stopped at the 5-hour cap (~1.5 epochs), loss 0.33 -> 0.22.
+
+`gemma4-eval-v4`, same 24 held-out tasks, one at a time (`eval_v4_holdout24_rows.jsonl`):
+
+| config | resolved | mean s/task | 8-min time-outs | called submit_patch |
+|---|---|---|---|---|
+| baseline | 4 / 24 | 262 | 2 | 21 |
+| RFT v3 | 4 / 24 | 372 | 11 | 14 |
+
+No discordant pairs. The adapter is 42% slower per task and reaches the time cap in almost half the runs,
+which the 12-hour limit cannot absorb. Both RFT attempts made the agent slower without solving more;
+we stop the LoRA line here.

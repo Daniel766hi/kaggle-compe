@@ -120,6 +120,24 @@ NOTEBOOKS = {
         "datasets": ["shashwatwork/dataco-smart-supply-chain-for-big-data-analysis"],
         "tags": ["classification", "data cleaning", "exploratory data analysis", "data visualization"],
     },
+    "hotel-overbooking": {
+        "source": "notebooks/hotel_overbooking.py",
+        "title": "Should This Hotel Overbook? A Booking Replay",
+        "datasets": ["jessemostipak/hotel-booking-demand"],
+        "tags": ["business", "classification", "simulations", "data visualization"],
+    },
+    "retail-inventory": {
+        "source": "notebooks/retail_inventory_policy.py",
+        "title": "From Invoices to Stock Levels: Inventory Policy",
+        "datasets": ["mashlyn/online-retail-ii-uci"],
+        "tags": ["business", "time series analysis", "simulations", "data visualization"],
+    },
+    "bank-calls": {
+        "source": "notebooks/bank_call_budget.py",
+        "title": "Who to Call on a Budget: Honest Bank Marketing",
+        "datasets": ["henriqueyamahata/bank-marketing"],
+        "tags": ["banking", "classification", "business", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

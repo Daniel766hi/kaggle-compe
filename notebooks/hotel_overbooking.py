@@ -180,7 +180,7 @@ nights = pd.date_range(start, end)
 book = city[(city["arrival"] >= start) & (city["arrival"] <= end)].copy()
 book["first"] = (book["arrival"] - start).dt.days
 book["last"] = (book["first"] + book["nights"]).clip(upper=len(nights))
-book["cancel_time"] = np.where(book["is_canceled"] == 1, book["status_date"], pd.NaT)
+book["cancel_time"] = book["status_date"].where(book["is_canceled"] == 1)
 avg_adr = book.loc[book["is_canceled"] == 0, "adr"].mean()
 events = [(t, 0, i) for i, t in zip(book.index, book["booked_on"])]
 events += [(t, 1, i) for i, t in zip(book.index, book["cancel_time"]) if pd.notna(t)]

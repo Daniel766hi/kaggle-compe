@@ -1,0 +1,8 @@
+Test,Pass criterion,Observed,Pass
+A1 No programme -> system stays in equilibrium,max |relative egg price - 1| < 1e-6,0.00e+00,True
+"A2 10x programme demand -> price up, household consumption down","peak price > 1.2 and household ratio < 0.9; finite, no negative stocks","peak=2.68, hh_min=0.52",True
+"A3 Outbreak kills 100% of hens -> production collapses, price spikes, no negatives",min hens < 10% of initial; 1.5 < peak price <= ceiling; no negative stocks,"min hens=3,358,814, peak=3.00",True
+A4 No hatchery expansion possible -> higher prices than baseline,mean price (weeks 100-312) above baseline run,1.118 vs 1.015,True
+A5 Feed price doubles -> egg price rises during shock,price at week 140 above baseline run,1.090 vs 1.007,True
+A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions than baseline (scaling strain),peak suspended kitchens above baseline run,"5,410 vs 3,177",True
+B1 Integration error: TIME STEP 0.03125 vs 0.015625,max |difference| < 1% of each variable's range,0.6328%,True

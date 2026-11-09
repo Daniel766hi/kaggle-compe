@@ -12,9 +12,9 @@ FINAL TIME=
 	|
 
 TIME STEP=
-	0.125
+	0.0625
 	~	Week [0,?]
-	~	Halve this in the integration-error test.
+	~	Halved in integration tests B1/B2. 0.125 failed B1 (1.74 percent, egg-cycle phase drift) though B2 passed; 0.0625 gives 0.88 percent.
 	|
 
 SAVEPER=

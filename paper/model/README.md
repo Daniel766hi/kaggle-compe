@@ -3,10 +3,11 @@
 Working model and analysis pipeline for the paper *Programme-driven demand shocks in food supply
 chains* (template: `../MBG_SD_ML_paper_template.docx`).
 
-> **Status: working prototype with PLACEHOLDER parameters.**
-> All outputs in `outputs_demo/` are stamped "DEMO" and are **not research results**.
-> Do not copy any number from them into the paper. Replace the parameters with sourced values,
-> rerun, and only then interpret.
+> **Status: PRELIMINARY research run.** Parameters are sourced or fitted to data, but 7 inputs
+> still need checking against primary documents (`PENDING_VERIFICATION` in `common.py`).
+> `outputs/` holds the preliminary 5,000-scenario run (see `outputs/RUN_INFO.txt`); everything in it
+> is stamped PRELIMINARY. `outputs_demo/` is the old placeholder demo: never cite it.
+> After verifying the inputs, set `PRELIMINARY = False` and run `python run_all.py 5000` again.
 
 ## What is here
 
@@ -16,6 +17,7 @@ chains* (template: `../MBG_SD_ML_paper_template.docx`).
 | `common.py` | Uncertainty ranges, policy definitions, outcome indicators, run helper. **Edit ranges here.** |
 | `s01_baseline.py` | Baseline vs no-programme run → `fig_baseline_dynamics.png` |
 | `s02_validation.py` | Extreme-condition tests, integration-error test, parameter-recovery test; joint egg + chicken calibration (multi-start) on seasonally adjusted data → `data/calibrated_parameters.csv`, which every later run uses |
+| `check_time_step.py` | Validation B2: reruns 150 ensemble scenarios at half the time step and checks that spike classification is unchanged |
 | `s03_ensemble.py` | Latin Hypercube ensemble; every policy runs on the same scenarios (paired design); each scenario also runs without the programme (counterfactual) |
 | `s04_scenario_discovery.py` | Classifier benchmark, CART rules, SHAP, PRIM, one-at-a-time comparison, early-warning classifier |
 | `s05_policy_comparison.py` | Spike probabilities (Wilson CI), Wilcoxon signed-rank vs P0 (Holm), rank-biserial effect sizes, McNemar, Friedman, trade-off plot |
@@ -44,7 +46,7 @@ pip install --no-deps pysd && pip install parsimonious xarray lxml regex portion
 python run_all.py 400
 ```
 
-The demo uses 400 scenarios × 6 policies (~10 min on 4 cores). For the paper use 5,000+ scenarios (~1.5–2 h on 4 cores):
+400 scenarios × 6 policies is a quick test. For the paper use 5,000 scenarios: about 1 h 15 min on 4 cores at TIME STEP 0.125, roughly double at the current 0.0625:
 
 ```bash
 python run_all.py 5000

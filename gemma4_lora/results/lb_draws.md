@@ -18,7 +18,8 @@ draws), so configs are compared by the mean of several draws, not by one score. 
 | 2026-11-05 | 58020346 | `agent/v6_public` draw 5 | 4a65b9a7 | — | — | Kaggle "system error" (scorer side; not counted) |
 | 2026-11-06 | 58055327 | `agent/locate` draw 5 | 5bf7501e | 0.18 | 11 | locate mean of 5 draws 10.6 |
 | 2026-11-07 | 58089501 | `agent/v6_public` draw 5 (resubmit) | 4a65b9a7 | 0.17 | 10 | v6 mean of 5 draws 10.6 |
-| 2026-11-08 | pending | `agent/locate` draw 6 | 5bf7501e | | | |
+| 2026-11-08 | 58125081 | `agent/locate` draw 6 | 5bf7501e | 0.15 | 9 | locate mean of 6 draws 10.33 |
+| 2026-11-09 | pending | `agent/v6_public` draw 6 | 4a65b9a7 | | | |
 
 Reference means from the census (2026-10-22): Budget-Fit 10.00 over 10 draws; Budget-Aware v2 8.71
 over 7 later draws (first draw 13).

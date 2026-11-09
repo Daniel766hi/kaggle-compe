@@ -132,15 +132,69 @@ Suspension rate=
 	|
 
 Beneficiaries per kitchen=
-	2850
+	IF THEN ELSE(Time <= Last observed beneficiary week, Observed beneficiaries per kitchen(Time), Observed beneficiaries per kitchen(Last observed beneficiary week) + (Future beneficiaries per kitchen - Observed beneficiaries per kitchen(Last observed beneficiary week)) * MIN(1, (Time - Last observed beneficiary week) / Beneficiary adjustment time))
 	~	person/kitchen
-	~	From data: BGN, 55.1 million / 19,188 SPPG (end 2025) = 2,872; 65 million / 21,897 (Feb 2026) = 2,968; Sep 2026 sources imply approx. 1,950-2,070 (conflicting). UNCERTAINTY.
+	~	Reported beneficiaries / operational SPPG (BGN, Kemenkeu). Approx. 2,700-3,200 to Feb 2026, approx. 2,000 in Sep 2026 (53-57 million / 27,485). After the last observation it moves to an uncertain future level.
+	|
+
+Observed beneficiaries per kitchen(
+	[(0,0)-(320,4000)],(54.57,2731),(84.29,2865),(88.00,2942),(90.86,3224),(104.29,2872),(107.00,2763),(110.43,2968),(143.29,2001))
+	~	person/kitchen
+	~	Reported beneficiaries / operational SPPG: 17 Jan 2025 (238 SPPG, 0.65 m), 13 Aug 2025 (5,235, 15 m), 8 Sep 2025 (7,477, 22 m), 28 Sep 2025 (9,615, 31 m), 31 Dec 2025 (19,188, 55.1 m), 19 Jan 2026 (21,102, 58.3 m), 12 Feb 2026 (21,897, 65 m), 30 Sep 2026 (27,485, 53-57 m; midpoint used).
+	|
+
+Last observed beneficiary week=
+	143.29
+	~	Week
+	~	30 Sep 2026.
+	|
+
+Future beneficiaries per kitchen=
+	2000
+	~	person/kitchen
+	~	UNCERTAINTY (1,900-2,900): from the Sep 2026 level up to the earlier level; BGN cap 2,500 portions per SPPG (3,000 with certified cooks), Keputusan Kepala BGN 244/2025.
+	|
+
+Beneficiary adjustment time=
+	26
+	~	Week
+	~	Time to move from the last observed ratio to the future level.
 	|
 
 Beneficiaries served=
 	Operational kitchens * Beneficiaries per kitchen
 	~	person
 	~	
+	|
+
+School holiday indicator(
+	[(0,0)-(320,1)],(0,0),(63.99,0),(64.00,1),(66.00,1),(66.01,0),(76.99,0),(77.00,1),(79.86,1),(79.87,0),(102.70,0),(102.71,1),(104.71,1),(104.72,0),(114.56,0),(114.57,1),(116.57,1),(116.58,0),(129.13,0),(129.14,1),(132.00,1),(132.01,0),(154.85,0),(154.86,1),(156.86,1),(156.87,0),(165.28,0),(165.29,1),(167.29,1),(167.30,0),(181.28,0),(181.29,1),(184.14,1),(184.15,0),(206.99,0),(207.00,1),(209.00,1),(209.01,0),(215.85,0),(215.86,1),(217.86,1),(217.87,0),(233.56,0),(233.57,1),(236.43,1),(236.44,0),(259.28,0),(259.29,1),(261.29,1),(261.30,0),(266.28,0),(266.29,1),(268.29,1),(268.30,0),(285.70,0),(285.71,1),(288.57,1),(288.58,0),(311.42,0),(311.43,1),(313.43,1),(313.44,0),(320,0))
+	~	Dmnl
+	~	1 during school holidays: approx. 23 Jun-13 Jul and 20 Dec-3 Jan each year, and one week either side of Idul Fitri (approximate national calendar; verify against provincial calendars).
+	|
+
+Holiday service share=
+	IF THEN ELSE(Time >= Holiday rule change time, 0, Holiday service share before rule change)
+	~	Dmnl
+	~	Share of programme demand still served during school holidays.
+	|
+
+Holiday service share before rule change=
+	0.2
+	~	Dmnl
+	~	Pregnant and breastfeeding mothers and toddlers kept receiving meals in holidays (about 500 of 2,500 portions per SPPG, Keputusan Kepala BGN 244/2025); school deliveries in holidays were optional.
+	|
+
+Holiday rule change time=
+	128.6
+	~	Week
+	~	BGN circular SE 12/2026 (June 2026): distribution to all groups stops on school holidays, public holidays and weekends.
+	|
+
+Programme in session=
+	1 - School holiday indicator(Time) * (1 - Holiday service share)
+	~	Dmnl
+	~	Fraction of normal programme demand in a given week.
 	|
 
 Programme coverage=
@@ -152,19 +206,43 @@ Programme coverage=
 Portions per beneficiary=
 	5
 	~	portion/(person*Week)
-	~	School days per week (5; some schools 6). Affects cost per portion only. VERIFY with BGN guidelines.
+	~	Meals are served on school days only (five per week) following the 2026 schedule change; previously six. Affects cost per portion only.
 	|
 
 Egg per beneficiary=
-	0.15
+	Egg serving size * IF THEN ELSE(Time >= Egg menu change time, Egg servings after menu change, Egg servings before menu change)
 	~	kg/(person*Week)
-	~	Evidence: Bapanas planning assumption of eggs 3x/week (approx. 0.165 kg); BGN head estimate 480 kt/yr for 82.9 million (approx. 0.11 kg); Agriculture Minister 700 kt/yr (approx. 0.16 kg). UNCERTAINTY.
+	~	Eggs about twice a week (BGN head, Apr 2025: 480 kt/yr for 82.9 million assumes two egg dishes a week); at least three a week agreed by BGN and farmer groups on 8 June 2026.
+	|
+
+Egg serving size=
+	0.06
+	~	kg/serving
+	~	One egg, approx. 60 g. UNCERTAINTY 0.05-0.065.
+	|
+
+Egg servings before menu change=
+	2
+	~	serving/(person*Week)
+	~	BGN planning assumption (two egg dishes a week).
+	|
+
+Egg servings after menu change=
+	3
+	~	serving/(person*Week)
+	~	At least three a week from 8 June 2026 (described as temporary). UNCERTAINTY 2-4.
+	|
+
+Egg menu change time=
+	127.0
+	~	Week
+	~	8 June 2026.
 	|
 
 Chicken per beneficiary=
 	0.18
 	~	kg/(person*Week)
-	~	Evidence: Agriculture Minister 1.1 Mt/yr for full programme (approx. 0.255 kg); Bapanas SPPG need 222.7 kt in 2025; another report 70 kt/yr. Wide UNCERTAINTY.
+	~	No published menu specification. Official estimates conflict: Agriculture Minister 1.1 Mt/yr for the full programme (approx. 0.255 kg); Bapanas SPPG need 222.7 kt in 2025; another report 70 kt/yr. Treated as deep UNCERTAINTY 0.08-0.26.
 	|
 
 Menu flexibility switch=
@@ -198,13 +276,13 @@ Chicken menu multiplier=
 	|
 
 MBG egg demand=
-	Beneficiaries served * Egg per beneficiary * Egg menu multiplier / 1000
+	Beneficiaries served * Egg per beneficiary * Egg menu multiplier * Programme in session / 1000
 	~	t/Week
 	~	
 	|
 
 MBG chicken demand=
-	Beneficiaries served * Chicken per beneficiary * Chicken menu multiplier / 1000
+	Beneficiaries served * Chicken per beneficiary * Chicken menu multiplier * Programme in session / 1000
 	~	t/Week
 	~	
 	|
@@ -348,9 +426,9 @@ Production per hen=
 	|
 
 Initial egg production=
-	121950
+	121640
 	~	t/Week
-	~	From Bapanas Proyeksi Neraca Pangan 2025 (via media): 2025 production 6.52 Mt, +2.78% vs 2024, so 2024 approx. 6.34 Mt/yr. VERIFY with BPS.
+	~	BPS 2024 (preliminary): 6,342,705 t laying-hen eggs per year / 52.14 weeks.
 	|
 
 Initial laying hens=
@@ -468,9 +546,9 @@ Egg available=
 	|
 
 Household egg elasticity=
-	-0.7
+	-0.669
 	~	Dmnl
-	~	QUAIDS on SUSENAS: eggs -0.669 (DI Yogyakarta 2021, Khoiriyah et al. 2024); -0.82 (Bengkulu 2021). Range -1.0 to -0.5. VERIFY sign convention and Marshallian vs Hicksian.
+	~	Own-price elasticity of eggs, QUAIDS on SUSENAS 2021 (Khoiriyah et al. 2024). Ensemble range -1.0 to -0.5 (Bengkulu 2021: -0.82).
 	|
 
 Household egg demand=
@@ -684,9 +762,9 @@ Household egg consumption ratio=
 	|
 
 Initial chicken production=
-	73660
+	73565
 	~	t/Week
-	~	From Bapanas Proyeksi Neraca Pangan 2025 (via media): 2025 production 4.25 Mt, +10.95% vs 2024, so 2024 approx. 3.83 Mt/yr. VERIFY with BPS.
+	~	BPS 2024 (preliminary): 3,835,917 t broiler meat per year / 52.14 weeks.
 	|
 
 Meat per bird=
@@ -774,9 +852,9 @@ Chicken available=
 	|
 
 Household chicken elasticity=
-	-1.55
+	-1.581
 	~	Dmnl
-	~	QUAIDS on SUSENAS: poultry -1.581 (DI Yogyakarta 2021, Khoiriyah et al. 2024); -1.54 (Bengkulu 2021). Range -1.8 to -1.2. VERIFY as for eggs.
+	~	Own-price elasticity of poultry, QUAIDS on SUSENAS 2021 (Khoiriyah et al. 2024). Ensemble range -1.8 to -1.2 (Bengkulu 2021: -1.54).
 	|
 
 Household chicken demand=

@@ -1,11 +1,13 @@
 date,sppg_operational,beneficiaries_million,source,note
-2025-01-06,190,0.57,"Programme launch reports (verify with BGN)","launch figure from memory of launch coverage - VERIFY before use"
-2025-08-05,3338,8.2,"Wikipedia id: Makan Bergizi Gratis (table) - https://id.wikipedia.org/wiki/Makan_Bergizi_Gratis","secondary - find BGN primary"
+2025-01-06,190,,"Programme launch in 190 kitchens in 26 provinces - VOI, 'Free Nutrition Food Starting January 6 In 26 Provinces, Prepared From 190 Kitchens' https://voi.id/en/amp/448387; Bisnis.com 6 Jan 2025 https://kabar24.bisnis.com/read/20250106/15/1829084/istana-pastikan-prabowo-bakal-pantau-langsung-program-makan-bergizi-gratis","launch"
+2025-01-17,238,0.65,"BGN data as of 17 Jan 2025 reported in the press (search summary; confirm primary)",
+2025-06-24,1837,,"Bisnis.com: Kepala BGN Sebut 1.837 Unit SPPG Sudah Aktif - https://kabar24.bisnis.com/read/20250624/15/1887576/kepala-bgn-sebut-1837-unit-sppg-sudah-aktif-untuk-program-mbg",
 2025-08-13,5235,15.0,"BGN siaran pers: Program MBG sentuh 15 juta penerima manfaat - https://www.bgn.go.id/news/siaran-pers/program-mbg-sentuh-15-juta-penerima-manfaat-bgn-bidik-829-juta-pada-akhir-2025",
-2025-08-18,5905,20.5,"Wikipedia id: Makan Bergizi Gratis (table)","secondary - find BGN primary"
-2025-09-29,10012,30.0,"Wikipedia id: Makan Bergizi Gratis (table)","secondary - find BGN primary"
-2025-12-15,17555,50.0,"BGN report via search summary (verify)","'50 juta lebih'"
-2025-12-31,19188,55.1,"Republika / Antara: BGN sepanjang 2025 19.188 SPPG layani 55,1 juta - https://news.republika.co.id/berita/t95jhr370/bgn-sepanjang-2025-ada-19-188-sppg-layani-551-juta-penerima-mbg; BGN https://www.bgn.go.id/news/siaran-pers/awal-januari-2026-bgn-operasikan-19188-sppg",
-2026-01-19,21102,58.3,"BGN statement via Republika/Antara (verify)",
+2025-09-08,7477,22.0,"Investortrust: BGN 7.477 SPPG sudah beroperasi - https://investortrust.id/macro/78276/bgn-targetkan-31000-sppg-hingga-akhir-2025-7477-sppg-sudah-beroperasi; Bisnis.com 22 juta penerima - https://ekonomi.bisnis.com/read/20250908/12/1909326/mbg-sedot-anggaran-rp132-triliun-agustus-2025-ada-22-juta-penerima-manfaat",
+2025-09-15,8018,,"CNN Indonesia: 8.018 SPPG Beroperasi - https://www.cnnindonesia.com/ekonomi/20250916085211-92-1274126/8018-sppg-beroperasi-5-kabupaten-belum-dapat-makan-gratis",
+2025-09-28,9615,31.0,"Bisnis.com: Kepala BGN Bilang Ada 9.615 Unit SPPG Beroperasi per 28 September 2025 - https://kabar24.bisnis.com/read/20250928/15/1915396/kepala-bgn-bilang-ada-9615-unit-sppg-beroperasi-per-28-september-2025",
+2025-12-31,19188,55.1,"BGN: Awal Januari 2026 BGN operasikan 19.188 SPPG - https://www.bgn.go.id/news/siaran-pers/awal-januari-2026-bgn-operasikan-19188-sppg; Republika - https://news.republika.co.id/berita/t95jhr370/bgn-sepanjang-2025-ada-19-188-sppg-layani-551-juta-penerima-mbg",
+2026-01-19,21102,58.3,"BGN statement via Republika/Antara",
 2026-02-12,21897,65.0,"Antara: BGN 21.897 SPPG layani 65 juta - https://www.antaranews.com/berita/5414198/bgn-21897-sppg-sudah-beroperasi-layani-65-juta-penerima-manfaat-mbg",
-2026-09-30,27486,57.0,"Kemenkeu via Viva / Katadata - https://www.viva.co.id/bisnis/1934424-realisasi-anggaran-program-mbg-per-september-2026-capai-rp1532-triliun","rm.id reports 27,485 SPPG and 53 million; conflict to resolve"
+2026-06-18,27820,,"Kompas TV, 18 Jun 2026: 27.820 SPPG beroperasi - https://www.kompas.tv/nasional/675672/insentif-sppg-6-juta-per-hari-distop-saat-libur-sekolah-18-hari-bgn-sebut-hemat-rp3-t",
+2026-09-30,27485,55.0,"Kemenkeu via rm.id (27,485 SPPG, 53 million) - https://rm.id/baca-berita/government-action/329508/menkeu-puji-bgn-makin-tertib-realisasi-mbg-tembus-rp-1532-triliun; Viva (27,486, 57 million) - https://www.viva.co.id/bisnis/1934424-realisasi-anggaran-program-mbg-per-september-2026-capai-rp1532-triliun","net of 1,276 SPPG closed in Sep 2026 for missing SLHS hygiene certificates; beneficiaries midpoint of 53-57 million"

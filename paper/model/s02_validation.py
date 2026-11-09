@@ -65,7 +65,7 @@ tests.append(("A5 Feed price doubles -> egg price rises during shock",
               sane(df) and df.loc[140, "Relative egg price"] > base.loc[140, "Relative egg price"]))
 
 df = run({"Rollout steepness": 0.5}, columns=COLS)
-tests.append(("A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions than baseline (loop R1)",
+tests.append(("A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions than baseline (scaling strain)",
               "peak suspended kitchens above baseline run",
               f"{df['Suspended kitchens'].max():,.0f} vs {base['Suspended kitchens'].max():,.0f}",
               sane(df) and df["Suspended kitchens"].max() > base["Suspended kitchens"].max()))

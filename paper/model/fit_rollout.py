@@ -19,7 +19,8 @@ names = ["Target kitchens", "Rollout midpoint", "Rollout steepness"]
 
 
 def sim(x):
-    r = run(dict(zip(names, x)), columns=["Operational kitchens"], use_calibrated=False)["Operational kitchens"]
+    r = run(dict(zip(names, x)), columns=["Operational kitchens"], use_calibrated=False,
+            time_step=0.25)["Operational kitchens"]   # smooth kitchen dynamics: coarse step is enough for fitting
     return np.interp(obs["week"], r.index, r.values)
 
 

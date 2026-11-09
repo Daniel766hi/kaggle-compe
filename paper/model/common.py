@@ -24,11 +24,9 @@ DATA_DIR = HERE / "data"
 # PRELIMINARY      -> research run still stamped until the inputs listed below are verified
 #                     against primary sources. Set PRELIMINARY = False once they are.
 DEMO = False
-PRELIMINARY = True
-PENDING_VERIFICATION = ["Household egg elasticity", "Household chicken elasticity",
-                        "Initial egg production", "Initial chicken production",
-                        "Portions per beneficiary", "SPPG counts from secondary sources",
-                        "Menu quantities (Egg/Chicken per beneficiary)"]
+PRELIMINARY = False
+# Verified Nov 2026 against published sources; see data/VERIFICATION.md for sources and residual checks.
+PENDING_VERIFICATION: list[str] = []
 OUT_DIR = HERE / ("outputs_demo" if DEMO else "outputs")
 OUT_DIR.mkdir(exist_ok=True)
 
@@ -42,8 +40,9 @@ UNCERTAINTIES: dict[str, tuple[float, float]] = {
     "Rollout midpoint": (86, 100),      # fitted 92.4 (fit_rollout.py)
     "Rollout steepness": (5, 12),       # fitted 7.9
     "Target kitchens": (24000, 32000),  # fitted 27,794; BGN target 32,000
-    "Beneficiaries per kitchen": (2000, 3000),
-    "Egg per beneficiary": (0.10, 0.18),
+    "Future beneficiaries per kitchen": (1900, 2900),   # Sep 2026 level approx. 2,000; earlier approx. 2,900
+    "Egg serving size": (0.05, 0.065),               # one egg, kg
+    "Egg servings after menu change": (2, 4),        # at least 3 a week from 8 June 2026 (temporary)
     "Chicken per beneficiary": (0.08, 0.26),
     "Price expectation delay": (4, 16),
     "Investment sensitivity": (0.5, 3.0),

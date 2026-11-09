@@ -62,7 +62,7 @@ def main():
     res = res.sort_values(["policy", "scenario"]).reset_index(drop=True)
     path = OUT_DIR / "ensemble_results.csv"
     res.to_csv(path, index=False)
-    if DEMO:
+    if DEMO_STAMP:
         (OUT_DIR / "ensemble_results.README.txt").write_text(DEMO_STAMP + "\n")
     print(f"{len(res)} runs in {time.time() - t:.0f}s; failed: {(~res['ok']).sum()}; saved {path}")
 

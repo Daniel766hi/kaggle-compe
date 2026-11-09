@@ -19,12 +19,22 @@ HERE = Path(__file__).resolve().parent
 MODEL_FILE = HERE / "mbg_poultry.mdl"
 DATA_DIR = HERE / "data"
 
-# Set to False only after every parameter and range has been justified/calibrated.
-DEMO = True
+# DEMO = True      -> outputs_demo/, stamped as placeholder output (layout testing only)
+# DEMO = False     -> outputs/ (research run)
+# PRELIMINARY      -> research run still stamped until the inputs listed below are verified
+#                     against primary sources. Set PRELIMINARY = False once they are.
+DEMO = False
+PRELIMINARY = True
+PENDING_VERIFICATION = ["Household egg elasticity", "Household chicken elasticity",
+                        "Initial egg production", "Initial chicken production",
+                        "Portions per beneficiary", "SPPG counts from secondary sources",
+                        "Menu quantities (Egg/Chicken per beneficiary)"]
 OUT_DIR = HERE / ("outputs_demo" if DEMO else "outputs")
 OUT_DIR.mkdir(exist_ok=True)
 
-DEMO_STAMP = "DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS"
+DEMO_STAMP = ("DEMO OUTPUT - PLACEHOLDER PARAMETERS - NOT RESEARCH RESULTS" if DEMO else
+              f"PRELIMINARY - {len(PENDING_VERIFICATION)} inputs pending verification against primary sources"
+              if PRELIMINARY else "")
 
 # --------------------------------------------------------------------- uncertainties
 # name in model: (low, high).  Justify every range in the paper (Table: uncertainties).
@@ -228,12 +238,13 @@ def stamp(fig):
     if DEMO:
         fig.text(0.5, 0.5, "DEMO\nplaceholder parameters", fontsize=34, color="red",
                  alpha=0.12, ha="center", va="center", rotation=25)
+    if DEMO_STAMP:
         fig.text(0.01, 0.005, DEMO_STAMP, fontsize=7, color="red")
 
 
 def save_table(df: pd.DataFrame, name: str):
     path = OUT_DIR / name
-    if DEMO:
+    if DEMO_STAMP:
         with open(path, "w") as f:
             f.write(f"# {DEMO_STAMP}\n")
         df.to_csv(path, mode="a")

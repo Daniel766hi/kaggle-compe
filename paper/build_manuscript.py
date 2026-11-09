@@ -19,7 +19,7 @@ from docx.shared import Cm, Pt, RGBColor
 HERE = Path(__file__).resolve().parent
 MODEL = HERE / "model"
 sys.path.insert(0, str(MODEL))
-from common import POLICIES, SPIKE_THRESHOLD, UNCERTAINTIES  # noqa: E402
+from common import DEMO_STAMP as STATUS_STAMP, POLICIES, SPIKE_THRESHOLD, UNCERTAINTIES  # noqa: E402
 
 DEMO = "--demo" in sys.argv
 OUT = MODEL / ("outputs_demo" if DEMO else "outputs")
@@ -54,8 +54,9 @@ def write_here(t):
 
 
 def demo_banner():
-    if DEMO:
-        r = doc.add_paragraph().add_run("DEMO - PLACEHOLDER PARAMETERS - NOT RESULTS - DO NOT USE")
+    text = ("DEMO - PLACEHOLDER PARAMETERS - NOT RESULTS - DO NOT USE" if DEMO else STATUS_STAMP)
+    if text:
+        r = doc.add_paragraph().add_run(text)
         r.bold = True; r.font.color.rgb = RED
 
 

@@ -138,6 +138,24 @@ NOTEBOOKS = {
         "datasets": ["henriqueyamahata/bank-marketing"],
         "tags": ["banking", "classification", "business", "data visualization"],
     },
+    "superstore-discounts": {
+        "source": "notebooks/superstore_discounts.py",
+        "title": "Where Discounts Destroy Profit: Superstore Costs",
+        "datasets": ["vivek468/superstore-dataset-final"],
+        "tags": ["business", "retail and shopping", "exploratory data analysis", "data visualization"],
+    },
+    "fraud-queue": {
+        "source": "notebooks/fraud_review_queue.py",
+        "title": "Catching Money, Not Just Frauds: A Review Queue",
+        "datasets": ["mlg-ulb/creditcardfraud"],
+        "tags": ["banking", "classification", "business", "data visualization"],
+    },
+    "telco-retention": {
+        "source": "notebooks/telco_retention_value.py",
+        "title": "Who Is Worth Saving? Value-Based Churn Targeting",
+        "datasets": ["blastchar/telco-customer-churn"],
+        "tags": ["business", "classification", "survival analysis", "data visualization"],
+    },
     "idn-politics": {
         "source": "notebooks/indonesia_politics_tracker.py",
         "title": "Indonesia's Political Pulse: Protests & Reshuffles",

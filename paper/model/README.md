@@ -46,7 +46,7 @@ pip install --no-deps pysd && pip install parsimonious xarray lxml regex portion
 python run_all.py 400
 ```
 
-400 scenarios × 6 policies is a quick test. For the paper use 5,000 scenarios: about 1 h 15 min on 4 cores at TIME STEP 0.125, roughly double at the current 0.0625:
+400 scenarios × 6 policies is a quick test. For the paper use 5,000 scenarios: about 1 h 15 min on 4 cores at TIME STEP 0.125; the current 0.03125 takes roughly four times as long (about 5 hours with calibration and test B2):
 
 ```bash
 python run_all.py 5000

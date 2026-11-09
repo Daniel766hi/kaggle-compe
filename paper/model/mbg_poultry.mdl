@@ -12,9 +12,9 @@ FINAL TIME=
 	|
 
 TIME STEP=
-	0.0625
+	0.03125
 	~	Week [0,?]
-	~	Halved in integration tests B1/B2. 0.125 failed B1 (1.74 percent, egg-cycle phase drift) though B2 passed; 0.0625 gives 0.88 percent.
+	~	Halved in integration tests B1/B2. The shortest time constant is the 0.5-week minimum delivery time, which binds when demand jumps as schools reopen; 0.0625 failed B1 (1.5 percent of range, chicken price after school holidays), so the step was halved to 0.03125 (1/16 of that time constant).
 	|
 
 SAVEPER=
@@ -30,19 +30,19 @@ Programme start time=
 	|
 
 Target kitchens=
-	29256
+	29834
 	~	kitchen
 	~	From data: fitted so that modelled operational SPPG match BGN counts (fit_rollout.py, data/rollout_fit.csv).
 	|
 
 Rollout midpoint=
-	91.66
+	92.02
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py).
 	|
 
 Rollout steepness=
-	7.10
+	7.35
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py). POLICY P1 (phased roll-out) increases it.
 	|
@@ -84,7 +84,7 @@ Kitchen opening rate=
 	|
 
 Reinstatement time=
-	15.05
+	15.10
 	~	Week
 	~	From data: fitted with Base suspension fraction (fit_suspensions.py).
 	|
@@ -96,7 +96,7 @@ Reinstatement rate=
 	|
 
 Base suspension fraction=
-	0.00422
+	0.00419
 	~	1/Week
 	~	From data: fitted to BGN reports of 8,182 SPPG ever suspended and 2,213 inactive by end May 2026 (fit_suspensions.py). UNCERTAINTY.
 	|
@@ -116,7 +116,7 @@ Scaling strain=
 Strain sensitivity=
 	2
 	~	Dmnl
-	~	UNCERTAINTY: loop R1 strength.
+	~	UNCERTAINTY: strength of the scaling-strain effect on suspensions.
 	|
 
 Effect of scaling strain on suspension=
@@ -128,7 +128,7 @@ Effect of scaling strain on suspension=
 Suspension rate=
 	Operational kitchens * Base suspension fraction * Effect of scaling strain on suspension
 	~	kitchen/Week
-	~	Loop R1: scaling strain -> suspensions.
+	~	Scaling strain -> suspensions. Not a feedback loop: suspended kitchens are subtracted from the opening gap, so suspensions are replaced by new openings.
 	|
 
 Beneficiaries per kitchen=
@@ -168,9 +168,9 @@ Beneficiaries served=
 	|
 
 School holiday indicator(
-	[(0,0)-(320,1)],(0,0),(63.99,0),(64.00,1),(66.00,1),(66.01,0),(76.99,0),(77.00,1),(79.86,1),(79.87,0),(102.70,0),(102.71,1),(104.71,1),(104.72,0),(114.56,0),(114.57,1),(116.57,1),(116.58,0),(129.13,0),(129.14,1),(132.00,1),(132.01,0),(154.85,0),(154.86,1),(156.86,1),(156.87,0),(165.28,0),(165.29,1),(167.29,1),(167.30,0),(181.28,0),(181.29,1),(184.14,1),(184.15,0),(206.99,0),(207.00,1),(209.00,1),(209.01,0),(215.85,0),(215.86,1),(217.86,1),(217.87,0),(233.56,0),(233.57,1),(236.43,1),(236.44,0),(259.28,0),(259.29,1),(261.29,1),(261.30,0),(266.28,0),(266.29,1),(268.29,1),(268.30,0),(285.70,0),(285.71,1),(288.57,1),(288.58,0),(311.42,0),(311.43,1),(313.43,1),(313.44,0),(320,0))
+	[(0,0)-(320,1)],(0,0),(63.999,0),(64,1),(65.999,1),(66,0),(76.999,0),(77,1),(79.874,1),(79.875,0),(102.6865,0),(102.6875,1),(104.749,1),(104.75,0),(114.5615,0),(114.5625,1),(116.5615,1),(116.5625,0),(129.124,0),(129.125,1),(131.999,1),(132,0),(154.874,0),(154.875,1),(156.874,1),(156.875,0),(165.3115,0),(165.3125,1),(167.3115,1),(167.3125,0),(181.3115,0),(181.3125,1),(184.124,1),(184.125,0),(206.999,0),(207,1),(208.999,1),(209,0),(215.874,0),(215.875,1),(217.874,1),(217.875,0),(233.5615,0),(233.5625,1),(236.4365,1),(236.4375,0),(259.3115,0),(259.3125,1),(261.3115,1),(261.3125,0),(266.3115,0),(266.3125,1),(268.3115,1),(268.3125,0),(285.6865,0),(285.6875,1),(288.5615,1),(288.5625,0),(311.4365,0),(311.4375,1),(313.4365,1),(313.4375,0),(320,0))
 	~	Dmnl
-	~	1 during school holidays: approx. 23 Jun-13 Jul and 20 Dec-3 Jan each year, and one week either side of Idul Fitri (approximate national calendar; verify against provincial calendars).
+	~	1 during school holidays: approx. 23 Jun-13 Jul and 20 Dec-3 Jan each year, and one week either side of Idul Fitri (approximate national calendar; verify against provincial calendars). Start and end dates are rounded to the nearest 1/16 week (about 10 hours) so that every integration grid used in tests B1/B2 samples the same on/off times.
 	|
 
 Holiday service share=
@@ -186,7 +186,7 @@ Holiday service share before rule change=
 	|
 
 Holiday rule change time=
-	128.6
+	128.625
 	~	Week
 	~	BGN circular SE 12/2026 (June 2026): distribution to all groups stops on school holidays, public holidays and weekends.
 	|

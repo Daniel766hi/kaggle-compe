@@ -22,6 +22,6 @@
 ## Rebuilding after a change
 
 ```bash
-cd model && python run_all.py 5000      # about 3 hours at TIME STEP 0.0625
+cd model && python run_all.py 5000      # about 5 hours at TIME STEP 0.03125
 cd .. && python build_paper_latex.py
 ```

@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Glazeworks: a block-placing puzzle with pure-glaze lines, turn tokens and a daily seed.">
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<title>Glazeworks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Figtree:wght@400;600;800&display=swap">
+<style>
+/* Layout: one-screen workshop bench. Header + kiln gauges on top, the 8x8 kiln shelf in the middle, the tray of three tiles below. */
+:root {
+  --bg: #e3e9e6;          /* studio wall, celadon-tinted grey */
+  --surface: #f3f6f4;
+  --ink: #1b2733;
+  --muted: #586874;
+  --well: #c9d4cf;        /* kiln shelf */
+  --empty: #d9e1dd;
+  --line: #b5c2bc;
+  --cobalt: #2f5fb3;
+  --ochre: #cf9324;
+  --celadon: #3f9a7f;
+  --shard: #8d8a84;
+  --glow: #e2701c;        /* kiln heat */
+  --display: "Bagel Fat One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --pad: 8px;
+  --gap: 4px;
+  --board: clamp(250px, min(calc(100vw - 32px), calc(100dvh - 310px)), 440px);
+  --cell: calc((var(--board) - 2 * var(--pad) - 7 * var(--gap)) / 8);
+  --mini: calc(var(--cell) * 0.46);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111920; --surface: #18232d; --ink: #e6edef; --muted: #8b9ca6;
+    --well: #0b1218; --empty: #1a2631; --line: #26343f;
+    --cobalt: #4d82dc; --ochre: #e3aa3c; --celadon: #5bb798; --shard: #6f6c67; --glow: #f08a34;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111920; --surface: #18232d; --ink: #e6edef; --muted: #8b9ca6;
+  --well: #0b1218; --empty: #1a2631; --line: #26343f;
+  --cobalt: #4d82dc; --ochre: #e3aa3c; --celadon: #5bb798; --shard: #6f6c67; --glow: #f08a34;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body);
+  overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  max-width: 470px; margin: 0 auto; min-height: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+header { width: var(--board); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.brand { font-family: var(--display); font-size: 26px; line-height: 1; letter-spacing: 0.01em; }
+.brand small { display: block; font-family: var(--body); font-weight: 600; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.scores { display: flex; gap: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.scores b { display: block; font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1; }
+.scores span { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.scores .best b { font-size: 18px; color: var(--muted); }
+
+.gauges { width: var(--board); display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: center; }
+.gauge { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.gauge label { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.pips { display: flex; gap: 4px; }
+.pip { flex: 1; height: 8px; border-radius: 4px; background: var(--empty); border: 1px solid var(--line); transition: background .2s; }
+.heat .pip.on { background: var(--glow); border-color: var(--glow); box-shadow: 0 0 8px color-mix(in srgb, var(--glow) 60%, transparent); }
+.crack .pip.on { background: var(--shard); border-color: var(--shard); }
+.crack.warn label { color: var(--glow); }
+.iconbtn {
+  font: 600 13px var(--body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.tokens { display: flex; gap: 6px; }
+.tok b { font-family: var(--display); font-weight: 400; font-size: 15px; }
+.tok.empty { color: var(--muted); }
+.tok.bump { animation: bump .35s; }
+
+.boardwrap { position: relative; }
+.board {
+  width: var(--board); box-sizing: border-box; padding: var(--pad);
+  display: grid; grid-template-columns: repeat(8, var(--cell)); gap: var(--gap);
+  background: var(--well); border-radius: 14px; touch-action: none;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.18);
+}
+.cell { width: var(--cell); height: var(--cell); border-radius: 22%; background: var(--empty); position: relative; }
+.g0 { --g: var(--cobalt); } .g1 { --g: var(--ochre); } .g2 { --g: var(--celadon); } .g3 { --g: var(--shard); }
+.t {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,.55) 0 12%, transparent 30%),
+    linear-gradient(150deg, color-mix(in srgb, var(--g) 72%, white) 0%, var(--g) 48%, color-mix(in srgb, var(--g) 78%, black) 100%);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.22), 0 1px 2px rgba(0,0,0,.25);
+}
+.t.g3 {
+  background:
+    linear-gradient(115deg, transparent 46%, rgba(0,0,0,.45) 47% 50%, transparent 51%),
+    linear-gradient(35deg, transparent 58%, rgba(0,0,0,.35) 59% 61%, transparent 62%),
+    linear-gradient(160deg, color-mix(in srgb, var(--g) 80%, white), color-mix(in srgb, var(--g) 80%, black));
+}
+.cell.pv { background: color-mix(in srgb, var(--g) 42%, var(--empty)); }
+.cell.wc { box-shadow: 0 0 0 2px var(--glow), 0 0 10px color-mix(in srgb, var(--glow) 55%, transparent); }
+.cell.clr { animation: fire .32s ease-in forwards; }
+.cell.crk { animation: crackin .45s ease-out; }
+@keyframes fire { 40% { transform: scale(1.12); filter: brightness(1.6); } 100% { transform: scale(.2); opacity: 0; } }
+@keyframes crackin { 0% { transform: scale(1.5); opacity: 0; } 60% { transform: scale(.92); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes bump { 50% { transform: scale(1.18); } }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+.pop {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  font-family: var(--display); font-size: 34px; color: var(--surface);
+  -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill;
+  pointer-events: none; white-space: nowrap; text-align: center; line-height: 1.05;
+  animation: rise 1s ease-out forwards;
+}
+.pop small { display: block; font-size: 18px; color: var(--glow); -webkit-text-stroke: 1px var(--ink); }
+@keyframes rise { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -90%); } }
+
+.tray { width: var(--board); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; touch-action: none; }
+.slot {
+  height: calc(var(--mini) * 5 + 16px); display: grid; place-items: center;
+  border-radius: 12px; cursor: grab; position: relative; background: transparent; border: 0; padding: 0;
+}
+.slot:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+.slot.dim .piece { opacity: .25; }
+.slot.nofit .piece { opacity: .4; filter: grayscale(.7); }
+.slot.shake { animation: shake .3s; }
+.piece { display: grid; gap: 2px; }
+.piece .cell { width: var(--mini); height: var(--mini); background: none; }
+.piece .cell.t { background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,.55) 0 12%, transparent 30%),
+    linear-gradient(150deg, color-mix(in srgb, var(--g) 72%, white) 0%, var(--g) 48%, color-mix(in srgb, var(--g) 78%, black) 100%); }
+.ghost { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 50; gap: var(--gap); filter: drop-shadow(0 8px 10px rgba(0,0,0,.3)); }
+.ghost .cell { width: var(--cell); height: var(--cell); }
+.hint { width: var(--board); font-size: 12px; color: var(--muted); text-align: center; min-height: 16px; line-height: 1.35; }
+.footer { width: var(--board); display: flex; justify-content: space-between; gap: 8px; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(4px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.card {
+  width: min(380px, 100%); box-sizing: border-box; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 18px; padding: 22px 20px; display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.2);
+}
+.card h1, .card h2 { margin: 0; font-family: var(--display); font-weight: 400; text-wrap: balance; line-height: 1.05; }
+.card h1 { font-size: 40px; }
+.card h2 { font-size: 30px; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 14px; line-height: 1.4; }
+.rules li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; }
+.sw { width: 22px; height: 22px; border-radius: 22%; margin-top: 1px; }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn {
+  font: 800 15px var(--body); border-radius: 12px; padding: 13px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn:focus-visible, .iconbtn:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+.btn small { display: block; font-weight: 600; font-size: 11px; opacity: .7; margin-top: 2px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+.stats b { display: block; font-family: var(--display); font-weight: 400; font-size: 24px; }
+.stats span { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.big { font-family: var(--display); font-size: 54px; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }
+.share { font: 13px/1.5 ui-monospace, "SFMono-Regular", Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; white-space: pre-wrap; user-select: text; -webkit-user-select: text; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition: none !important; }
+}
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">Glazeworks<small id="modeLabel">Classic</small></div>
+    <div class="scores">
+      <div class="best"><span>Best</span><b id="best">0</b></div>
+      <div><span>Score</span><b id="score">0</b></div>
+    </div>
+  </header>
+
+  <div class="gauges">
+    <div class="gauge heat" title="Pure lines and multi-line clears heat the kiln. Three heat earns a turn token.">
+      <label>Kiln heat</label>
+      <div class="pips" id="heat"><i class="pip"></i><i class="pip"></i><i class="pip"></i></div>
+    </div>
+    <div class="gauge crack" id="crackG" title="Four placements without a clear crack a shard into the shelf.">
+      <label id="crackL">Crackle in 4</label>
+      <div class="pips" id="crack"><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i></div>
+    </div>
+    <div class="tokens">
+      <span class="iconbtn tok" id="tok" title="Turn tokens: tap a tray piece to rotate it 90°">↻ <b id="tokN">1</b></span>
+    </div>
+  </div>
+
+  <div class="boardwrap">
+    <div class="board" id="board" aria-label="Kiln shelf, 8 by 8"></div>
+  </div>
+
+  <div class="tray" id="tray"></div>
+  <div class="hint" id="hint">Drag a tile onto the shelf. Tap a tile to turn it (costs one ↻).</div>
+  <div class="footer">
+    <button class="iconbtn" id="menuBtn" type="button">Menu</button>
+    <button class="iconbtn" id="soundBtn" type="button">Sound: on</button>
+  </div>
+</div>
+
+<div class="overlay" id="startO">
+  <div class="card">
+    <h1>Glazeworks</h1>
+    <p>Fire glazed tiles on an 8×8 kiln shelf. Fill a row or column and it fires off the shelf.</p>
+    <ul class="rules">
+      <li><span class="sw t g0"></span><span><b>Pure lines score ×3.</b> Clear a line in one glaze colour and the kiln heats up.</span></li>
+      <li><span class="sw t g1"></span><span><b>Heat earns turns.</b> Every 3 heat gives a ↻ token. Tap a tile in the tray to rotate it.</span></li>
+      <li><span class="sw t g3"></span><span><b>Keep firing.</b> Four placements without a clear and a cracked shard lands on the shelf.</span></li>
+    </ul>
+    <div class="btns">
+      <button class="btn primary" id="playClassic" type="button">Classic<small id="bestClassic">Best 0</small></button>
+      <button class="btn" id="playDaily" type="button">Daily Firing<small id="dailyLbl">Same seed for everyone</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overO" hidden>
+  <div class="card">
+    <h2 id="overTitle">Kiln's full</h2>
+    <div class="big" id="overScore">0</div>
+    <div class="stats">
+      <div><b id="stLines">0</b><span>Lines</span></div>
+      <div><b id="stPure">0</b><span>Pure</span></div>
+      <div><b id="stStreak">0</b><span>Best streak</span></div>
+    </div>
+    <div class="share" id="shareTxt"></div>
+    <div class="btns">
+      <button class="btn" id="copyBtn" type="button">Copy result</button>
+      <button class="btn primary" id="againBtn" type="button">Fire again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const N = 8;
+  const $ = id => document.getElementById(id);
+
+  /* ---------- storage (best scores, sound pref) ---------- */
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('glz.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('glz.' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  /* ---------- seeded RNG ---------- */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const dayNumber = () => { const d = new Date(); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 0, 1)) / 864e5) + 1; };
+
+  /* ---------- shapes ---------- */
+  const SHAPES = [
+    { c: [[0,0]], w: 2 },
+    { c: [[0,0],[0,1]], w: 3 },
+    { c: [[0,0],[0,1],[0,2]], w: 3 },
+    { c: [[0,0],[0,1],[0,2],[0,3]], w: 2 },
+    { c: [[0,0],[0,1],[0,2],[0,3],[0,4]], w: 1 },
+    { c: [[0,0],[0,1],[1,0],[1,1]], w: 3 },
+    { c: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]], w: 1 },
+    { c: [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]], w: 1.5 },
+    { c: [[0,0],[1,0],[1,1]], w: 3 },
+    { c: [[0,0],[1,0],[2,0],[2,1]], w: 2 },
+    { c: [[0,0],[0,1],[0,2],[1,1]], w: 2 },
+    { c: [[0,1],[0,2],[1,0],[1,1]], w: 1.5 },
+    { c: [[0,0],[1,0],[2,0],[2,1],[2,2]], w: 1 },
+    { c: [[0,0],[1,1]], w: 1 },            /* stitch: diagonal pair */
+    { c: [[0,0],[1,1],[2,2]], w: 0.8 },    /* long stitch */
+  ];
+  const TOTALW = SHAPES.reduce((s, x) => s + x.w, 0);
+
+  function norm(cells) {
+    const mr = Math.min(...cells.map(p => p[0])), mc = Math.min(...cells.map(p => p[1]));
+    const out = cells.map(([r, c]) => [r - mr, c - mc]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    return { cells: out, h: Math.max(...out.map(p => p[0])) + 1, w: Math.max(...out.map(p => p[1])) + 1 };
+  }
+  const rotate = cells => norm(cells.map(([r, c]) => [c, -r]));
+
+  function randomPiece() {
+    let x = S.rng() * TOTALW, sh = SHAPES[0];
+    for (const s of SHAPES) { x -= s.w; if (x <= 0) { sh = s; break; } }
+    let p = norm(sh.c);
+    const turns = Math.floor(S.rng() * 4);
+    for (let i = 0; i < turns; i++) p = rotate(p.cells);
+    p.g = Math.floor(S.rng() * 3);
+    return p;
+  }
+
+  /* ---------- state ---------- */
+  let S;
+  function newGame(mode) {
+    const seed = mode === 'daily'
+      ? Number(today().replace(/-/g, '')) * 7919
+      : Math.floor(Math.random() * 2 ** 31);
+    S = {
+      mode, rng: mulberry32(seed), board: new Array(N * N).fill(-1), hand: [null, null, null],
+      score: 0, lines: 0, pure: 0, streak: 0, maxStreak: 0, heat: 0, tokens: 1, dry: 0,
+      over: false, busy: false
+    };
+    deal();
+    $('modeLabel').textContent = mode === 'daily' ? 'Daily Firing #' + dayNumber() : 'Classic';
+    $('startO').hidden = true; $('overO').hidden = true;
+    renderAll();
+  }
+  const bestKey = () => S.mode === 'daily' ? 'best.daily.' + today() : 'best.classic';
+
+  /* ---------- rules ---------- */
+  const idx = (r, c) => r * N + c;
+  function fits(cells, r0, c0, board = S.board) {
+    for (const [r, c] of cells) {
+      const rr = r0 + r, cc = c0 + c;
+      if (rr < 0 || cc < 0 || rr >= N || cc >= N || board[idx(rr, cc)] !== -1) return false;
+    }
+    return true;
+  }
+  function fitsAnywhere(cells) {
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (fits(cells, r, c)) return true;
+    return false;
+  }
+  function pieceCanGo(p) {
+    if (fitsAnywhere(p.cells)) return true;
+    if (S.tokens <= 0) return false;
+    let q = p;
+    for (let i = 0; i < Math.min(3, S.tokens); i++) { q = rotate(q.cells); if (fitsAnywhere(q.cells)) return true; }
+    return false;
+  }
+  function fullLines(board) {
+    const rows = [], cols = [];
+    for (let r = 0; r < N; r++) { let f = true; for (let c = 0; c < N; c++) if (board[idx(r, c)] === -1) { f = false; break; } if (f) rows.push(r); }
+    for (let c = 0; c < N; c++) { let f = true; for (let r = 0; r < N; r++) if (board[idx(r, c)] === -1) { f = false; break; } if (f) cols.push(c); }
+    return { rows, cols };
+  }
+  function deal() {
+    let hand;
+    for (let tries = 0; tries < 16; tries++) {
+      hand = [randomPiece(), randomPiece(), randomPiece()];
+      if (hand.some(p => fitsAnywhere(p.cells))) break;
+    }
+    S.hand = hand;
+  }
+
+  function place(slot, r0, c0) {
+    const p = S.hand[slot];
+    for (const [r, c] of p.cells) S.board[idx(r0 + r, c0 + c)] = p.g;
+    S.hand[slot] = null;
+    let gained = p.cells.length;
+
+    const { rows, cols } = fullLines(S.board);
+    const n = rows.length + cols.length;
+    const clearSet = new Set();
+    let pureCount = 0;
+    const lineCells = [];
+    rows.forEach(r => lineCells.push([...Array(N)].map((_, c) => idx(r, c))));
+    cols.forEach(c => lineCells.push([...Array(N)].map((_, r) => idx(r, c))));
+    let linePts = 0;
+    for (const L of lineCells) {
+      const g0 = S.board[L[0]];
+      const pure = g0 < 3 && L.every(i => S.board[i] === g0);
+      if (pure) pureCount++;
+      linePts += pure ? 30 : 10;
+      L.forEach(i => clearSet.add(i));
+    }
+
+    let crackAt = -1, label = null;
+    if (n > 0) {
+      S.streak++; S.maxStreak = Math.max(S.maxStreak, S.streak); S.dry = 0;
+      const mult = Math.min(3, 1 + 0.5 * (S.streak - 1));
+      const pts = Math.round(linePts * n * mult);
+      gained += pts;
+      S.lines += n; S.pure += pureCount;
+      S.heat += pureCount + (n >= 2 ? 1 : 0);
+      let earned = 0;
+      while (S.heat >= 3 && S.tokens < 3) { S.heat -= 3; S.tokens++; earned++; }
+      S.heat = Math.min(S.heat, 3);
+      const tags = [];
+      if (pureCount) tags.push(pureCount > 1 ? pureCount + '× PURE' : 'PURE');
+      if (n > 1) tags.push(n + ' LINES');
+      if (S.streak > 1) tags.push('STREAK ×' + mult);
+      if (earned) tags.push('+' + earned + ' ↻');
+      label = { pts: '+' + pts, sub: tags.join(' · ') };
+      sfx(pureCount ? 'pure' : 'clear');
+    } else {
+      S.streak = 0; S.dry++;
+      sfx('place');
+      if (S.dry >= 4) {
+        S.dry = 0;
+        const empties = [];
+        S.board.forEach((v, i) => { if (v === -1) empties.push(i); });
+        if (empties.length) { crackAt = empties[Math.floor(S.rng() * empties.length)]; S.board[crackAt] = 3; }
+      }
+    }
+    S.score += gained;
+
+    const finish = () => {
+      clearSet.forEach(i => { S.board[i] = -1; });
+      if (S.hand.every(h => !h)) deal();
+      renderAll();
+      if (crackAt >= 0) { cells[crackAt].classList.add('crk'); sfx('crack'); }
+      S.busy = false;
+      checkOver();
+    };
+    if (clearSet.size) {
+      S.busy = true;
+      renderBoard();
+      clearSet.forEach(i => cells[i].classList.add('clr'));
+      if (label) popText(label);
+      setTimeout(finish, reduceMotion ? 0 : 320);
+    } else finish();
+  }
+
+  function checkOver() {
+    const alive = S.hand.filter(Boolean);
+    if (alive.some(pieceCanGo)) return;
+    S.over = true;
+    const k = bestKey();
+    const prev = store.get(k, 0);
+    const isBest = S.score > prev;
+    if (isBest) store.set(k, S.score);
+    sfx('over');
+    setTimeout(() => showOver(isBest), 450);
+  }
+
+  /* ---------- rendering ---------- */
+  const boardEl = $('board'), trayEl = $('tray');
+  const cells = [];
+  for (let i = 0; i < N * N; i++) { const d = document.createElement('div'); d.className = 'cell'; boardEl.appendChild(d); cells.push(d); }
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function renderBoard() {
+    S.board.forEach((v, i) => { cells[i].className = 'cell' + (v >= 0 ? ' t g' + v : ''); });
+  }
+  function pieceEl(p, cls) {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.style.gridTemplateColumns = `repeat(${p.w}, auto)`;
+    el.style.display = 'grid';
+    const on = new Set(p.cells.map(([r, c]) => r + ',' + c));
+    for (let r = 0; r < p.h; r++) for (let c = 0; c < p.w; c++) {
+      const d = document.createElement('div');
+      d.className = 'cell' + (on.has(r + ',' + c) ? ' t g' + p.g : '');
+      el.appendChild(d);
+    }
+    return el;
+  }
+  function renderTray() {
+    trayEl.innerHTML = '';
+    S.hand.forEach((p, i) => {
+      const s = document.createElement('button');
+      s.type = 'button'; s.className = 'slot'; s.dataset.slot = i;
+      if (p) {
+        s.setAttribute('aria-label', `Tile ${i + 1}, ${p.cells.length} cells`);
+        s.appendChild(pieceEl(p, 'piece'));
+        if (!fitsAnywhere(p.cells)) s.classList.add('nofit');
+      } else { s.disabled = true; s.setAttribute('aria-label', 'Empty'); }
+      trayEl.appendChild(s);
+    });
+  }
+  function renderHUD() {
+    $('score').textContent = S.score.toLocaleString();
+    $('best').textContent = Math.max(store.get(bestKey(), 0), S.score).toLocaleString();
+    [...$('heat').children].forEach((p, i) => p.classList.toggle('on', i < S.heat));
+    [...$('crack').children].forEach((p, i) => p.classList.toggle('on', i < S.dry));
+    $('crackL').textContent = 'Crackle in ' + (4 - S.dry);
+    $('crackG').classList.toggle('warn', S.dry >= 3);
+    $('tokN').textContent = S.tokens;
+    $('tok').classList.toggle('empty', S.tokens === 0);
+  }
+  function renderAll() { renderBoard(); renderTray(); renderHUD(); }
+
+  function popText({ pts, sub }) {
+    const d = document.createElement('div');
+    d.className = 'pop';
+    d.textContent = pts;
+    if (sub) { const s = document.createElement('small'); s.textContent = sub; d.appendChild(s); }
+    boardEl.parentElement.appendChild(d);
+    setTimeout(() => d.remove(), 1000);
+  }
+
+  /* ---------- drag & tap ---------- */
+  let drag = null;
+  function clearPreview() { cells.forEach(c => c.classList.remove('pv', 'wc', 'g0', 'g1', 'g2')); }
+  function boardMetrics() {
+    const a = cells[0].getBoundingClientRect(), b = cells[1].getBoundingClientRect();
+    return { ox: a.left, oy: a.top, pitch: b.left - a.left, size: a.width };
+  }
+  function showPreview(p, r0, c0) {
+    clearPreview();
+    renderBoard();
+    if (!fits(p.cells, r0, c0)) return false;
+    const tmp = S.board.slice();
+    for (const [r, c] of p.cells) { const i = idx(r0 + r, c0 + c); tmp[i] = p.g; cells[i].classList.add('pv', 'g' + p.g); }
+    const { rows, cols } = fullLines(tmp);
+    rows.forEach(r => { for (let c = 0; c < N; c++) cells[idx(r, c)].classList.add('wc'); });
+    cols.forEach(c => { for (let r = 0; r < N; r++) cells[idx(r, c)].classList.add('wc'); });
+    return true;
+  }
+
+  trayEl.addEventListener('pointerdown', e => {
+    const slot = e.target.closest('.slot');
+    if (!slot || S.busy || S.over) return;
+    const i = +slot.dataset.slot;
+    if (!S.hand[i]) return;
+    unlockAudio();
+    e.preventDefault();
+    trayEl.setPointerCapture(e.pointerId);
+    drag = { i, slot, sx: e.clientX, sy: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse', moving: false, ghost: null, target: null };
+  });
+  trayEl.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.moving) {
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 7) return;
+      drag.moving = true;
+      drag.slot.classList.add('dim');
+      drag.ghost = pieceEl(S.hand[drag.i], 'piece ghost');
+      document.body.appendChild(drag.ghost);
+    }
+    const p = S.hand[drag.i];
+    const m = boardMetrics();
+    const gw = p.w * m.pitch - (m.pitch - m.size), gh = p.h * m.pitch - (m.pitch - m.size);
+    const lift = drag.touch ? m.size * 1.7 : 0;
+    const gx = e.clientX - gw / 2;
+    const gy = drag.touch ? e.clientY - gh - lift + m.size * 0.5 : e.clientY - gh / 2;
+    drag.ghost.style.transform = `translate(${gx}px, ${gy}px)`;
+    const c0 = Math.round((gx - m.ox) / m.pitch), r0 = Math.round((gy - m.oy) / m.pitch);
+    drag.target = showPreview(p, r0, c0) ? [r0, c0] : null;
+  });
+  function endDrag(e, cancelled) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (d.ghost) d.ghost.remove();
+    d.slot.classList.remove('dim');
+    clearPreview();
+    if (!d.moving && !cancelled) { tryRotate(d.i, d.slot); return; }
+    if (d.target && !cancelled) place(d.i, d.target[0], d.target[1]);
+    else renderBoard();
+  }
+  trayEl.addEventListener('pointerup', e => endDrag(e, false));
+  trayEl.addEventListener('pointercancel', e => endDrag(e, true));
+
+  function tryRotate(i, slotEl) {
+    if (S.tokens <= 0) {
+      slotEl.classList.remove('shake'); void slotEl.offsetWidth; slotEl.classList.add('shake');
+      $('hint').textContent = 'No ↻ tokens. Clear pure lines or several lines at once to heat the kiln.';
+      return;
+    }
+    const p = S.hand[i];
+    const q = rotate(p.cells); q.g = p.g;
+    S.hand[i] = q; S.tokens--;
+    sfx('turn');
+    renderTray(); renderHUD();
+    $('tok').classList.remove('bump'); void $('tok').offsetWidth; $('tok').classList.add('bump');
+    $('hint').textContent = S.tokens ? `Turned. ${S.tokens} ↻ left.` : 'Turned. That was your last ↻.';
+  }
+
+  /* keyboard: Enter on a tile rotates it (pointer users drag) */
+  trayEl.addEventListener('keydown', e => {
+    const slot = e.target.closest('.slot');
+    if (!slot || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    if (S.hand[+slot.dataset.slot]) tryRotate(+slot.dataset.slot, slot);
+  });
+
+  /* ---------- overlays ---------- */
+  function showOver(isBest) {
+    $('overTitle').textContent = isBest ? 'New best firing' : "The kiln's full";
+    $('overScore').textContent = S.score.toLocaleString();
+    $('stLines').textContent = S.lines;
+    $('stPure').textContent = S.pure;
+    $('stStreak').textContent = S.maxStreak;
+    const glazes = ['🟦', '🟨', '🟩'];
+    const bar = Array.from({ length: Math.min(10, Math.max(1, Math.round(S.lines / 3))) }, (_, k) => glazes[k % 3]).join('');
+    const head = S.mode === 'daily' ? `Glazeworks · Daily Firing #${dayNumber()}` : 'Glazeworks · Classic';
+    $('shareTxt').textContent = `${head}\n🔥 ${S.score.toLocaleString()} pts\n${bar}\n${S.lines} lines · ${S.pure} pure · streak ${S.maxStreak}`;
+    $('copyBtn').textContent = 'Copy result';
+    $('overO').hidden = false;
+  }
+  function refreshStart() {
+    $('bestClassic').textContent = 'Best ' + store.get('best.classic', 0).toLocaleString();
+    const db = store.get('best.daily.' + today(), 0);
+    $('dailyLbl').textContent = db ? `#${dayNumber()} · Best ${db.toLocaleString()}` : `#${dayNumber()} · Same seed for everyone`;
+  }
+  $('playClassic').onclick = () => { unlockAudio(); newGame('classic'); };
+  $('playDaily').onclick = () => { unlockAudio(); newGame('daily'); };
+  $('againBtn').onclick = () => newGame(S.mode);
+  $('menuBtn').onclick = () => { refreshStart(); $('overO').hidden = true; $('startO').hidden = false; };
+  $('copyBtn').onclick = () => {
+    const txt = $('shareTxt').textContent;
+    const ok = () => { $('copyBtn').textContent = 'Copied'; };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents($('shareTxt'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      $('copyBtn').textContent = 'Selected. Copy it';
+    };
+    try { navigator.clipboard.writeText(txt).then(ok, fallback); } catch (e) { fallback(); }
+  };
+
+  /* ---------- sound (WebAudio, starts after first tap) ---------- */
+  let ac = null, soundOn = store.get('sound', true);
+  const soundBtn = $('soundBtn');
+  soundBtn.textContent = 'Sound: ' + (soundOn ? 'on' : 'off');
+  soundBtn.onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); soundBtn.textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); unlockAudio(); };
+  function unlockAudio() {
+    if (ac || !soundOn) return;
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ac = null; }
+  }
+  function tone(freq, t0, dur, type = 'triangle', vol = 0.12) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime + t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t0 + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(ac.currentTime + t0); o.stop(ac.currentTime + t0 + dur + 0.02);
+  }
+  function sfx(kind) {
+    if (!soundOn || !ac) return;
+    if (ac.state === 'suspended') ac.resume();
+    if (kind === 'place') tone(330, 0, 0.08);
+    if (kind === 'turn') { tone(520, 0, 0.06, 'sine'); tone(660, 0.05, 0.06, 'sine'); }
+    if (kind === 'clear') [523, 659, 784].forEach((f, k) => tone(f, k * 0.06, 0.18));
+    if (kind === 'pure') [523, 659, 784, 1047].forEach((f, k) => tone(f, k * 0.06, 0.25, 'sine', 0.14));
+    if (kind === 'crack') { tone(140, 0, 0.18, 'sawtooth', 0.08); tone(95, 0.05, 0.2, 'square', 0.05); }
+    if (kind === 'over') [392, 330, 262].forEach((f, k) => tone(f, k * 0.14, 0.3, 'sine'));
+  }
+
+  /* ---------- boot: a playable classic board sits behind the start card ---------- */
+  newGame('classic');
+  refreshStart();
+  $('startO').hidden = false;
+})();
+</script>
+</body>
+</html>

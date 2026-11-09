@@ -39,15 +39,17 @@ UNCERTAINTIES: dict[str, tuple[float, float]] = {
     "Investment sensitivity": (0.5, 3.0),
     "Supply line weight": (0.1, 1.0),
     "Hatchery capacity factor": (1.1, 2.0),
-    "DOC capacity factor": (1.05, 1.6),
-    "Household egg elasticity": (-1.0, -0.3),
-    "Household chicken elasticity": (-1.2, -0.4),
-    "Price sensitivity to coverage": (0.5, 2.0),
+    "DOC capacity factor": (1.05, 1.4),
+    "Household egg elasticity": (-1.0, -0.5),
+    "Household chicken elasticity": (-1.8, -1.2),
+    "Price sensitivity to coverage": (0.5, 3.0),
     "Feed shock magnitude": (0.0, 0.5),
     "Outbreak loss fraction": (0.0, 0.3),
-    "Base suspension fraction": (0.0005, 0.005),
+    "Base suspension fraction": (0.002, 0.008),  # fitted 0.004 (fit_suspensions.py)
     "Strain sensitivity": (0.0, 5.0),
-    "Intermediary margin": (0.05, 0.30),
+    "Kitchen opening delay": (2, 8),
+    "Sustainable opening capacity": (150, 700),
+    "Intermediary margin": (0.10, 0.30),
     "Maximum relative price": (2.0, 4.0),
 }
 
@@ -83,8 +85,8 @@ POLICIES = {
 
 # --------------------------------------------------------------------- outcomes
 SPIKE_THRESHOLD = 0.10      # programme-attributable price rise > +10 percentage points = "spike" (justify in paper)
-EARLY_WARNING_WEEK = 65     # observables read 13 weeks after programme start
-PROGRAMME_START = 52
+EARLY_WARNING_WEEK = 66     # observables read 13 weeks after programme start
+PROGRAMME_START = 53         # MBG launched 6 Jan 2025
 
 RETURN_COLS = [
     "Relative egg price", "Relative chicken price", "Programme coverage",

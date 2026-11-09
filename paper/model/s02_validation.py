@@ -109,10 +109,11 @@ def fit_stats(sim, obs):
 CAL_PARAMS = {"Price expectation delay": (2, 20), "Investment sensitivity": (0.2, 4),
               "Price sensitivity to coverage": (0.2, 3)}
 # parameters estimated from the real price data (joint egg + chicken fit)
-# Price expectation delay is NOT estimated: earlier runs showed it is not identified by 29 monthly
-# observations (it moved between both bounds). It is fixed in the .mdl and explored in the ensemble.
-REAL_CAL_PARAMS = {"Investment sensitivity": (0.2, 6), "Price sensitivity to coverage": (0.1, 3),
-                   "Broiler investment sensitivity": (0.0, 4)}
+# Not estimated (shown not identifiable by the 29 monthly observations): Price expectation delay
+# (moved between both bounds) and Price sensitivity to coverage (SSE profile almost flat from 1 to 10;
+# see identifiability_profile.csv). Both are fixed in the .mdl and explored in the ensemble.
+REAL_CAL_PARAMS = {"Investment sensitivity": (0.2, 6), "Broiler investment sensitivity": (0.0, 4)}
+PROFILE = {"Price sensitivity to coverage": [0.5, 1, 2, 3, 5, 10], "Price expectation delay": [2, 4, 8, 16, 30]}
 
 
 def calibrate(targets: dict, params=None, z0=None, maxiter=400):
@@ -200,6 +201,15 @@ if hist.exists():
         ax.set_ylabel("Price relative to 2024")
     axes[0].legend(fontsize=8)
     stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / "fig_behaviour_reproduction.png", dpi=150)
+    prof = []
+    for k, vals in PROFILE.items():
+        for val in vals:
+            r_ = run({**est, k: val}, columns=list(targets), use_calibrated=False).reindex(h.index)
+            sse = sum(np.mean((r_[c] - o) ** 2) for c, o in targets.items())
+            prof.append({"parameter": k, "value": val, "SSE": sse})
+    prof = pd.DataFrame(prof)
+    save_table(prof.set_index(["parameter", "value"]), "identifiability_profile.csv")
+    print("\nIdentifiability profile (SSE with calibrated parameters held fixed):\n", prof.round(6).to_string(index=False))
     print("\nC. Calibration (best of", len(fits), "starts):\n", cal.round(4).to_string())
     print("\nBehaviour reproduction:\n", stats.round(4).to_string())
 else:

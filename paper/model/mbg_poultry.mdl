@@ -24,25 +24,25 @@ SAVEPER=
 	|
 
 Programme start time=
-	52
+	53
 	~	Week
-	~	PLACEHOLDER: Jan 2025.
+	~	MBG launched 6 January 2025 (week 53 from 1 Jan 2024).
 	|
 
 Target kitchens=
-	27794
+	29217
 	~	kitchen
 	~	From data: fitted so that modelled operational SPPG match BGN counts (fit_rollout.py, data/rollout_fit.csv).
 	|
 
 Rollout midpoint=
-	92.44
+	91.73
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py).
 	|
 
 Rollout steepness=
-	7.93
+	7.15
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py). POLICY P1 (phased roll-out) increases it.
 	|
@@ -74,7 +74,7 @@ Suspended kitchens=
 Kitchen opening delay=
 	4
 	~	Week
-	~	PLACEHOLDER
+	~	ASSUMPTION (no public data): weeks from planning to operation. Explored 2-8 in the ensemble. UNCERTAINTY.
 	|
 
 Kitchen opening rate=
@@ -84,9 +84,9 @@ Kitchen opening rate=
 	|
 
 Reinstatement time=
-	8
+	15.32
 	~	Week
-	~	PLACEHOLDER: time for a suspended kitchen to reopen.
+	~	From data: fitted with Base suspension fraction (fit_suspensions.py).
 	|
 
 Reinstatement rate=
@@ -96,15 +96,15 @@ Reinstatement rate=
 	|
 
 Base suspension fraction=
-	0.002
+	0.00405
 	~	1/Week
-	~	UNCERTAINTY: weekly suspension probability at sustainable scaling.
+	~	From data: fitted to BGN reports of 8,182 SPPG ever suspended and 2,213 inactive by end May 2026 (fit_suspensions.py). UNCERTAINTY.
 	|
 
 Sustainable opening capacity=
 	300
 	~	kitchen/Week
-	~	PLACEHOLDER: openings per week the system can supervise without quality loss.
+	~	ASSUMPTION (no public data): openings per week the system can supervise without quality loss. Observed openings peaked at approx. 700 per week in late 2025. Explored 150-700 in the ensemble. UNCERTAINTY.
 	|
 
 Scaling strain=
@@ -152,7 +152,7 @@ Programme coverage=
 Portions per beneficiary=
 	5
 	~	portion/(person*Week)
-	~	PLACEHOLDER: school days per week.
+	~	School days per week (5; some schools 6). Affects cost per portion only. VERIFY with BGN guidelines.
 	|
 
 Egg per beneficiary=
@@ -246,9 +246,9 @@ Cooperative sourcing share=
 	|
 
 Intermediary margin=
-	0.15
+	0.2
 	~	Dmnl
-	~	UNCERTAINTY: mark-up charged by intermediaries.
+	~	Mark-up paid by SPPG buying via traders relative to market price. Evidence: BPS trade and transport margin (MPP) for eggs 26.8% (2017), 13.1% (2018), 20.2% (2021). Range 0.10-0.30.
 	|
 
 Egg procurement price=
@@ -332,13 +332,13 @@ Relative feed price=
 Egg mass=
 	0.06
 	~	kg/egg
-	~	
+	~	Standard chicken egg approx. 55-62 g (food exchange list: 55 g; commercial approx. 60 g).
 	|
 
 Lay rate=
-	5.6
+	5.9
 	~	egg/(bird*Week)
-	~	PLACEHOLDER: verify.
+	~	Average hen-day production approx. 84.5% (Lohmann Brown, Indonesian field study) = 5.9 eggs per hen per week. Scales flock size only.
 	|
 
 Production per hen=
@@ -360,15 +360,15 @@ Initial laying hens=
 	|
 
 Productive life=
-	80
+	65
 	~	Week
-	~	PLACEHOLDER
+	~	Laying from approx. week 19 to culling at approx. 80-90 weeks of age (Indonesian layer practice; some flocks to 100+). Range 60-85.
 	|
 
 Rearing time=
 	18
 	~	Week
-	~	Pullet rearing to point of lay. PLACEHOLDER: verify.
+	~	Pullets reach point of lay at approx. 16-21 weeks (Indonesian layer studies; Lohmann/Hy-Line guides). Range 16-21.
 	|
 
 Laying hens=
@@ -398,7 +398,7 @@ Culling=
 Outbreak loss fraction=
 	0
 	~	Dmnl
-	~	UNCERTAINTY: share of hens lost in a disease outbreak (e.g. avian influenza).
+	~	Scenario input. Avian influenza is endemic in Indonesia; large flock losses are uncommon. Range 0-0.3 explored as stress test.
 	|
 
 Outbreak time=
@@ -468,9 +468,9 @@ Egg available=
 	|
 
 Household egg elasticity=
-	-0.6
+	-0.7
 	~	Dmnl
-	~	UNCERTAINTY: own-price elasticity (loop B2). Cite Indonesian demand studies.
+	~	QUAIDS on SUSENAS: eggs -0.669 (DI Yogyakarta 2021, Khoiriyah et al. 2024); -0.82 (Bengkulu 2021). Range -1.0 to -0.5. VERIFY sign convention and Marshallian vs Hicksian.
 	|
 
 Household egg demand=
@@ -524,7 +524,7 @@ Normal egg margin=
 Egg feed cost share=
 	0.7
 	~	Dmnl
-	~	PLACEHOLDER
+	~	Feed approx. 60-70% of poultry production cost (Kementan); 70% often cited for layers. Range 0.6-0.8.
 	|
 
 Base egg unit cost=
@@ -542,7 +542,7 @@ Egg unit cost=
 Price sensitivity to coverage=
 	1
 	~	Dmnl
-	~	UNCERTAINTY: how strongly traders raise price when stocks are short.
+	~	Not identified by the price data (fit error nearly flat between 1 and 10; s02 identifiability profile). Fixed at 1 and explored 0.5-3 in the ensemble. UNCERTAINTY.
 	|
 
 Cost pull weight=
@@ -690,9 +690,9 @@ Initial chicken production=
 	|
 
 Meat per bird=
-	1
+	1.37
 	~	kg/bird
-	~	PLACEHOLDER: carcass yield per broiler.
+	~	Harvest at 30-36 days, live weight approx. 1.7-2.2 kg (Indonesian farm reports), carcass approx. 70-75% of live weight: approx. 1.9 kg x 0.72. Scales bird numbers only.
 	|
 
 Growout time=
@@ -704,7 +704,7 @@ Growout time=
 Growout mortality=
 	0.05
 	~	Dmnl
-	~	
+	~	Indonesian farm reports 1.5-5.1%; under 4% considered good.
 	|
 
 Initial DOC placement=
@@ -774,9 +774,9 @@ Chicken available=
 	|
 
 Household chicken elasticity=
-	-0.8
+	-1.55
 	~	Dmnl
-	~	UNCERTAINTY
+	~	QUAIDS on SUSENAS: poultry -1.581 (DI Yogyakarta 2021, Khoiriyah et al. 2024); -1.54 (Bengkulu 2021). Range -1.8 to -1.2. VERIFY as for eggs.
 	|
 
 Household chicken demand=
@@ -830,7 +830,7 @@ Normal chicken margin=
 Chicken feed cost share=
 	0.65
 	~	Dmnl
-	~	PLACEHOLDER
+	~	Feed approx. 60-70% of broiler production cost (Kementan; Indonesian farm studies).
 	|
 
 Base chicken unit cost=
@@ -918,9 +918,9 @@ Desired chicken production=
 	|
 
 DOC capacity factor=
-	1.3
+	1.2
 	~	Dmnl
-	~	UNCERTAINTY: max DOC supply relative to baseline (parent-stock constraint).
+	~	Day-old-chick supply chronically exceeds demand: Jan 2020 projected production 317 million vs demand 259.6 million (Kontan), ratio approx. 1.22; repeated government culling programmes. Range 1.05-1.4.
 	|
 
 Max DOC placement=

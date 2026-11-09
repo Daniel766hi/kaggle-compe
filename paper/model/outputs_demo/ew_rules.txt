@@ -1,10 +1,10 @@
 |--- obs_rel_chicken_price <= 1.01
-|   |--- obs_opening_rate <= 74.56
-|   |   |--- weights: [35.00, 156.00] class: 1
-|   |--- obs_opening_rate >  74.56
-|   |   |--- weights: [48.00, 64.00] class: 1
+|   |--- obs_pullet_placement_growth <= 0.00
+|   |   |--- weights: [66.00, 103.00] class: 1
+|   |--- obs_pullet_placement_growth >  0.00
+|   |   |--- weights: [113.00, 68.00] class: 0
 |--- obs_rel_chicken_price >  1.01
-|   |--- obs_opening_rate <= 160.81
-|   |   |--- weights: [0.00, 52.00] class: 1
-|   |--- obs_opening_rate >  160.81
-|   |   |--- weights: [7.00, 38.00] class: 1
+|   |--- obs_suspended_share <= 0.03
+|   |   |--- weights: [2.00, 36.00] class: 1
+|   |--- obs_suspended_share >  0.03
+|   |   |--- weights: [5.00, 7.00] class: 1

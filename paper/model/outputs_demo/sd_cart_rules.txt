@@ -1,22 +1,22 @@
-|--- Chicken per beneficiary <= 0.14
-|   |--- Household egg elasticity <= -0.48
-|   |   |--- Beneficiaries per kitchen <= 2625.89
-|   |   |   |--- weights: [51.00, 13.00] class: 0
-|   |   |--- Beneficiaries per kitchen >  2625.89
-|   |   |   |--- weights: [11.00, 17.00] class: 1
-|   |--- Household egg elasticity >  -0.48
-|   |   |--- Egg per beneficiary <= 0.13
-|   |   |   |--- weights: [2.00, 8.00] class: 1
-|   |   |--- Egg per beneficiary >  0.13
-|   |   |   |--- weights: [0.00, 25.00] class: 1
-|--- Chicken per beneficiary >  0.14
-|   |--- Beneficiaries per kitchen <= 2300.02
-|   |   |--- Price sensitivity to coverage <= 1.12
-|   |   |   |--- weights: [13.00, 15.00] class: 1
-|   |   |--- Price sensitivity to coverage >  1.12
-|   |   |   |--- weights: [5.00, 45.00] class: 1
-|   |--- Beneficiaries per kitchen >  2300.02
-|   |   |--- Target kitchens <= 24849.52
-|   |   |   |--- weights: [4.00, 11.00] class: 1
-|   |   |--- Target kitchens >  24849.52
-|   |   |   |--- weights: [4.00, 176.00] class: 1
+|--- Chicken per beneficiary <= 0.19
+|   |--- Outbreak loss fraction <= 0.21
+|   |   |--- Beneficiaries per kitchen <= 2478.70
+|   |   |   |--- weights: [78.00, 9.00] class: 0
+|   |   |--- Beneficiaries per kitchen >  2478.70
+|   |   |   |--- weights: [60.00, 35.00] class: 0
+|   |--- Outbreak loss fraction >  0.21
+|   |   |--- Feed shock magnitude <= 0.28
+|   |   |   |--- weights: [18.00, 13.00] class: 0
+|   |   |--- Feed shock magnitude >  0.28
+|   |   |   |--- weights: [4.00, 29.00] class: 1
+|--- Chicken per beneficiary >  0.19
+|   |--- Beneficiaries per kitchen <= 2308.73
+|   |   |--- Rollout steepness <= 9.15
+|   |   |   |--- weights: [6.00, 27.00] class: 1
+|   |   |--- Rollout steepness >  9.15
+|   |   |   |--- weights: [13.00, 4.00] class: 0
+|   |--- Beneficiaries per kitchen >  2308.73
+|   |   |--- Price sensitivity to coverage <= 0.75
+|   |   |   |--- weights: [5.00, 10.00] class: 1
+|   |   |--- Price sensitivity to coverage >  0.75
+|   |   |   |--- weights: [2.00, 87.00] class: 1

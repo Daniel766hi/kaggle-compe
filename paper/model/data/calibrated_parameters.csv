@@ -1,4 +1,3 @@
 ,estimate,lower_bound,upper_bound,at_bound,spread_across_starts
-Investment sensitivity,2.744589563722287,0.2,6,False,0.15867693858314663
-Price sensitivity to coverage,0.7969825905398458,0.1,3,False,1.1008759280161182
-Broiler investment sensitivity,0.16468897597888754,0.0,4,False,0.07066472324571277
+Investment sensitivity,2.960167837009644,0.2,6,False,6.364721943288214e-05
+Broiler investment sensitivity,0.025073823529630213,0.0,4,True,6.197797526133473e-06

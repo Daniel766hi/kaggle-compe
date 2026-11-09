@@ -1,0 +1,12 @@
+parameter,value,SSE
+Price sensitivity to coverage,0.5,0.0046049736082182085
+Price sensitivity to coverage,1.0,0.004017008610371244
+Price sensitivity to coverage,2.0,0.00391204891695442
+Price sensitivity to coverage,3.0,0.003935777339902554
+Price sensitivity to coverage,5.0,0.003930410062629497
+Price sensitivity to coverage,10.0,0.003957611199683603
+Price expectation delay,2.0,0.004236500732056966
+Price expectation delay,4.0,0.004117835627819746
+Price expectation delay,8.0,0.004017008610371244
+Price expectation delay,16.0,0.004077730747023909
+Price expectation delay,30.0,0.004480916388748834

@@ -75,7 +75,7 @@ REFS = {
                  r"Institute, Washington, DC, 2021.",
     "ipb2026": r"``Analisis struktur rantai pasok pangan dan keterlibatan UMKM lokal dalam pelaksanaan program Makan "
                r"Bergizi Gratis (MBG) di Kota Tangerang Selatan,'' \textit{Jurnal Manajemen dan Organisasi}, vol. 17, "
-               r"no. 3, pp. 275--291, 2026. [Online]. Available: https://journal.ipb.ac.id/jmo/article/view/73792",
+               r"no. 3, pp. 275--291, 2026. https://doi.org/10.29244/jmo.v17i3.73792",
     "ambarwati2025": r"O. C. Ambarwati and H. Kurniawati, ``Strategi pemanfaatan potensi pangan lokal untuk mendukung "
                      r"program Makan Bergizi Gratis di Jawa Tengah,'' \textit{Analisis Kebijakan Pembangunan}, vol. 2, "
                      r"no. 1, pp. 47--60, 2025.",

@@ -1,6 +1,0 @@
-# PRELIMINARY - 7 inputs pending verification against primary sources
-,lower,upper,full_range_low,full_range_high,share_of_range_removed,meaningful
-Chicken per beneficiary,0.16738280970221692,0.2599749119277081,0.08,0.26,0.4855994320806045,True
-Beneficiaries per kitchen,2149.6409774040853,2999.9363305509946,2000.0,3000.0,0.1497046468530907,True
-Price sensitivity to coverage,0.6355441631730463,2.999978394731799,0.5,3.0,0.05422630737649892,False
-Target kitchens,24415.084122758206,31999.05205411697,24000.0,32000.0,0.052004008580154304,False

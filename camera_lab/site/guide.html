@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How Vision Lab works: object detection, line counting and image processing explained</title>
+<meta name="description" content="A plain-language guide to the tools in Vision Lab: how an SSD neural network finds objects, how a line counter follows them, and how edges, colour measurement and histograms work. With the limits of each.">
+<link rel="canonical" href="https://daniel766hi.github.io/guide.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How Vision Lab works">
+<meta property="og:description" content="How a browser neural network finds and counts objects, and how classic image processing takes a photo apart.">
+<meta property="og:url" content="https://daniel766hi.github.io/guide.html">
+<meta property="og:image" content="https://daniel766hi.github.io/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <nav class="site" aria-label="Site">
+    <a class="brand" href="./">Vision <span>Lab</span></a>
+    <ul>
+      <li><a href="./">Lab</a></li>
+      <li><a href="guide.html" aria-current="page">How it works</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+    </ul>
+  </nav>
+
+  <article>
+    <header class="hero">
+      <span class="label">Guide</span>
+      <h1>How Vision Lab <span>works</span></h1>
+      <p class="lede">Each tool in the lab is a small, real computer-vision technique. Here is what each one does, the idea behind it, and where it breaks.</p>
+    </header>
+
+    <div class="ad wide" data-slot="top"></div>
+
+    <h2>1. Object detection: finding things in a picture</h2>
+    <p>The detector is <strong>COCO-SSD</strong>: a <em>Single Shot MultiBox Detector</em> (SSD) built on a small network called <em>MobileNet v2</em>, trained on the <em>COCO</em> dataset of everyday photos. It knows 80 kinds of objects: people, vehicles, animals, food, furniture and household items such as cups, bottles, phones, laptops and books.</p>
+    <p>"Single shot" means the network looks at the image once. It lays a grid of candidate boxes of different sizes and shapes over the picture and, for each box, predicts two things: how likely each of the 80 classes is, and how to nudge the box to fit the object. Overlapping boxes that describe the same object are merged (non-maximum suppression), and what is left are the boxes you see, each with a confidence score.</p>
+    <figure><img src="guide/detect.png" alt="The detector drawing a box around a cup of coffee, labelled cup 96%" width="600" height="400" loading="lazy"><figcaption>The coffee sample: one box, labelled with its class and confidence.</figcaption></figure>
+    <p><strong>The confidence slider</strong> hides boxes below a threshold. A high threshold shows only sure detections; a low one shows the network's guesses, including mistakes. Moving it is a quick way to see the trade-off every detection system makes between missing things and raising false alarms.</p>
+    <p><strong>Where it fails.</strong> The lite model is chosen to run fast on a phone, so it gives up accuracy: small or distant objects, unusual angles, partly hidden objects and crowded scenes are often missed. Anything outside the 80 COCO classes (a screwdriver, a plant pot, a specific brand) cannot be named at all; at best it is mistaken for something similar.</p>
+
+    <h2>2. The line counter: following objects over time</h2>
+    <p>Detection works on single frames; counting needs memory. With the camera on, every detector pass produces a list of boxes. The counter turns each box into a centre point and matches it to the nearest centre of the same class from the previous pass (if it is close enough). A matched pair is one <em>track</em>: the same object, seen twice.</p>
+    <p>When a track's centre moves from one side of the line to the other, it is counted once, in that direction: down or up for a horizontal line, right or left for a vertical one. A track that is not seen for several passes is dropped. This "nearest centre" matching is the simplest tracking method there is, and the same idea, with better matching, sits inside many people and traffic counters.</p>
+    <p><strong>Where it fails.</strong> If the detector misses an object for a few frames while it crosses, the crossing can be lost. If two people walk side by side and swap places, their tracks can swap. If an object moves very far between two detector passes (fast motion on a slow phone), it starts a new track and its crossing is not seen. For honest counts, mount the phone still, put the line where objects are large and well separated, and check a few minutes by hand against the counter.</p>
+
+    <div class="ad" data-slot="inline"></div>
+
+    <h2>3. Edges: where brightness changes</h2>
+    <p>An edge is a place where brightness changes quickly. The <strong>Sobel operator</strong> measures that change at every pixel with two small 3×3 filters, one for left-right change and one for up-down change, and combines them into an edge strength. Pixels stronger than the threshold are drawn bright.</p>
+    <figure><img src="guide/edges.png" alt="The astronaut photo reduced to bright edge lines on a dark background" width="512" height="512" loading="lazy"><figcaption>Edges of the astronaut photo at the default threshold.</figcaption></figure>
+    <p>Edge maps are the starting point for measuring outlines, finding cracks or scratches, and reading the shape of parts on a conveyor. The share of edge pixels is a crude but useful "busyness" or sharpness measure: a blurred photo has far fewer edges than a sharp one of the same scene.</p>
+
+    <h2>4. Colour measurement: how much of the picture is this colour?</h2>
+    <p>Tap a pixel and the lab averages a small 5×5 patch around it, so one noisy pixel does not decide. Every pixel whose colour is within the tolerance (a distance in red-green-blue space) stays in colour; everything else turns grey. The share of matching pixels is the measurement.</p>
+    <p>Simple colour checks like this are used to grade ripeness, spot rust, or confirm a label is present. Their weakness is lighting: the same banana under a warm lamp and in daylight has different pixel values, so real systems control the light or work in colour spaces that separate brightness from hue.</p>
+
+    <h2>5. Cartoon: posterize plus ink</h2>
+    <p>The cartoon effect combines two steps. <em>Posterizing</em> rounds each colour channel to a few levels, so smooth gradients become flat bands. Then strong edges from the Sobel step are painted dark on top, like ink lines. Fewer levels give a flatter, poster-like result.</p>
+
+    <h2>6. Histogram: reading exposure</h2>
+    <p>The histogram counts how many pixels sit at each brightness from 0 (black) to 255 (white), for red, green and blue. A pile at the left edge means shadows are crushed to black; a pile at the right edge means highlights are blown out to white. The lab also reports mean brightness and contrast (the standard deviation of brightness) and warns when more than 3% of pixels are clipped at either end.</p>
+
+    <h2>Why run it in the browser?</h2>
+    <p>All of this runs on your device with <a href="https://www.tensorflow.org/js">TensorFlow.js</a> and plain JavaScript. The camera picture never leaves your phone or computer, there is nothing to install, and it works on most recent phones. The cost is speed: a phone runs the lite detector a few times a second, while a desktop graphics card can run much larger models in real time.</p>
+    <p><a class="btn primary" href="./">Open the lab</a></p>
+  </article>
+
+  <div class="ad wide" data-slot="footer"></div>
+
+  <footer class="site">
+    <nav aria-label="Footer"><a href="./">Lab</a><a href="about.html">About</a><a href="privacy.html">Privacy</a></nav>
+    <span>Sample photos: astronaut Eileen Collins (NASA, public domain); coffee by Rachel Michetti (CC0), via scikit-image.</span>
+  </footer>
+</div>
+<script src="ads.js"></script>
+</body>
+</html>

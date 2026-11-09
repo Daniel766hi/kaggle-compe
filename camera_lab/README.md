@@ -40,3 +40,10 @@ A page that runs in the browser: take a photo or pick a sample, then
 
 It is published as a Claude artifact; its source is `vision_lab_web.html` (the model weights are served
 next to it and not stored in this repository).
+
+## 3. Vision Lab website (`site/`)
+
+The public version: the same tools plus a **live camera** (detection on every frame and a line counter that
+follows each object and counts it once as it crosses), content pages and optional AdSense ad slots. Static files
+for GitHub Pages; `site/README.md` has the publishing and AdSense steps. `python site/fetch_model.py` downloads
+the model weights; `site/test_site.js` is the end-to-end browser test (fake camera included).

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vision Lab: live object detection and image processing in your browser</title>
+<meta name="description" content="Point your camera at anything: a neural network finds people, animals and 80 kinds of objects, counts them crossing a line, and shows edges, colours and exposure. Free, runs on your device, no upload.">
+<link rel="canonical" href="https://daniel766hi.github.io/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Vision Lab: live object detection in your browser">
+<meta property="og:description" content="Point your camera at anything and watch a neural network find and count objects, running on your own device.">
+<meta property="og:url" content="https://daniel766hi.github.io/">
+<meta property="og:image" content="https://daniel766hi.github.io/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b7a6a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <nav class="site" aria-label="Site">
+    <a class="brand" href="./">Vision <span>Lab</span></a>
+    <ul>
+      <li><a href="./" aria-current="page">Lab</a></li>
+      <li><a href="guide.html">How it works</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <h1>See what a neural network <span>sees</span></h1>
+    <p class="lede">Turn on your camera or pick a photo. Vision Lab finds people, animals and 80 kinds of everyday objects, counts them crossing a line, and takes the image apart with classic image processing. Everything runs on your device; nothing is uploaded.</p>
+  </header>
+
+  <div class="ad wide" data-slot="top"></div>
+
+  <div class="grid">
+    <section class="viewer" aria-label="Image">
+      <div class="sources">
+        <button type="button" class="btn primary" id="camBtn">Start camera</button>
+        <button type="button" class="btn" id="flipBtn" hidden>Switch camera</button>
+        <button type="button" class="btn" id="freezeBtn" hidden>Freeze frame</button>
+        <label class="btn" for="fileInput">Upload photo</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="thumbs" role="group" aria-label="Sample photos">
+          <button type="button" data-sample="samples/astronaut.jpg" aria-pressed="true" title="Astronaut (NASA, public domain)"><img src="samples/astronaut.jpg" alt="Astronaut sample"></button>
+          <button type="button" data-sample="samples/coffee.jpg" aria-pressed="false" title="Coffee (CC0)"><img src="samples/coffee.jpg" alt="Coffee sample"></button>
+          <button type="button" data-sample="samples/chelsea.jpg" aria-pressed="false" title="Cat (CC0)"><img src="samples/chelsea.jpg" alt="Cat sample"></button>
+        </div>
+      </div>
+      <p class="status" id="camStatus" role="status"></p>
+      <div class="finder">
+        <span class="corner c1"></span><span class="corner c2"></span><span class="corner c3"></span><span class="corner c4"></span>
+        <canvas id="view" width="640" height="480" aria-label="Processed image"></canvas>
+        <div class="hud" id="hud">Loading sample</div>
+        <div class="live-dot" id="liveDot" hidden>LIVE</div>
+      </div>
+      <video id="video" playsinline muted hidden></video>
+      <div class="tabs" role="tablist" aria-label="Mode">
+        <button class="tab" role="tab" aria-selected="true" data-mode="detect">Detect &amp; count</button>
+        <button class="tab" role="tab" aria-selected="false" data-mode="edges">Edges</button>
+        <button class="tab" role="tab" aria-selected="false" data-mode="colour">Colour measure</button>
+        <button class="tab" role="tab" aria-selected="false" data-mode="cartoon">Cartoon</button>
+        <button class="tab" role="tab" aria-selected="false" data-mode="hist">Histogram</button>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" data-panel="detect">
+        <div><span class="label">Object detection · COCO-SSD</span><h2>What the network sees</h2></div>
+        <p>A MobileNet SSD trained on the COCO dataset finds 80 kinds of everyday objects, on your device.</p>
+        <div class="control">
+          <label for="minScore">Minimum confidence</label><output id="minScoreOut">50%</output>
+          <input type="range" id="minScore" min="10" max="90" value="50" step="5">
+        </div>
+        <div class="readout"><div><span class="label">Objects</span><span class="big" id="objCount">–</span></div>
+          <div><span class="label">Kinds</span><span class="big" id="kindCount">–</span></div></div>
+        <table><thead><tr><th>Object</th><th class="num">Count</th><th class="num">Best score</th></tr></thead><tbody id="objTable"><tr><td colspan="3" class="status">Waiting for the model</td></tr></tbody></table>
+        <p class="status" id="detectStatus">The model (18 MB) loads once per visit.</p>
+      </section>
+
+      <section class="panel" data-panel="detect">
+        <div><span class="label">Line counter</span><h2>Count what crosses the line</h2></div>
+        <p id="counterHint">Start the camera, then point it at a doorway, a road or a desk. Each detected object is followed from frame to frame and counted once when its centre crosses the line.</p>
+        <div class="control">
+          <label for="countClass">Count</label><span></span>
+          <select id="countClass">
+            <option value="any">Any object</option><option value="person">People</option><option value="car">Cars</option>
+            <option value="motorcycle">Motorcycles</option><option value="bicycle">Bicycles</option><option value="bus">Buses</option>
+            <option value="truck">Trucks</option><option value="bottle">Bottles</option><option value="cup">Cups</option>
+            <option value="cell phone">Phones</option><option value="book">Books</option><option value="dog">Dogs</option><option value="cat">Cats</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="lineDir">Line</label><span></span>
+          <select id="lineDir"><option value="h">Horizontal (counts down and up)</option><option value="v">Vertical (counts right and left)</option></select>
+        </div>
+        <div class="control">
+          <label for="linePos">Line position</label><output id="linePosOut">50%</output>
+          <input type="range" id="linePos" min="10" max="90" value="50" step="5">
+        </div>
+        <div class="readout">
+          <div><span class="label" id="aLabel">Down</span><span class="big" id="countA">0</span></div>
+          <div><span class="label" id="bLabel">Up</span><span class="big" id="countB">0</span></div>
+          <div><span class="label">Tracked now</span><span class="big" id="countT">0</span></div>
+        </div>
+        <div class="sources"><button type="button" class="btn" id="resetBtn">Reset counts</button></div>
+      </section>
+
+      <section class="panel" data-panel="edges" hidden>
+        <div><span class="label">Sobel operator</span><h2>Edges</h2></div>
+        <p>Brightness gradients in x and y, combined into edge strength. Edges stronger than the threshold are drawn.</p>
+        <div class="control"><label for="edgeThr">Threshold</label><output id="edgeThrOut">60</output>
+          <input type="range" id="edgeThr" min="10" max="200" value="60"></div>
+        <div class="readout"><div><span class="label">Edge pixels</span><span class="big" id="edgeShare">–</span></div></div>
+      </section>
+
+      <section class="panel" data-panel="colour" hidden>
+        <div><span class="label">Colour segmentation</span><h2>Measure a colour</h2></div>
+        <p>Tap the image to pick a colour. Everything within the tolerance stays in colour, the rest turns grey, and its share of the image is measured, the way a line camera checks ripeness, rust or a missing label. With the camera on, the share updates live.</p>
+        <div class="readout">
+          <div><span class="label">Picked</span><span><span class="swatch" id="swatch"></span> <span class="status" id="pickedHex">tap the image</span></span></div>
+          <div><span class="label">Share of image</span><span class="big" id="colourShare">–</span></div>
+        </div>
+        <div class="control"><label for="tol">Tolerance</label><output id="tolOut">40</output>
+          <input type="range" id="tol" min="5" max="120" value="40"></div>
+      </section>
+
+      <section class="panel" data-panel="cartoon" hidden>
+        <div><span class="label">Posterize + edges</span><h2>Cartoon</h2></div>
+        <p>Colours are reduced to a few levels per channel, and strong edges are inked on top.</p>
+        <div class="control"><label for="levels">Colour levels</label><output id="levelsOut">5</output>
+          <input type="range" id="levels" min="2" max="10" value="5"></div>
+      </section>
+
+      <section class="panel" data-panel="hist" hidden>
+        <div><span class="label">Exposure</span><h2>Histogram</h2></div>
+        <p>How many pixels sit at each brightness, per channel. A pile at either end means clipped shadows or highlights.</p>
+        <canvas id="histCanvas" width="600" height="160" aria-label="Colour histogram"></canvas>
+        <div class="readout">
+          <div><span class="label">Mean brightness</span><span class="big" id="meanB">–</span></div>
+          <div><span class="label">Contrast (sd)</span><span class="big" id="sdB">–</span></div>
+        </div>
+        <p class="status" id="exposureNote"></p>
+      </section>
+
+      <div class="sources"><button type="button" class="btn" id="saveBtn">Save this image</button></div>
+
+      <div class="ad" data-slot="side"></div>
+    </aside>
+  </div>
+
+  <div class="ad wide" data-slot="inline"></div>
+
+  <section aria-labelledby="whatH" style="display:flex;flex-direction:column;gap:14px">
+    <h2 id="whatH">Things to try</h2>
+    <div class="cards">
+      <div class="card"><span class="label">Detect</span><h2>Point it at your desk</h2><p>Cups, bottles, phones, laptops, keyboards and books are all in the 80 classes. Lower the confidence to see what the network is unsure about.</p></div>
+      <div class="card"><span class="label">Count</span><h2>Count a doorway</h2><p>Choose People, put the line across the door and leave the phone on a shelf. Each person is counted once, in the direction they cross.</p></div>
+      <div class="card"><span class="label">Colour</span><h2>Measure ripeness</h2><p>Tap a banana or a leaf and watch the share of that colour. The same idea checks fruit, rust or labels on a factory line.</p></div>
+      <div class="card"><span class="label">Exposure</span><h2>Read a histogram</h2><p>Aim at a window, then at a dark corner, and see the pixels pile up at the bright or dark end.</p></div>
+    </div>
+    <p class="lede">Want to know how each tool works? Read <a href="guide.html">the guide</a>: how the detector finds objects, how the counter follows them, and where it fails.</p>
+  </section>
+
+  <div class="ad wide" data-slot="footer"></div>
+
+  <footer class="site">
+    <nav aria-label="Footer"><a href="guide.html">How it works</a><a href="about.html">About</a><a href="privacy.html">Privacy</a></nav>
+    <span>Sample photos: astronaut Eileen Collins (NASA, public domain); coffee by Rachel Michetti and cat by Stéfan van der Walt (CC0), via scikit-image. Detector: COCO-SSD for TensorFlow.js (Apache 2.0).</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="app.js"></script>
+<script src="ads.js"></script>
+</body>
+</html>

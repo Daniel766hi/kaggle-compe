@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About Vision Lab</title>
+<meta name="description" content="Who made Vision Lab, what it is built with, and how to get in touch.">
+<link rel="canonical" href="https://daniel766hi.github.io/about.html">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <nav class="site" aria-label="Site">
+    <a class="brand" href="./">Vision <span>Lab</span></a>
+    <ul>
+      <li><a href="./">Lab</a></li>
+      <li><a href="guide.html">How it works</a></li>
+      <li><a href="about.html" aria-current="page">About</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+    </ul>
+  </nav>
+
+  <article>
+    <header class="hero">
+      <span class="label">About</span>
+      <h1>About Vision <span>Lab</span></h1>
+    </header>
+    <p>Vision Lab is a free, hands-on way to see how computer vision works: point a camera at the world and watch a neural network find, follow and count objects, then take the same picture apart with the classic image-processing tools that factory and inspection cameras still rely on.</p>
+    <p>It was built by an Industrial Engineering graduate of Universitas Gadjah Mada, Indonesia, as a side project in data analysis and computer vision. The line counter comes from an operations question: how would you count people through a doorway or parts along a conveyor without buying special hardware?</p>
+
+    <h2>What it is built with</h2>
+    <ul>
+      <li><a href="https://www.tensorflow.org/js">TensorFlow.js</a> and the <a href="https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd">COCO-SSD</a> model (Apache 2.0), running in your browser.</li>
+      <li>Plain JavaScript for the tracker, edge detection, colour measurement and histogram.</li>
+      <li>Hosted for free on GitHub Pages.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>Found a bug or have an idea? Open an issue on <a href="https://github.com/Daniel766hi/daniel766hi.github.io/issues">the site's GitHub repository</a>.</p>
+
+    <div class="ad" data-slot="inline"></div>
+  </article>
+
+  <footer class="site">
+    <nav aria-label="Footer"><a href="./">Lab</a><a href="guide.html">How it works</a><a href="privacy.html">Privacy</a></nav>
+  </footer>
+</div>
+<script src="ads.js"></script>
+</body>
+</html>

@@ -30,19 +30,19 @@ Programme start time=
 	|
 
 Target kitchens=
-	29217
+	29256
 	~	kitchen
 	~	From data: fitted so that modelled operational SPPG match BGN counts (fit_rollout.py, data/rollout_fit.csv).
 	|
 
 Rollout midpoint=
-	91.73
+	91.66
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py).
 	|
 
 Rollout steepness=
-	7.15
+	7.10
 	~	Week
 	~	From data: fitted to BGN SPPG counts via operational kitchens (fit_rollout.py). POLICY P1 (phased roll-out) increases it.
 	|
@@ -84,7 +84,7 @@ Kitchen opening rate=
 	|
 
 Reinstatement time=
-	15.32
+	15.05
 	~	Week
 	~	From data: fitted with Base suspension fraction (fit_suspensions.py).
 	|
@@ -96,7 +96,7 @@ Reinstatement rate=
 	|
 
 Base suspension fraction=
-	0.00405
+	0.00422
 	~	1/Week
 	~	From data: fitted to BGN reports of 8,182 SPPG ever suspended and 2,213 inactive by end May 2026 (fit_suspensions.py). UNCERTAINTY.
 	|

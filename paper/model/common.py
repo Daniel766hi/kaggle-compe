@@ -224,6 +224,12 @@ def run(params: dict | None = None, time_step: float | None = None,
     return m.run(**kw)
 
 
+def model_time_step() -> float:
+    """TIME STEP as written in the .mdl (PySD's default for every run)."""
+    import re
+    return float(re.search(r"TIME STEP\s*=\s*([0-9.]+)", MODEL_FILE.read_text()).group(1))
+
+
 def defaults() -> dict:
     """Default (mid-case) value of each uncertainty as written in the .mdl."""
     m = load_model()

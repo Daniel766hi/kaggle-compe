@@ -1,0 +1,4 @@
+# PRELIMINARY - 7 inputs pending verification against primary sources
+model,accuracy_mean,f1_mean,roc_auc_mean
+CART (depth 2),0.5706,0.6975164077786846,0.5850495296742839
+Random forest,0.7363999999999999,0.7514036204599636,0.8118721286762002

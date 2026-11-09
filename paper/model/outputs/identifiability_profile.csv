@@ -1,0 +1,13 @@
+# PRELIMINARY - 7 inputs pending verification against primary sources
+parameter,value,SSE
+Price sensitivity to coverage,0.5,0.004973181836282581
+Price sensitivity to coverage,1.0,0.004760770512709391
+Price sensitivity to coverage,2.0,0.004818046575185413
+Price sensitivity to coverage,3.0,0.004891969570133796
+Price sensitivity to coverage,5.0,0.004981549104124067
+Price sensitivity to coverage,10.0,0.005071168156919557
+Price expectation delay,2.0,0.0047291271613886625
+Price expectation delay,4.0,0.004720742759479395
+Price expectation delay,8.0,0.004760770512709391
+Price expectation delay,16.0,0.004958578718918173
+Price expectation delay,30.0,0.005585876822338385

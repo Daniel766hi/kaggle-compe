@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 
-from common import DATA_DIR, OUT_DIR, run, save_table, stamp
+from common import DATA_DIR, OUT_DIR, model_time_step, run, save_table, stamp
 
 STOCK_COLS = ["Laying hens", "Pullets", "Operational kitchens", "Suspended kitchens"]
 COLS = ["Relative egg price", "Relative chicken price", "Laying hens", "Pullets",
@@ -71,12 +71,13 @@ tests.append(("A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions t
               sane(df) and df["Suspended kitchens"].max() > base["Suspended kitchens"].max()))
 
 # ------------------------------------------------------------------ B. integration error
+DT = model_time_step()
 a = run(columns=COLS)
-b = run(time_step=0.0625, columns=COLS)
+b = run(time_step=DT / 2, columns=COLS)
 key = ["Relative egg price", "Relative chicken price", "Laying hens", "Programme coverage"]
 rng_ = (a[key].max() - a[key].min()).replace(0, 1)
 rel = float(((a[key] - b[key]).abs().max() / rng_).max())
-tests.append(("B1 Integration error: TIME STEP 0.125 vs 0.0625",
+tests.append((f"B1 Integration error: TIME STEP {DT:g} vs {DT / 2:g}",
               "max |difference| < 1% of each variable's range",
               f"{rel:.4%}", rel < 0.01))
 

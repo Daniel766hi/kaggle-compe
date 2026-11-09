@@ -1,0 +1,4 @@
+# PRELIMINARY - 7 inputs pending verification against primary sources
+,estimate,lower_bound,upper_bound,at_bound,spread_across_starts
+Investment sensitivity,2.9582013983032702,0.2,6,False,4.430730113192087e-05
+Broiler investment sensitivity,0.025228582797859903,0.0,4,True,1.2767628192842442e-05

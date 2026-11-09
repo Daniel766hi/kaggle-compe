@@ -1,0 +1,11 @@
+# PRELIMINARY - 7 inputs pending verification against primary sources
+,value
+time_step,0.125
+half_step,0.0625
+scenarios,150.0
+policies,4.0
+spike_agreement,0.9983333333333333
+peak_egg_price_median_abs_diff,0.00014276030930382433
+peak_egg_price_p95_abs_diff,0.0019528577700216856
+peak_chicken_price_median_abs_diff,1.9564547767414453e-05
+peak_chicken_price_p95_abs_diff,0.00016336784384211035

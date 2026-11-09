@@ -19,6 +19,8 @@ from docx.shared import Cm, Pt, RGBColor
 HERE = Path(__file__).resolve().parent
 MODEL = HERE / "model"
 sys.path.insert(0, str(MODEL))
+from common import model_time_step  # noqa: E402
+DT = model_time_step()
 from common import DEMO_STAMP as STATUS_STAMP, POLICIES, SPIKE_THRESHOLD, UNCERTAINTIES  # noqa: E402
 
 DEMO = "--demo" in sys.argv
@@ -260,7 +262,7 @@ para("The study combines system dynamics (SD) simulation with machine-learning s
 write_here("Figure 1. Research framework — draw it")
 doc.add_heading("3.2 Model structure", 2)
 para("The model has four interacting sectors simulated weekly from January 2024 to December 2029 (312 weeks; "
-     "time step 0.125 weeks). Its causal structure is shown in Figure 2 and its stock-and-flow structure in "
+     f"time step {DT:g} weeks). Its causal structure is shown in Figure 2 and its stock-and-flow structure in "
      "Figure 3; all equations are listed in Appendix A.")
 for txt in [
     "Programme sector. Planned kitchens (SPPG) follow a logistic (S-shaped) roll-out whose final size, midpoint "
@@ -331,7 +333,8 @@ doc.add_heading("3.5 Validation", 2)
 para("Following Barlas (1996) and Sterman (2000), the model was subjected to dimensional consistency checks; "
      "extreme-condition tests (no programme, ten-fold programme demand, loss of all laying hens, no hatchery "
      "expansion, doubled feed price, instantaneous roll-out); an integration-error test comparing time steps of "
-     "0.125 and 0.0625 weeks; a parameter-recovery test applying the calibration procedure to synthetic data with "
+     f"{DT:g} and {DT / 2:g} weeks on the baseline run, and an ensemble robustness test repeating a random "
+     "subset of ensemble scenarios at both time steps and comparing spike classification and peak prices; a parameter-recovery test applying the calibration procedure to synthetic data with "
      "known parameters; and behaviour reproduction against historical prices, assessed with MAPE, R² and Theil "
      "inequality statistics.")
 para("Because the model contains no seasonal demand, seasonality was removed from the price data before "

@@ -1,0 +1,7 @@
+# PRELIMINARY - 7 inputs pending verification against primary sources
+policy,"spike_removed (P0=1,P=0)","spike_added (P0=0,P=1)",p_exact
+P1 Phased roll-out,433,214,4.976222116353714e-18
+P2 Cooperative sourcing,0,0,1.0
+P3 Forward contracts,1365,177,2.2643474950502816e-227
+P4 Menu flexibility,397,1,1.2361313392199024e-117
+P5 Combined (P2+P3+P4),2166,8,0.0

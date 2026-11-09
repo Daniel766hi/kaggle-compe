@@ -514,8 +514,11 @@ TIKZ_FRAMEWORK = r"""
 tikz_figure(TIKZ_FRAMEWORK, "Research framework", "fig:framework")
 sub("Model Structure")
 par("The model has four interacting sectors simulated weekly from January 2024 to December 2029 (312 weeks, "
-    f"time step {DT:g} week). Figure {{ref:fig:cld}} shows its main feedback loops and Figure {{ref:fig:sfd}} its "
-    "stock-and-flow structure; all equations are listed in Appendix {ref:app:eq}.")
+    f"Euler integration with a time step of {DT:g} week). The step is one-sixteenth of the shortest time constant, "
+    "the half-week minimum delivery time that limits sales when demand jumps as schools reopen, and school-holiday "
+    "dates are rounded to the nearest 1/16 week so that both time steps in the integration tests switch meals on "
+    "and off at the same moments. Figure {ref:fig:cld} shows the main feedback loops, Figure {ref:fig:sfd} the "
+    "stock-and-flow structure, and Appendix {ref:app:eq} lists all equations.")
 for head, txt in [
     ("Programme sector.", "Planned kitchens (SPPG) follow a logistic roll-out whose final size, midpoint and "
      "steepness were fitted to BGN's reported counts of operational kitchens. Kitchens open after an opening delay "

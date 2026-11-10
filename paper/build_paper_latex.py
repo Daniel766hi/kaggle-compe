@@ -899,7 +899,9 @@ table([[pn(k)[0].upper() + pn(k)[1:], raw(f"{r['lower']:,.3g}"), raw(f"{r['upper
       f"density target {PRIMSET['density_threshold']:.2f})",
       r">{\raggedright\arraybackslash}Xrrrr", size=r"\scriptsize", label="tab:prim")
 figure("fig_prim_tradeoff.png", "PRIM peeling trajectory (coverage versus density)", label="fig:prim")
-verbatim(cart_rules, "Decision-tree rules for spike occurrence (class 1 = spike)", label="fig:cart")
+figure("fig_sd_tree.png", "Decision tree (depth 3) for spike occurrence under the baseline policy. Each node gives "
+       "its split, the share of scenarios it contains and the shares without and with a spike [no spike, spike]; "
+       "left branches satisfy the condition", wide=True, label="fig:cart")
 figure("fig_oat_tornado.png", "One-at-a-time sensitivity of peak programme-attributable price rise", label="fig:oat")
 sub("Early-Warning Indicators", "sec:ew")
 first_split = re.search(r"\|--- (\w+)", ew_rules).group(1).replace("obs_", "").replace("_", " ")
@@ -918,7 +920,8 @@ table([[k] + [raw(f"{r[m]:.3f}") for m in ["accuracy_mean", "f1_mean", "roc_auc_
       ["Classifier", "Accuracy", "F1", "ROC AUC"],
       "Early-warning classifiers using indicators observed 13 weeks after programme start",
       r">{\raggedright\arraybackslash}Xccc", size=r"\scriptsize", label="tab:ew")
-verbatim(ew_rules, "Early-warning decision-tree rules", label="fig:ewrules")
+figure("fig_ew_tree.png", "Early-warning decision tree (depth 2) using indicators observed 13 weeks after programme "
+       "start; node contents as in Figure {ref:fig:cart}", wide=True, label="fig:ewrules")
 sub("Policy Comparison", "sec:policy")
 lines = []
 for k in ps.index:

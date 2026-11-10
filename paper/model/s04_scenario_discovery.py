@@ -19,7 +19,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier, export_text
+from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
 
 from common import (CF_COLS, OBSERVABLES, OUT_DIR, POLICIES, SPIKE_THRESHOLD, UNCERTAINTIES,
                     compute_outcomes, counterfactual_params, is_spike, run, save_table, stamp)
@@ -51,10 +51,21 @@ bench = pd.DataFrame(rows).set_index("model")
 save_table(bench, "sd_classifier_benchmark.csv")
 print("\nA. Classifier benchmark (5-fold CV):\n", bench.round(3).to_string())
 
+def draw_tree(tree, names, title, fname, size, precision=2, fontsize=12):
+    """Tree diagram: each node shows its split, number of scenarios and share without / with a spike."""
+    fig, ax = plt.subplots(figsize=size)
+    plot_tree(tree, feature_names=names, class_names=["No spike", "Spike"], filled=True, rounded=True,
+              impurity=False, proportion=True, precision=precision, fontsize=fontsize, ax=ax)
+    ax.set_title(title, fontsize=fontsize + 1)
+    stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / fname, dpi=200); plt.close(fig)
+
+
 # ------------------------------------------------------------------ B. CART rules
 cart = models["CART (depth 3)"].fit(X, y)
 rules = export_text(cart, feature_names=list(X.columns), show_weights=True)
 (OUT_DIR / "sd_cart_rules.txt").write_text(rules)
+draw_tree(cart, list(X.columns), "Decision tree for spike occurrence (baseline policy, depth 3)",
+          "fig_sd_tree.png", (15, 7))
 print("\nB. CART rules:\n", rules)
 
 # ------------------------------------------------------------------ C. SHAP
@@ -149,4 +160,7 @@ save_table(ew, "ew_classifier_benchmark.csv")
 ew_tree = DecisionTreeClassifier(max_depth=2, min_samples_leaf=10, random_state=SEED).fit(Xo, y)
 ew_rules = export_text(ew_tree, feature_names=OBSERVABLES, show_weights=True)
 (OUT_DIR / "ew_rules.txt").write_text(ew_rules)
+draw_tree(ew_tree, [o.replace("obs_", "").replace("_", " ") + " (week 66)" for o in OBSERVABLES],
+          "Early-warning decision tree (indicators 13 weeks after programme start, depth 2)",
+          "fig_ew_tree.png", (11, 4.6), precision=3, fontsize=13)
 print("\nF. Early-warning classifier (observables at week 65):\n", ew.round(3).to_string(), "\n", ew_rules)

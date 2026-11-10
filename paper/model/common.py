@@ -189,11 +189,40 @@ def is_spike(df_out: pd.DataFrame) -> pd.Series:
 _MODEL = None
 
 
+def _speed_up_lookups():
+    """Evaluate scalar 1-D lookups with numpy instead of xarray.
+
+    PySD 3.14 interpolates every lookup call through xarray, which costs about 3 ms per call;
+    with the holiday calendar and beneficiaries-per-kitchen lookups this made one run ~25x slower.
+    np.interp gives the same piecewise-linear value and, like PySD's "interpolate" method,
+    holds the first/last value outside the table. Other lookup types keep PySD's own code.
+    """
+    import xarray as xr
+    from pysd.py_backend import lookups as lk
+    if getattr(lk.Lookups, "_fast", False):
+        return
+    original = lk.Lookups._call
+
+    def _call(self, data, x, final_subs=None):
+        if (self.interp == "interpolate" and getattr(self, "is_float", False)
+                and not isinstance(x, xr.DataArray) and isinstance(data, xr.DataArray) and data.ndim == 1):
+            cache = getattr(self, "_np_cache", None)
+            if cache is None or cache[0] is not data:
+                cache = (data, np.asarray(data["lookup_dim"].values, float), np.asarray(data.values, float))
+                self._np_cache = cache
+            return float(np.interp(float(x), cache[1], cache[2]))
+        return original(self, data, x, final_subs)
+
+    lk.Lookups._call = _call
+    lk.Lookups._fast = True
+
+
 def load_model():
     """Translate the Vensim file once per process (PySD writes mbg_poultry.py)."""
     global _MODEL
     if _MODEL is None:
         import pysd
+        _speed_up_lookups()
         _MODEL = pysd.read_vensim(str(MODEL_FILE))
     return _MODEL
 

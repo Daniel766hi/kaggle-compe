@@ -108,6 +108,12 @@ NOTEBOOKS = {
         "datasets": ["global-supply-chain-monitor-ports-chokepoints"],
         "tags": ["economics", "international relations", "time series analysis", "data visualization"],
     },
+    "commodities": {
+        "source": "notebooks/commodity_prices.py",
+        "title": "Commodity Prices since 1960: Cycles & Indonesia",
+        "datasets": ["world-commodity-prices-monthly-pink-sheet"],
+        "tags": ["economics", "finance", "time series analysis", "data visualization"],
+    },
     "olist-promise": {
         "source": "notebooks/olist_promise_cliff.py",
         "title": "The Promise Cliff: Delivery Dates vs Reviews",

@@ -6,6 +6,7 @@ requests>=2.31
 pytest>=8
 lxml>=5
 xlrd>=2.0.1  # the New York Fed's GSCPI workbook is in the old .xls format
+openpyxl>=3.1  # the World Bank Pink Sheet (.xlsx)
 shapely>=2
 anthropic>=1.17
 requests-oauthlib>=2.0

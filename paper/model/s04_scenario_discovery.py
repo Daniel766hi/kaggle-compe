@@ -75,7 +75,11 @@ from ema_workbench.analysis import prim  # noqa: E402
 p = prim.Prim(X.copy(), y.values.astype(bool), peel_alpha=0.05)
 box = p.find_box()
 traj = box.peeling_trajectory
-ok = traj[traj["density"] >= 0.8]
+# Density target: at least halfway between the spike base rate and 1. A fixed target (e.g. 0.8)
+# selects the whole space when spikes are already that common.
+base_rate = float(y.mean())
+dens_thr = base_rate + (1 - base_rate) / 2
+ok = traj[traj["density"] >= dens_thr]
 i = int(ok["coverage"].idxmax()) if len(ok) else int(traj["density"].idxmax())
 lims = box.box_lims[i]
 restricted = [c for c in X.columns
@@ -90,13 +94,15 @@ prim_tbl = prim_tbl.sort_values("share_of_range_removed", ascending=False)
 prim_tbl["meaningful"] = prim_tbl["share_of_range_removed"] >= 0.10
 save_table(prim_tbl, "sd_prim_box.csv")
 save_table(traj, "sd_prim_trajectory.csv")
+save_table(pd.Series({"base_rate": base_rate, "density_threshold": dens_thr}, name="value").to_frame(),
+           "sd_prim_settings.csv")
 fig, ax = plt.subplots(figsize=(6, 4.5))
 sc = ax.scatter(traj["coverage"], traj["density"], c=traj["res_dim"], cmap="viridis")
 ax.scatter(traj.loc[i, "coverage"], traj.loc[i, "density"], s=160, facecolors="none", edgecolors="red")
 ax.set_xlabel("Coverage"); ax.set_ylabel("Density"); fig.colorbar(sc, label="Restricted dimensions")
 ax.set_title("PRIM peeling trajectory (selected box circled)")
 stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / "fig_prim_tradeoff.png", dpi=150); plt.close(fig)
-print(f"\nD. PRIM box #{i}: coverage={traj.loc[i, 'coverage']:.2f}, density={traj.loc[i, 'density']:.2f}, "
+print(f"\nD. PRIM (density target {dens_thr:.3f}) box #{i}: coverage={traj.loc[i, 'coverage']:.2f}, density={traj.loc[i, 'density']:.2f}, "
       f"mass={traj.loc[i, 'mass']:.2f}\n", prim_tbl.round(4).to_string())
 
 # ------------------------------------------------------------------ E. OAT sensitivity

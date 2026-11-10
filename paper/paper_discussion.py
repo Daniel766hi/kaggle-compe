@@ -91,7 +91,7 @@ par(f"Third, cooperative sourcing (P2) lowers the protein cost per portion from 
 par("Fourth, the programme should plan for school holidays. Keeping meals for mothers and young children during "
     "holidays, aligning holiday periods with government purchasing for food reserves, or shifting part of "
     "holiday-period egg supply to processing would reduce the stop-start shock that the June 2026 rules "
-    "amplified. Because early market indicators predict spikes poorly, these measures need to be designed in "
+    "amplified. Because early market indicators predict spikes only moderately, these measures need to be designed in "
     "advance rather than triggered by price signals.")
 sub("Methodological Contribution")
 par("The analysis shows what the combination of system dynamics and scenario discovery adds to a single "
@@ -100,7 +100,8 @@ par("The analysis shows what the combination of system dynamics and scenario dis
     "agencies disagree on. " + (f"Scenario discovery and the one-at-a-time analysis rank drivers differently "
     f"(Spearman {{m:\\rho}} = {RHO:.2f}), so a conventional sensitivity analysis would have pointed to the wrong "
     "levers. " if RHO < 0.7 else "") + "PRIM turns the ensemble into conditions that decision makers can act on, "
-    "such as menu quantities and kitchen sizes beyond which spikes become likely, and SHAP values show the direction "
+    "such as the " + " and ".join(pn(k) for k in prim_m.index) + " beyond which spikes become likely, and SHAP "
+    "values show the direction "
     "and size of each driver's effect.")
 
 sec("Limitations and Future Work", "sec:limits")

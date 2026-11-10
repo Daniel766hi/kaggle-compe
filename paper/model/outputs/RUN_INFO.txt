@@ -1,0 +1,9 @@
+Final research run, 10 November 2026
+- Model: mbg_poultry.mdl, TIME STEP 0.03125 week, verified inputs (data/VERIFICATION.md)
+- Steps 1-5 (seasonal adjustment, roll-out and suspension fits, validation and calibration, baseline):
+  run_all.py 5000, 9-10 November 2026
+- Steps 6-10 (ensemble, B2, scenario discovery, policy comparison, parameter sheet):
+  run_all.py 5000 --from s03_ensemble.py, 10 November 2026 (vectorized ensemble)
+- Ensemble: 5,000 Latin Hypercube scenarios (seed 20261107) x 6 policies + no-programme counterfactual; 0 failed runs
+- Validation: A1-A6 pass; B1 0.63% (< 1%); B2 99.7% spike agreement (>= 98%);
+  vectorized vs PySD max relative difference 7.8e-15

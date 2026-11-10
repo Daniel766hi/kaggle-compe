@@ -248,6 +248,7 @@ def figure(name, caption, wide=False, label=None):
 
 def tikz_figure(code, caption, label, wide=False):
     env = "figure*" if wide else "figure"
+    code = "\n".join([r"\begin{adjustbox}{max width=\textwidth}", code, r"\end{adjustbox}"])  # never wider than the text
     B.append("\n".join([rf"\begin{{{env}}}[{'!t' if wide else '!htb'}]", r"\centering", code,
                         rf"\caption{{{T(caption)}}}" + _lab(label), rf"\end{{{env}}}"]))
 
@@ -298,7 +299,8 @@ oat = read("sd_oat_sensitivity.csv", index_col=0)
 RHO = float(spearmanr(oat["swing"].reindex(shap.index), shap.values).statistic)
 oat_top = oat["swing"].sort_values(ascending=False)
 traj = read("sd_prim_trajectory.csv", index_col=0)
-ok = traj[traj["density"] >= 0.8]
+PRIMSET = read("sd_prim_settings.csv", index_col=0)["value"]
+ok = traj[traj["density"] >= PRIMSET["density_threshold"] - 1e-12]
 BOX = traj.loc[int(ok["coverage"].idxmax()) if len(ok) else int(traj["density"].idxmax())]
 prim = read("sd_prim_box.csv", index_col=0)
 prim_m = prim[prim["meaningful"].astype(str) == "True"]
@@ -357,8 +359,11 @@ ABSTRACT = (
     f"it to {pct(spike['P5 Combined (P2+P3+P4)'])}" + (
         " while reducing protein cost per portion. " if ps.loc["P5 Combined (P2+P3+P4)", "mean_cost_per_portion_median"]
         < P0["mean_cost_per_portion_median"] else ". ") + (
-        f"Price spikes are hard to anticipate from indicators observable early in the roll-out (ROC AUC "
-        f"{ew['roc_auc_mean'].max():.2f}), which favours designing procurement in advance over reacting to prices."
+        f"Indicators observable early in the roll-out anticipate spikes only moderately (ROC AUC "
+        f"{ew['roc_auc_mean'].max():.2f}"
+        + (", with accuracy no better than always predicting a spike"
+           if ew["accuracy_mean"].max() <= P0["spike_prob"] + 0.01 else "")
+        + "), which favours designing procurement in advance over reacting to prices."
         if ew["roc_auc_mean"].max() < 0.85 else
         f"Indicators observable early in the roll-out anticipate spikes well (ROC AUC {ew['roc_auc_mean'].max():.2f})."))
 
@@ -721,8 +726,10 @@ par("Using baseline-policy runs, four classifiers (logistic regression, a depth-
     "{cite:breiman2001} and gradient boosting) were trained to predict spikes from the uncertain parameters and "
     "evaluated by stratified five-fold cross-validation. The decision tree provides readable rules; SHAP values on "
     "the random forest quantify each parameter's contribution and direction; PRIM identifies a region of the "
-    "uncertainty space with a high spike density (the box with the highest coverage at a density of at least 0.8, "
-    "reporting dimensions restricted by at least 10% of their range). The results were compared with a "
+    "uncertainty space with a high spike density: the box with the highest coverage whose density is at least "
+    "halfway between the ensemble spike share and one (a fixed target such as 0.8 would select the whole space "
+    "when spikes are already that common), reporting dimensions restricted by at least 10% of their range. "
+    "The results were compared with a "
     "one-at-a-time sensitivity analysis. An early-warning classifier was trained on indicators observable 13 weeks "
     "after programme start: relative prices, inventory coverage, growth in pullet placements, the kitchen opening "
     "rate, the share of suspended kitchens and the feed price.")
@@ -848,8 +855,9 @@ par(f"Under the baseline policy, {pct(P0['spike_prob'])} of scenarios produce a 
         if cb["roc_auc_mean"].max() - cb.loc["Logistic regression", "roc_auc_mean"] > 0.02 else ""))
 par(f"SHAP values (Figure {{ref:fig:shap}}) rank {pn(shap.index[0])}, {pn(shap.index[1])} and {pn(shap.index[2])} "
     f"as the main drivers. The PRIM box (Table {{ref:tab:prim}}) covers {pct(BOX['coverage'], 0)} of all spikes with "
-    f"a spike density of {pct(BOX['density'], 0)}, against {pct(P0['spike_prob'], 0)} in the whole ensemble, and "
-    "restricts " + " and ".join(f"{pn(k)} (to {r['lower']:,.3g}--{r['upper']:,.3g})" for k, r in prim_m.iterrows())
+    f"a spike density of {pct(BOX['density'], 0)} (target {pct(PRIMSET['density_threshold'], 0)}), against "
+    f"{pct(P0['spike_prob'], 0)} in the whole ensemble, and restricts "
+    + " and ".join(f"{pn(k)} (to {r['lower']:,.3g}--{r['upper']:,.3g})" for k, r in prim_m.iterrows())
     + ". The one-at-a-time analysis (Figure {ref:fig:oat}) ranks " + ", ".join(pn(k) for k in oat_top.index[:3])
     + f" highest; its ranking " + ("correlates only weakly" if RHO < 0.5 else "correlates moderately" if RHO < 0.7
                                    else "agrees") + f" with the SHAP ranking (Spearman {{m:\\rho}} = {RHO:.2f})" + (
@@ -864,7 +872,8 @@ table([[pn(k)[0].upper() + pn(k)[1:], raw(f"{r['lower']:,.3g}"), raw(f"{r['upper
         raw(f"{r['full_range_low']:,.3g}--{r['full_range_high']:,.3g}"),
         raw(f"{100 * r['share_of_range_removed']:.0f}\\%")] for k, r in prim.iterrows()],
       ["Parameter", "Box low", "Box high", "Full range", "Removed"],
-      f"PRIM box (coverage {BOX['coverage']:.2f}, density {BOX['density']:.2f}, mass {BOX['mass']:.2f})",
+      f"PRIM box (coverage {BOX['coverage']:.2f}, density {BOX['density']:.2f}, mass {BOX['mass']:.2f}; "
+      f"density target {PRIMSET['density_threshold']:.2f})",
       r">{\raggedright\arraybackslash}Xrrrr", size=r"\scriptsize", label="tab:prim")
 figure("fig_prim_tradeoff.png", "PRIM peeling trajectory (coverage versus density)", label="fig:prim")
 verbatim(cart_rules, "Decision-tree rules for spike occurrence (class 1 = spike)", label="fig:cart")
@@ -876,7 +885,12 @@ par(f"Indicators observed 13 weeks after programme start predict later spikes "
     f"{{ref:tab:ew}}): the random forest reaches a ROC AUC of {ew.loc['Random forest', 'roc_auc_mean']:.3f} and a "
     f"depth-2 tree {ew.loc['CART (depth 2)', 'roc_auc_mean']:.3f}. The first split of the tree uses the {first_split} "
     "(Figure {ref:fig:ewrules})." + (" At that point programme demand is still small relative to supply, so the "
-    "market signals that would warn of a later spike have not yet formed." if ew["roc_auc_mean"].max() < 0.85 else ""))
+    "market signals that would warn of a later spike have not yet formed." if ew["roc_auc_mean"].max() < 0.85 else "")
+    + (f" Because spikes occur in {pct(P0['spike_prob'], 0)} of scenarios, accuracy "
+       f"({pct(ew['accuracy_mean'].max(), 0)} at best) is no better than always predicting a spike"
+       + (", and every leaf of the depth-2 tree predicts a spike" if set(re.findall(r"class: (\d)", ew_rules)) == {"1"}
+          else "") + "; only the ranking of scenarios by risk, measured by the ROC AUC, carries information."
+       if ew["accuracy_mean"].max() <= P0["spike_prob"] + 0.01 else ""))
 table([[k] + [raw(f"{r[m]:.3f}") for m in ["accuracy_mean", "f1_mean", "roc_auc_mean"]] for k, r in ew.iterrows()],
       ["Classifier", "Accuracy", "F1", "ROC AUC"],
       "Early-warning classifiers using indicators observed 13 weeks after programme start",
@@ -987,6 +1001,7 @@ PRE = rf"""\documentclass[10pt,twocolumn,a4paper]{{article}}
 \usepackage{{booktabs,tabularx,array,longtable}}
 \usepackage{{xcolor}}
 \usepackage{{tikz}}
+\usepackage{{adjustbox}}
 \usetikzlibrary{{arrows.meta,positioning,shapes.symbols}}
 \usepackage[font=small,labelsep=colon,skip=4pt]{{caption}}
 \usepackage{{enumitem}}

@@ -46,7 +46,7 @@ pip install --no-deps pysd && pip install parsimonious xarray lxml regex portion
 python run_all.py 400
 ```
 
-400 scenarios × 6 policies is a quick test. For the paper use 5,000 scenarios: about 1 h 15 min on 4 cores at TIME STEP 0.125; the current 0.03125 takes roughly four times as long (about 5 hours with calibration and test B2):
+400 scenarios × 6 policies is a quick test. For the paper use 5,000 scenarios. On 4 cores the full pipeline takes about 2.5 hours, almost all of it the calibration in `s02_validation.py`; the ensemble itself takes about 3 minutes because `vector_sim.py` integrates blocks of scenarios together (checked against ordinary PySD runs before use). To rerun only the later steps: `python run_all.py 5000 --from s03_ensemble.py` (about 30 minutes).
 
 ```bash
 python run_all.py 5000

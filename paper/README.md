@@ -22,6 +22,6 @@
 ## Rebuilding after a change
 
 ```bash
-cd model && python run_all.py 5000      # about 2.5 hours on 4 cores (calibration ~2 h, ensemble ~3 min)
+cd model && python run_all.py 5000      # ensemble ~3 min; see model/README.md for timings
 cd .. && python build_paper_latex.py
 ```

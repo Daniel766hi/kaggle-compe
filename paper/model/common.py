@@ -205,12 +205,13 @@ def _speed_up_lookups():
 
     def _call(self, data, x, final_subs=None):
         if (self.interp == "interpolate" and getattr(self, "is_float", False)
-                and not isinstance(x, xr.DataArray) and isinstance(data, xr.DataArray) and data.ndim == 1):
+                and not isinstance(x, xr.DataArray) and isinstance(data, xr.DataArray) and data.ndim == 1):  # x may be a numpy array (vector_sim)
             cache = getattr(self, "_np_cache", None)
             if cache is None or cache[0] is not data:
                 cache = (data, np.asarray(data["lookup_dim"].values, float), np.asarray(data.values, float))
                 self._np_cache = cache
-            return float(np.interp(float(x), cache[1], cache[2]))
+            y = np.interp(np.asarray(x, dtype=float), cache[1], cache[2])
+            return float(y) if np.ndim(y) == 0 else y
         return original(self, data, x, final_subs)
 
     lk.Lookups._call = _call

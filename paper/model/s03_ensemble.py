@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import qmc
 
-from common import (CF_COLS, model_time_step, DEMO, DEMO_STAMP, OUT_DIR, POLICIES, UNCERTAINTIES, compute_outcomes,
-                    counterfactual_params, n_jobs, run)
+from common import (CF_COLS, DEMO, DEMO_STAMP, OUT_DIR, POLICIES, UNCERTAINTIES, compute_outcomes,
+                    counterfactual_params, n_jobs, save_table)
 
 SEED = 20261107
 
@@ -27,60 +27,54 @@ def sample(n: int) -> pd.DataFrame:
     return pd.DataFrame(qmc.scale(u, lo, hi), columns=names)
 
 
-def _cf_job(args):
-    sid, scn = args
-    return sid, run(counterfactual_params(POLICIES["P0 Baseline"](scn)), columns=CF_COLS)
+CHUNK = 500      # scenarios simulated together in one vectorized integration
 
 
-def _job(args):
-    sid, policy, scn, cf = args
-    params = POLICIES[policy](scn)
-    try:
-        out = compute_outcomes(run(params), cf)
-        out["ok"] = True
-    except Exception as e:  # keep going; failures are reported
-        out = {"ok": False, "error": str(e)[:200]}
-    return {"scenario": sid, "policy": policy, **out}
+def _chunk_job(args):
+    """All policies plus the no-programme counterfactual for one block of scenarios."""
+    import vector_sim as vs
+    sub, policies, time_step = args
+    scns = [sub.loc[i].to_dict() for i in sub.index]
+    cfs = vs.frames(vs.run_batch([counterfactual_params(POLICIES["P0 Baseline"](s)) for s in scns],
+                                 time_step, CF_COLS))
+    rows = []
+    for p in policies:
+        dfs = vs.frames(vs.run_batch([POLICIES[p](s) for s in scns], time_step))
+        for i, df, cf in zip(sub.index, dfs, cfs):
+            ok = bool(np.isfinite(df.values).all() and np.isfinite(cf.values).all())
+            out = compute_outcomes(df, cf) if ok else {}
+            rows.append({"scenario": i, "policy": p, **out, "ok": ok})
+    return rows
+
+
+def simulate(X: pd.DataFrame, policies=None, time_step=None) -> list[dict]:
+    """Outcomes for every scenario in X under each policy (vectorized, in parallel blocks)."""
+    policies = list(policies or POLICIES)
+    blocks = [(X.iloc[s:s + CHUNK], policies, time_step) for s in range(0, len(X), CHUNK)]
+    with Pool(min(n_jobs(), len(blocks))) as pool:
+        return [r for rs in pool.imap(_chunk_job, blocks) for r in rs]
+
+
+def equivalence_check(X: pd.DataFrame, n: int = 3) -> float:
+    """Vectorized runs must reproduce ordinary PySD runs (all policies + counterfactual)."""
+    import vector_sim as vs
+    scns = [X.iloc[i].to_dict() for i in range(n)]
+    plist = [POLICIES[p](s) for s in scns for p in POLICIES]
+    plist += [counterfactual_params(POLICIES["P0 Baseline"](s)) for s in scns]
+    worst = vs.check_equivalence(plist, tol=1e-9)
+    save_table(pd.Series({"runs_compared": len(plist), "max_relative_difference": worst,
+                          "tolerance": 1e-9}, name="value").to_frame(), "vector_equivalence.csv")
+    return worst
 
 
 def main():
-    """Runs are checkpointed in outputs/_ensemble_parts/ so that an interrupted run resumes where it stopped."""
-    import pickle
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     X = sample(n)
     X.index.name = "scenario"
-    parts = OUT_DIR / "_ensemble_parts"
-    parts.mkdir(parents=True, exist_ok=True)
-    tag = f"n{n}_dt{model_time_step():g}"
-    for old in parts.glob("*"):          # parts from a different ensemble size or time step are stale
-        if tag not in old.name:
-            old.unlink()
     t = time.time()
-    with Pool(n_jobs()) as pool:
-        # counterfactual (no programme) once per scenario; policy levers only act via the programme
-        cf_file = parts / f"counterfactuals_{tag}.pkl"
-        if cf_file.exists():
-            cfs = pickle.loads(cf_file.read_bytes())
-            print(f"  counterfactuals loaded from checkpoint", flush=True)
-        else:
-            cfs = dict(pool.imap_unordered(_cf_job, [(i, X.loc[i].to_dict()) for i in X.index], chunksize=8))
-            cf_file.write_bytes(pickle.dumps(cfs))
-            print(f"  counterfactuals done ({time.time() - t:.0f}s)", flush=True)
-        rows = [r for f in sorted(parts.glob(f"part_{tag}_*.pkl")) for r in pickle.loads(f.read_bytes())]
-        done = {(r["scenario"], r["policy"]) for r in rows}
-        jobs = [(i, p, X.loc[i].to_dict(), cfs[i]) for p in POLICIES for i in X.index if (i, p) not in done]
-        total = len(done) + len(jobs)
-        if done:
-            print(f"  resuming: {len(done)} runs loaded from checkpoints, {len(jobs)} to go", flush=True)
-        buf, k0 = [], len(list(parts.glob(f"part_{tag}_*.pkl")))
-        for k, r in enumerate(pool.imap_unordered(_job, jobs, chunksize=8), 1):
-            rows.append(r)
-            buf.append(r)
-            if len(buf) >= 1000 or k == len(jobs):
-                (parts / f"part_{tag}_{k0:04d}.pkl").write_bytes(pickle.dumps(buf))
-                buf, k0 = [], k0 + 1
-            if k % 200 == 0:
-                print(f"  {len(done) + k}/{total} runs  ({time.time() - t:.0f}s)", flush=True)
+    worst = equivalence_check(X)
+    print(f"  vectorized vs PySD: max relative difference {worst:.2e} ({time.time() - t:.0f}s)", flush=True)
+    rows = simulate(X)
     res = pd.DataFrame(rows).merge(X.reset_index(), on="scenario")
     res = res.sort_values(["policy", "scenario"]).reset_index(drop=True)
     path = OUT_DIR / "ensemble_results.csv"

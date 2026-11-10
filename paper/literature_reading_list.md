@@ -116,3 +116,25 @@ or official statements wherever possible.
 
 If you find a paper that already models MBG demand → egg/chicken prices with SD, stop and
 re-position (different commodity, regional model, or the early-warning angle).
+
+---
+
+### Gap check, 10 November 2026: closely related MBG studies to read and consider citing
+
+A web search found no study that models MBG demand and egg/chicken prices with system dynamics
+or scenario discovery. These studies are close and reviewers may know them. Their details could
+not be opened from the cloud session (sites blocked), so verify authors, year and venue yourself.
+
+- ARIMA model of egg and milk prices after the MBG launch in North Sumatra (statistical; reports a
+  rise in average egg prices and volatility after MBG). A statistical counterpart to this paper's
+  counterfactual: cite it in Related Work and contrast the methods.
+  https://journal.itisd.org/index.php/sisfotekjar/article/view/186
+- System dynamics model of the egg supply chain in Bojonegoro (Vensim; production, distribution,
+  market price; no programme demand). Belongs with Section 2.2.
+  https://www.researchgate.net/publication/390737456_Model_Sistem_Dinamis_Dalam_Meningkatkan_Efisiensi_Rantai_Pasok_Telur_Ayam_Di_Bojonegoro
+- Multi-commodity inventory model (EOQ, JIT, reorder point) for MBG kitchens, Gunung Sindur.
+  Operational, kitchen-level; contrasts with this paper's market-level view.
+  https://www.researchgate.net/publication/413956512_Multi-Commodity_Inventory_Model_for_Free_Nutritious_Food_Programs_Based_on_Economic_Order_Quantity_Just-in-Time_and_Reorder_Point_A_Case_Study_of_Gunung_Sindur_District
+- The Jakarta Post, "Food prices climb as free meals resume nationwide", 19 July 2026 (BPS: broiler
+  chicken up more than 4% in one week after meals resumed). Supports the school-holiday mechanism.
+  https://www.thejakartapost.com/indonesia/2026/07/19/food-prices-climb-as-free-meals-resume-nationwide

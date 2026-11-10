@@ -1,8 +1,8 @@
 """Shared configuration and helpers for the MBG poultry SD + ML pipeline.
 
-Every number in UNCERTAINTIES, POLICIES and in mbg_poultry.mdl is a PLACEHOLDER
-until you replace it with values justified from data, literature or interviews.
-While DEMO is True, every figure and table is stamped as demo output.
+Uncertainty ranges (UNCERTAINTIES), policy definitions (POLICIES), outcome indicators and the
+model-run helpers. Values and their sources are documented in data/VERIFICATION.md and in the
+comments of mbg_poultry.mdl. DEMO = True would write stamped layout-test output to outputs_demo/.
 """
 from __future__ import annotations
 

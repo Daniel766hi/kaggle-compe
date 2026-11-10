@@ -298,6 +298,23 @@ shap = read("sd_shap_importance.csv", index_col=0)["mean_abs_shap"].sort_values(
 oat = read("sd_oat_sensitivity.csv", index_col=0)
 RHO = float(spearmanr(oat["swing"].reindex(shap.index), shap.values).statistic)
 oat_top = oat["swing"].sort_values(ascending=False)
+SAME_TOP = oat_top.index[0] == shap.index[0]
+UNIT_SUFFIX = {"Chicken per beneficiary": " kg per week", "Egg serving size": " kg"}
+ORD = {2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth"}
+
+
+def prim_phrase():
+    """Plain description of the PRIM restrictions, e.g. 'chicken quantity per beneficiary above 0.128'."""
+    parts = []
+    for k, r in prim_m.iterrows():
+        tol = 0.01 * (r["full_range_high"] - r["full_range_low"])   # box edge at the sampled extreme
+        if abs(r["upper"] - r["full_range_high"]) < tol:
+            parts.append(f"{pn(k)} above {r['lower']:,.3g}" + UNIT_SUFFIX.get(k, ""))
+        elif abs(r["lower"] - r["full_range_low"]) < tol:
+            parts.append(f"{pn(k)} below {r['upper']:,.3g}")
+        else:
+            parts.append(f"{pn(k)} between {r['lower']:,.3g} and {r['upper']:,.3g}")
+    return " and ".join(parts)
 traj = read("sd_prim_trajectory.csv", index_col=0)
 PRIMSET = read("sd_prim_settings.csv", index_col=0)["value"]
 ok = traj[traj["density"] >= PRIMSET["density_threshold"] - 1e-12]
@@ -352,8 +369,9 @@ ABSTRACT = (
     f"Under current policy, the programme raises egg or chicken prices by more than {pp(SPIKE_THRESHOLD, 0)} "
     f"percentage points in {pct(P0['spike_prob'])} of scenarios. Spike risk is driven mainly by "
     f"{pn(shap.index[0])} and {pn(shap.index[1])}" + (
-        f", and a one-at-a-time sensitivity analysis ranks the drivers differently (Spearman {{m:\\rho}} = "
-        f"{RHO:.2f}), missing interactions that scenario discovery reveals. " if RHO < 0.7 else ". ") +
+        "; a one-at-a-time sensitivity analysis identifies the same main driver, and scenario discovery adds the "
+        "probability of a spike and the threshold beyond which spikes become likely. " if SAME_TOP else
+        f", whereas a one-at-a-time sensitivity analysis ranks {pn(oat_top.index[0])} first. ") +
     f"{LABEL[best_single]} ({SHORT[best_single]}) is the most effective single policy, lowering spike probability to "
     f"{pct(spike[best_single])}, and combining cooperative sourcing, forward contracts and menu flexibility lowers "
     f"it to {pct(spike['P5 Combined (P2+P3+P4)'])}" + (
@@ -808,8 +826,8 @@ n_a = len(a_tests); n_a_pass = int((a_tests["Pass"].astype(str) == "True").sum()
 b1_pass = str(b1["Pass"]) == "True"
 pr_max = rec["abs_error_%"].max()
 inv, binv = cal.loc["Investment sensitivity"], cal.loc["Broiler investment sensitivity"]
-par(f"{n_a_pass} of the {n_a} extreme-condition tests passed (Table {{ref:tab:val}}). The integration-error test "
-    f"gave a maximum difference of {b1['Observed']} of each variable's range between time steps of {DT:g} and "
+par(("All six" if n_a_pass == n_a == 6 else f"{n_a_pass} of the {n_a}") + f" extreme-condition tests passed (Table {{ref:tab:val}}). The integration-error test "
+    f"gave a maximum difference of {float(str(b1['Observed']).rstrip('%')):.2f}% of each variable's range between time steps of {DT:g} and "
     f"{DT / 2:g} week ({'within' if b1_pass else 'above'} the 1% criterion), and "
     f"{pct(tsr['spike_agreement'])} of ensemble runs received the same spike classification at both time steps. "
     f"The parameter-recovery test recovered all parameters within {pr_max:.1f}% of their true values. The "
@@ -852,7 +870,9 @@ par(f"Under the baseline policy, {pct(P0['spike_prob'])} of scenarios produce a 
     f"against {cb.loc['Logistic regression', 'roc_auc_mean']:.3f} for logistic regression and "
     f"{cb.loc['CART (depth 3)', 'roc_auc_mean']:.3f} for a depth-3 tree (Table {{ref:tab:clf}})." + (
         " The gap between the linear and the tree-ensemble models indicates interactions between inputs."
-        if cb["roc_auc_mean"].max() - cb.loc["Logistic regression", "roc_auc_mean"] > 0.02 else ""))
+        if cb["roc_auc_mean"].max() - cb.loc["Logistic regression", "roc_auc_mean"] > 0.02 else
+        " The small gap between logistic regression and the tree ensembles shows that interactions between inputs "
+        "add little: spike risk is largely additive in the uncertain parameters."))
 par(f"SHAP values (Figure {{ref:fig:shap}}) rank {pn(shap.index[0])}, {pn(shap.index[1])} and {pn(shap.index[2])} "
     f"as the main drivers. The PRIM box (Table {{ref:tab:prim}}) covers {pct(BOX['coverage'], 0)} of all spikes with "
     f"a spike density of {pct(BOX['density'], 0)} (target {pct(PRIMSET['density_threshold'], 0)}), against "
@@ -860,9 +880,12 @@ par(f"SHAP values (Figure {{ref:fig:shap}}) rank {pn(shap.index[0])}, {pn(shap.i
     + " and ".join(f"{pn(k)} (to {r['lower']:,.3g}--{r['upper']:,.3g})" for k, r in prim_m.iterrows())
     + ". The one-at-a-time analysis (Figure {ref:fig:oat}) ranks " + ", ".join(pn(k) for k in oat_top.index[:3])
     + f" highest; its ranking " + ("correlates only weakly" if RHO < 0.5 else "correlates moderately" if RHO < 0.7
-                                   else "agrees") + f" with the SHAP ranking (Spearman {{m:\\rho}} = {RHO:.2f})" + (
-        ", because one-at-a-time variation around the base case cannot reveal effects that appear only in "
-        "combination." if RHO < 0.7 else "."))
+                                   else "agrees") + f" with the SHAP ranking (Spearman {{m:\\rho}} = {RHO:.2f})."
+    + (f" Both identify {pn(shap.index[0])} as the main driver." if SAME_TOP else "")
+    + (f" The rankings differ for second-tier drivers: {pn(shap.index[1])} ranks second by SHAP but "
+       f"{ORD.get(list(oat_top.index).index(shap.index[1]) + 1, str(list(oat_top.index).index(shap.index[1]) + 1) + 'th')} one at a time, because one-at-a-time variation measures each "
+       "effect only with the other inputs at their mid-points, whereas SHAP averages over the whole ensemble."
+       if list(oat_top.index).index(shap.index[1]) > 2 else ""))
 table([[k] + [raw(f"{r[m + '_mean']:.3f} $\\pm$ {r[m + '_sd']:.3f}") for m in ["accuracy", "f1", "roc_auc"]]
        for k, r in cb.iterrows()],
       ["Classifier", "Accuracy", "F1", "ROC AUC"], "Spike classifiers (five-fold cross-validation, mean {m:\\pm} SD)",
@@ -914,8 +937,11 @@ par(f"Table {{ref:tab:pol}} and Figure {{ref:fig:pol}} compare the policies. Aga
     f"P2 and Rp {ps.loc['P5 Combined (P2+P3+P4)', 'mean_cost_per_portion_median']:,.0f} under P5. Programme "
     + ("coverage in the final year is the same under all policies. " if ps["mean_coverage_last52_median"].round(2).nunique() == 1
        else "coverage in the final year differs little between policies. ")
-    + ("Differences from P0 that are not significant after Holm correction: "
-       + "; ".join(f"{SHORT[r.policy]} on {lab_[r.outcome].lower()}" for r in _ns.itertuples()) + ". "
+    + ("After Holm correction, " + "; ".join(
+        f"{SHORT[pol]} does not differ significantly from P0 on "
+        + (", ".join(lab_[o].lower() for o in list(g["outcome"])[:-1]) + " or " if len(g) > 1 else "")
+        + lab_[list(g["outcome"])[-1]].lower()
+        for pol, g in _ns.groupby("policy", sort=False)) + ". "
        if len(_ns) else "All differences from P0 are significant after Holm correction. ")
     + ("The Friedman test rejects equal outcomes across policies for every indicator tested (p < 0.001)."
        if (fr["p"] < 0.001).all() else ""))
@@ -931,7 +957,8 @@ table([[SHORT.get(k, k), raw(f"{r['spike_prob']:.3f}"), raw(f"{r['spike_ci_low']
 lab = {"peak_egg_price": "Peak egg price", "peak_chicken_price": "Peak chicken price",
        "hh_egg_loss": "Household egg loss", "mean_cost_per_portion": "Cost per portion"}
 w = wx[wx["outcome"].isin(lab)]
-table([[lab[r["outcome"]], SHORT.get(r["policy"], r["policy"]), raw(f"{r['median_diff']:.4g}"),
+table([[lab[r["outcome"]], SHORT.get(r["policy"], r["policy"]),
+        raw(f"{r['median_diff']:,.1f}" if r["outcome"] == "mean_cost_per_portion" else f"{round(r['median_diff'], 4) + 0.0:.4f}"),
         raw(f"{r['rank_biserial']:.3f}"), raw(pval(r["p_holm"]))] for _, r in w.iterrows()],
       ["Outcome", "Policy", "Median diff.", "Rank-biserial r", "Holm p"],
       "Paired comparison with P0 (Wilcoxon signed-rank)", r">{\raggedright\arraybackslash}Xcrrr",
@@ -939,6 +966,28 @@ table([[lab[r["outcome"]], SHORT.get(r["policy"], r["policy"]), raw(f"{r['median
 table([[SHORT.get(k, k), int(r.iloc[0]), int(r.iloc[1]), raw(pval(r.iloc[2]))] for k, r in mc.iterrows()],
       ["Policy", "Spikes removed", "Spikes added", "{m:p} (exact)"],
       "Change in spike occurrence relative to P0 (McNemar)", r"lrrr", size=r"\scriptsize", label="tab:mcn")
+sdef = read("policy_spike_definitions.csv", index_col=0)
+_order = lambda col: list(sdef[col].sort_values().index)
+_main = "peak > 10%"
+_stable = [c for c in sdef.columns if _order(c)[:2] == _order(_main)[:2]]
+_sev = "peak > 20%"
+par("Table {ref:tab:sdef} repeats the comparison under other spike definitions: lower and higher thresholds, and "
+    "a sustained definition requiring the rise to stay above 10 points for several weeks. "
+    + (f"{SHORT[_order(_main)[0]]} and {SHORT[_order(_main)[1]]} are the two best policies under "
+       + ("every definition" if len(_stable) == len(sdef.columns) else f"{len(_stable)} of the {len(sdef.columns)} definitions")
+       + f", and most baseline spikes are sustained: {pct(sdef.loc['P0 Baseline', '> 10% for >= 4 weeks'])} of scenarios "
+       f"stay above 10 points for at least four weeks. ")
+    + (f"For severe spikes (above 20 points) the ranking of single policies changes: {LABEL['P4 Menu flexibility'].lower()} "
+       f"lowers the probability to {pct(sdef.loc['P4 Menu flexibility', _sev])}, against "
+       f"{pct(sdef.loc['P3 Forward contracts', _sev])} for {LABEL['P3 Forward contracts'].lower()}, because substitution "
+       "caps how far kitchens keep buying when prices are high."
+       if sdef.loc["P4 Menu flexibility", _sev] < sdef.loc["P3 Forward contracts", _sev] else ""))
+table([[SHORT.get(k, k)] + [raw(f"{v:.3f}") for v in r.values] for k, r in sdef.iterrows()],
+      ["Policy"] + [c.replace("peak > ", "Peak >") if c.startswith("peak") else
+                  c.replace("> 10% for >= ", "{m:\\geq}").replace(" weeks", " wk") for c in sdef.columns],
+      "Spike probability under alternative spike definitions (peak programme-attributable rise above a threshold, "
+      "or above 10 points for at least 4 or 13 weeks)",
+      r"l" + r">{\centering\arraybackslash}X" * len(sdef.columns), size=r"\scriptsize", label="tab:sdef")
 figure("fig_policy_comparison.png", "Policy comparison across scenarios", wide=True, label="fig:pol")
 figure("fig_policy_tradeoff.png", "Protein cost per portion versus spike probability", label="fig:trade")
 

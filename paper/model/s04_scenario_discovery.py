@@ -109,24 +109,28 @@ print(f"\nD. PRIM (density target {dens_thr:.3f}) box #{i}: coverage={traj.loc[i
 mid = {k: (lo + hi) / 2 for k, (lo, hi) in UNCERTAINTIES.items()}
 
 
-def peak(scn):
-    prm = POLICIES["P0 Baseline"](scn)
-    o = compute_outcomes(run(prm), run(counterfactual_params(prm), columns=CF_COLS))
-    return o["peak_egg_price"]
+def peaks(scns):
+    """Spike-defining outcome (larger of the egg and chicken peak attributable rise) for a list of scenarios."""
+    import vector_sim as vs
+    prms = [POLICIES["P0 Baseline"](s) for s in scns]
+    dfs = vs.frames(vs.run_batch(prms))
+    cfs = vs.frames(vs.run_batch([counterfactual_params(q) for q in prms], columns=CF_COLS))
+    out = [compute_outcomes(d, c) for d, c in zip(dfs, cfs)]
+    return [max(o["peak_egg_price"], o["peak_chicken_price"]) for o in out]
 
 
-ref = peak(mid)
-oat = []
-for k, (lo, hi) in UNCERTAINTIES.items():
-    a, b = peak({**mid, k: lo}), peak({**mid, k: hi})
-    oat.append({"parameter": k, "low": a - ref, "high": b - ref, "swing": abs(b - a)})
+# Same outcome as the spike classification (max of egg and chicken), so that OAT and SHAP rankings are comparable.
+names = list(UNCERTAINTIES)
+vals = peaks([mid] + [{**mid, k: UNCERTAINTIES[k][0]} for k in names] + [{**mid, k: UNCERTAINTIES[k][1]} for k in names])
+ref, lows, highs = vals[0], vals[1:1 + len(names)], vals[1 + len(names):]
+oat = [{"parameter": k, "low": a - ref, "high": b - ref, "swing": abs(b - a)} for k, a, b in zip(names, lows, highs)]
 oat = pd.DataFrame(oat).set_index("parameter").sort_values("swing")
 save_table(oat, "sd_oat_sensitivity.csv")
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.barh(oat.index, oat["low"], color="tab:blue", label="Low end of range")
 ax.barh(oat.index, oat["high"], color="tab:orange", label="High end of range")
 ax.axvline(0, color="k", lw=0.8); ax.legend()
-ax.set_xlabel("Change in peak programme-attributable egg price rise vs mid-point")
+ax.set_xlabel("Change in peak programme-attributable price rise (larger of egg and chicken) vs mid-point")
 ax.set_title("One-at-a-time sensitivity (tornado)")
 stamp(fig); fig.tight_layout(); fig.savefig(OUT_DIR / "fig_oat_tornado.png", dpi=150); plt.close(fig)
 rho = spearmanr(oat["swing"].reindex(imp.index), imp.values).statistic

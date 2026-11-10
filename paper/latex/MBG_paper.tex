@@ -42,7 +42,7 @@
 {\bfseries Abstract\par}
 \vspace{0.5em}
 \begin{minipage}{0.86\textwidth}\small
-Indonesia's Free Nutritious Meals programme (Makan Bergizi Gratis, MBG) has created a large, fast-growing and price-inelastic public demand for eggs and broiler meat, and whether it drives food price increases is disputed between government agencies. This paper develops a system dynamics model of the egg and broiler supply chains under MBG that represents kitchen roll-out and suspensions, menu and school-holiday rules, biological production delays, farmer investment and price formation. The model is calibrated to national retail prices and programme statistics and validated with structural and behavioural tests. It is run as an exploratory ensemble of 5,000 scenarios, each simulated with and without the programme so that programme-attributable price effects are separated from seasonal and external shocks, and machine-learning scenario discovery (classifiers, SHAP and PRIM) is used to identify the conditions that produce price spikes. Under current policy, the programme raises egg or chicken prices by more than 10 percentage points in 86.0\% of scenarios. Spike risk is driven mainly by chicken quantity per beneficiary and egg servings per week after June 2026, and a one-at-a-time sensitivity analysis ranks the drivers differently (Spearman $\rho$ = 0.52), missing interactions that scenario discovery reveals. Forward contracting (P3) is the most effective single policy, lowering spike probability to 65.7\%, and combining cooperative sourcing, forward contracts and menu flexibility lowers it to 38.5\% while reducing protein cost per portion. Indicators observable early in the roll-out anticipate spikes only moderately (ROC AUC 0.80, with accuracy no better than always predicting a spike), which favours designing procurement in advance over reacting to prices.
+Indonesia's Free Nutritious Meals programme (Makan Bergizi Gratis, MBG) has created a large, fast-growing and price-inelastic public demand for eggs and broiler meat, and whether it drives food price increases is disputed between government agencies. This paper develops a system dynamics model of the egg and broiler supply chains under MBG that represents kitchen roll-out and suspensions, menu and school-holiday rules, biological production delays, farmer investment and price formation. The model is calibrated to national retail prices and programme statistics and validated with structural and behavioural tests. It is run as an exploratory ensemble of 5,000 scenarios, each simulated with and without the programme so that programme-attributable price effects are separated from seasonal and external shocks, and machine-learning scenario discovery (classifiers, SHAP and PRIM) is used to identify the conditions that produce price spikes. Under current policy, the programme raises egg or chicken prices by more than 10 percentage points in 86.0\% of scenarios. Spike risk is driven mainly by chicken quantity per beneficiary and egg servings per week after June 2026; a one-at-a-time sensitivity analysis identifies the same main driver, and scenario discovery adds the probability of a spike and the threshold beyond which spikes become likely. Forward contracting (P3) is the most effective single policy, lowering spike probability to 65.7\%, and combining cooperative sourcing, forward contracts and menu flexibility lowers it to 38.5\% while reducing protein cost per portion. Indicators observable early in the roll-out anticipate spikes only moderately (ROC AUC 0.80, with accuracy no better than always predicting a spike), which favours designing procurement in advance over reacting to prices.
 
 \smallskip\noindent\textbf{Keywords:} system dynamics; scenario discovery; machine learning; food supply chain; demand shock; school meals programme; public procurement; Indonesia
 \end{minipage}
@@ -410,7 +410,7 @@ The investment sensitivities of layer and broiler farmers were estimated jointly
 
 \subsection{Validation and Calibration}\label{sec:val}
 
-6 of the 6 extreme-condition tests passed (Table \ref{tab:val}). The integration-error test gave a maximum difference of 0.6328\% of each variable's range between time steps of 0.03125 and 0.015625 week (within the 1\% criterion), and 99.7\% of ensemble runs received the same spike classification at both time steps. The parameter-recovery test recovered all parameters within 1.7\% of their true values. The calibrated layer investment sensitivity is 2.80; the broiler investment sensitivity is 0.000, at the lower bound of zero.
+All six extreme-condition tests passed (Table \ref{tab:val}). The integration-error test gave a maximum difference of 0.63\% of each variable's range between time steps of 0.03125 and 0.015625 week (within the 1\% criterion), and 99.7\% of ensemble runs received the same spike classification at both time steps. The parameter-recovery test recovered all parameters within 1.7\% of their true values. The calibrated layer investment sensitivity is 2.80; the broiler investment sensitivity is 0.000, at the lower bound of zero.
 
 
 On the seasonally adjusted series the model reproduces egg prices with a MAPE of 3.1\% and an $R^2$ of 0.45, and chicken prices with a MAPE of 4.1\% and an $R^2$ of 0.57 (Table \ref{tab:beh}, Figure \ref{fig:beh}). The bias proportion of the error ($U_M$) is 0.026 for eggs and 0.000 for chicken, and most of the error is unsystematic ($U_C$ = 0.67 and 0.61).
@@ -494,10 +494,10 @@ Figure \ref{fig:base} compares the calibrated baseline with the same run without
 
 \subsection{Conditions Leading to Programme-Attributable Spikes}\label{sec:spikes}
 
-Under the baseline policy, 86.0\% of scenarios produce a spike (95\% CI 85.0\%--86.9\%). The spike outcome is predictable from the uncertain inputs: gradient boosting reaches a cross-validated ROC AUC of 0.967, against 0.959 for logistic regression and 0.870 for a depth-3 tree (Table \ref{tab:clf}).
+Under the baseline policy, 86.0\% of scenarios produce a spike (95\% CI 85.0\%--86.9\%). The spike outcome is predictable from the uncertain inputs: gradient boosting reaches a cross-validated ROC AUC of 0.967, against 0.959 for logistic regression and 0.870 for a depth-3 tree (Table \ref{tab:clf}). The small gap between logistic regression and the tree ensembles shows that interactions between inputs add little: spike risk is largely additive in the uncertain parameters.
 
 
-SHAP values (Figure \ref{fig:shap}) rank chicken quantity per beneficiary, egg servings per week after June 2026 and size of a disease outbreak as the main drivers. The PRIM box (Table \ref{tab:prim}) covers 80\% of all spikes with a spike density of 94\% (target 93\%), against 86\% in the whole ensemble, and restricts chicken quantity per beneficiary (to 0.128--0.26). The one-at-a-time analysis (Figure \ref{fig:oat}) ranks size of a disease outbreak, size of the feed-price shock, egg servings per week after June 2026 highest; its ranking correlates moderately with the SHAP ranking (Spearman $\rho$ = 0.52), because one-at-a-time variation around the base case cannot reveal effects that appear only in combination.
+SHAP values (Figure \ref{fig:shap}) rank chicken quantity per beneficiary, egg servings per week after June 2026 and size of a disease outbreak as the main drivers. The PRIM box (Table \ref{tab:prim}) covers 80\% of all spikes with a spike density of 94\% (target 93\%), against 86\% in the whole ensemble, and restricts chicken quantity per beneficiary (to 0.128--0.26). The one-at-a-time analysis (Figure \ref{fig:oat}) ranks chicken quantity per beneficiary, size of a disease outbreak, household chicken price elasticity highest; its ranking correlates moderately with the SHAP ranking (Spearman $\rho$ = 0.66). Both identify chicken quantity per beneficiary as the main driver. The rankings differ for second-tier drivers: egg servings per week after June 2026 ranks second by SHAP but sixth one at a time, because one-at-a-time variation measures each effect only with the other inputs at their mid-points, whereas SHAP averages over the whole ensemble.
 
 
 \begin{table}[!htb]
@@ -618,7 +618,7 @@ Random forest & 0.861 & 0.924 & 0.796 \\
 
 \subsection{Policy Comparison}\label{sec:policy}
 
-Table \ref{tab:pol} and Figure \ref{fig:pol} compare the policies. Against 86.0\% under P0, the spike probability is P1 (phasing the roll-out) 85.1\%, removing 161 spikes and adding 120; P2 (cooperative sourcing) 86.0\%, removing 0 spikes and adding 0; P3 (forward contracting) 65.7\%, removing 1,137 spikes and adding 122; P4 (menu flexibility) 78.3\%, removing 383 spikes and adding 0; P5 (the combined policy) 38.5\%, removing 2,381 spikes and adding 9 (Table \ref{tab:mcn}). Median protein cost per portion is Rp 2,404 under P0, Rp 2,202 under P2 and Rp 1,973 under P5. Programme coverage in the final year is the same under all policies. Differences from P0 that are not significant after Holm correction: P2 on peak egg price; P2 on peak chicken price; P2 on household egg loss. The Friedman test rejects equal outcomes across policies for every indicator tested (p \textless{} 0.001).
+Table \ref{tab:pol} and Figure \ref{fig:pol} compare the policies. Against 86.0\% under P0, the spike probability is P1 (phasing the roll-out) 85.1\%, removing 161 spikes and adding 120; P2 (cooperative sourcing) 86.0\%, removing 0 spikes and adding 0; P3 (forward contracting) 65.7\%, removing 1,137 spikes and adding 122; P4 (menu flexibility) 78.3\%, removing 383 spikes and adding 0; P5 (the combined policy) 38.5\%, removing 2,381 spikes and adding 9 (Table \ref{tab:mcn}). Median protein cost per portion is Rp 2,404 under P0, Rp 2,202 under P2 and Rp 1,973 under P5. Programme coverage in the final year is the same under all policies. After Holm correction, P2 does not differ significantly from P0 on peak egg price, peak chicken price or household egg loss. The Friedman test rejects equal outcomes across policies for every indicator tested (p \textless{} 0.001).
 
 
 \begin{table*}[!t]
@@ -647,25 +647,25 @@ P5 & 0.385 & 0.372--0.399 & 0.086 & 0.136 & -0.002 & 0.0130 & 1,973 & 0.93 \\
 \toprule
 \textbf{Outcome} & \textbf{Policy} & \textbf{Median diff.} & \textbf{Rank-biserial r} & \textbf{Holm p} \\
 \midrule
-Peak egg price & P1 & 0.007323 & 0.508 & $<$0.001 \\
-Peak egg price & P2 & 0 & 0.000 & 1.000 \\
-Peak egg price & P3 & 0.00443 & 0.160 & $<$0.001 \\
-Peak egg price & P4 & -0.01959 & -0.989 & $<$0.001 \\
-Peak egg price & P5 & -0.02971 & -0.957 & $<$0.001 \\
-Peak chicken price & P1 & -0.005205 & -0.998 & $<$0.001 \\
-Peak chicken price & P2 & 0 & 0.000 & 1.000 \\
+Peak egg price & P1 & 0.0073 & 0.508 & $<$0.001 \\
+Peak egg price & P2 & 0.0000 & 0.000 & 1.000 \\
+Peak egg price & P3 & 0.0044 & 0.160 & $<$0.001 \\
+Peak egg price & P4 & -0.0196 & -0.989 & $<$0.001 \\
+Peak egg price & P5 & -0.0297 & -0.957 & $<$0.001 \\
+Peak chicken price & P1 & -0.0052 & -0.998 & $<$0.001 \\
+Peak chicken price & P2 & 0.0000 & 0.000 & 1.000 \\
 Peak chicken price & P3 & -0.0992 & -1.000 & $<$0.001 \\
-Peak chicken price & P4 & -3.766e-09 & -0.998 & $<$0.001 \\
-Peak chicken price & P5 & -0.09938 & -1.000 & $<$0.001 \\
-Household egg loss & P1 & 0.0002039 & 0.592 & $<$0.001 \\
-Household egg loss & P2 & 0 & 0.000 & 1.000 \\
-Household egg loss & P3 & -0.001082 & -0.413 & $<$0.001 \\
-Household egg loss & P4 & -0.002022 & -0.768 & $<$0.001 \\
-Household egg loss & P5 & -0.004498 & -0.909 & $<$0.001 \\
-Cost per portion & P1 & -1.618 & -0.316 & $<$0.001 \\
+Peak chicken price & P4 & 0.0000 & -0.998 & $<$0.001 \\
+Peak chicken price & P5 & -0.0994 & -1.000 & $<$0.001 \\
+Household egg loss & P1 & 0.0002 & 0.592 & $<$0.001 \\
+Household egg loss & P2 & 0.0000 & 0.000 & 1.000 \\
+Household egg loss & P3 & -0.0011 & -0.413 & $<$0.001 \\
+Household egg loss & P4 & -0.0020 & -0.768 & $<$0.001 \\
+Household egg loss & P5 & -0.0045 & -0.909 & $<$0.001 \\
+Cost per portion & P1 & -1.6 & -0.316 & $<$0.001 \\
 Cost per portion & P2 & -195.7 & -1.000 & $<$0.001 \\
 Cost per portion & P3 & -120.6 & -1.000 & $<$0.001 \\
-Cost per portion & P4 & -83.24 & -1.000 & $<$0.001 \\
+Cost per portion & P4 & -83.2 & -1.000 & $<$0.001 \\
 Cost per portion & P5 & -408.9 & -1.000 & $<$0.001 \\
 \bottomrule
 \end{tabularx}
@@ -686,6 +686,27 @@ P4 & 383 & 0 & $<$0.001 \\
 P5 & 2,381 & 9 & $<$0.001 \\
 \bottomrule
 \end{tabular}
+\end{table}
+
+Table \ref{tab:sdef} repeats the comparison under other spike definitions: lower and higher thresholds, and a sustained definition requiring the rise to stay above 10 points for several weeks. P5 and P3 are the two best policies under 4 of the 6 definitions, and most baseline spikes are sustained: 80.5\% of scenarios stay above 10 points for at least four weeks. For severe spikes (above 20 points) the ranking of single policies changes: menu flexibility lowers the probability to 3.8\%, against 19.6\% for forward contracting, because substitution caps how far kitchens keep buying when prices are high.
+
+
+\begin{table}[!htb]
+\centering
+\scriptsize
+\caption{Spike probability under alternative spike definitions (peak programme-attributable rise above a threshold, or above 10 points for at least 4 or 13 weeks)}\label{tab:sdef}
+\begin{tabularx}{\linewidth}{l>{\centering\arraybackslash}X>{\centering\arraybackslash}X>{\centering\arraybackslash}X>{\centering\arraybackslash}X>{\centering\arraybackslash}X>{\centering\arraybackslash}X}
+\toprule
+\textbf{Policy} & \textbf{Peak \textgreater{}5\%} & \textbf{Peak \textgreater{}10\%} & \textbf{Peak \textgreater{}15\%} & \textbf{Peak \textgreater{}20\%} & \textbf{$\geq$4 wk} & \textbf{$\geq$13 wk} \\
+\midrule
+P0 & 0.999 & 0.860 & 0.518 & 0.232 & 0.805 & 0.687 \\
+P1 & 0.997 & 0.851 & 0.513 & 0.255 & 0.799 & 0.674 \\
+P2 & 0.999 & 0.860 & 0.518 & 0.232 & 0.805 & 0.687 \\
+P3 & 0.967 & 0.657 & 0.364 & 0.196 & 0.605 & 0.469 \\
+P4 & 0.998 & 0.783 & 0.333 & 0.038 & 0.711 & 0.575 \\
+P5 & 0.945 & 0.385 & 0.078 & 0.009 & 0.334 & 0.232 \\
+\bottomrule
+\end{tabularx}
 \end{table}
 
 \begin{figure*}[!t]
@@ -740,7 +761,7 @@ Fourth, the programme should plan for school holidays. Keeping meals for mothers
 
 \subsection{Methodological Contribution}
 
-The analysis shows what the combination of system dynamics and scenario discovery adds to a single simulation or a one-at-a-time sensitivity analysis. The counterfactual design separates the programme's effect from feed, disease and seasonal shocks that would raise prices anyway, which is the question the agencies disagree on. Scenario discovery and the one-at-a-time analysis rank drivers differently (Spearman $\rho$ = 0.52), so a conventional sensitivity analysis would have pointed to the wrong levers. PRIM turns the ensemble into conditions that decision makers can act on, such as the chicken quantity per beneficiary beyond which spikes become likely, and SHAP values show the direction and size of each driver's effect.
+The analysis shows what the combination of system dynamics and scenario discovery adds to a single simulation or a one-at-a-time sensitivity analysis. The counterfactual design separates the programme's effect from feed, disease and seasonal shocks that would raise prices anyway, which is the question the agencies disagree on. A one-at-a-time analysis finds the same main driver, but it describes behaviour around a single base case; only the ensemble gives the probability of a spike across the uncertainty space and shows how policies change it. PRIM turns the ensemble into conditions that decision makers can act on, such as the chicken quantity per beneficiary beyond which spikes become likely, and SHAP values show the direction and size of each driver's effect.
 
 
 \section{Limitations and Future Work}\label{sec:limits}
@@ -756,10 +777,10 @@ Future work could add regional subscripts and inter-island trade, collect procur
 
 \section{Conclusion}\label{sec:conclusion}
 
-This paper developed a system dynamics model of Indonesia's egg and broiler supply chains under the Free Nutritious Meals programme and analysed it with machine-learning scenario discovery over 5,000 scenarios. On RQ1, the programme's price-inelastic demand meets a biologically delayed supply response, so prices rise until households cut consumption and new flocks arrive; in the calibrated baseline the programme-attributable rise peaks at 11.2 percentage points for eggs and 12.8 for chicken, and school holidays add recurring demand swings. On RQ2, a spike of more than 10 points occurs in 86.0\% of scenarios under current policy and depends mainly on chicken quantity per beneficiary, egg servings per week after June 2026 and size of a disease outbreak, in combinations that a one-at-a-time analysis does not reveal. On RQ3, forward contracting is the most effective single policy (65.7\%), and combining cooperative sourcing, forward contracts and menu flexibility reduces spike probability to 38.5\% at a lower cost per portion, without reducing programme coverage.
+This paper developed a system dynamics model of Indonesia's egg and broiler supply chains under the Free Nutritious Meals programme and analysed it with machine-learning scenario discovery over 5,000 scenarios. On RQ1, the programme's price-inelastic demand meets a biologically delayed supply response, so prices rise until households cut consumption and new flocks arrive; in the calibrated baseline the programme-attributable rise peaks at 11.2 percentage points for eggs and 12.8 for chicken, and school holidays add recurring demand swings. On RQ2, a spike of more than 10 points occurs in 86.0\% of scenarios under current policy and depends mainly on chicken quantity per beneficiary, egg servings per week after June 2026 and size of a disease outbreak; spikes occur in 94\% of scenarios with chicken quantity per beneficiary above 0.128 kg per week. On RQ3, forward contracting is the most effective single policy (65.7\%), and combining cooperative sourcing, forward contracts and menu flexibility reduces spike probability to 38.5\% at a lower cost per portion, without reducing programme coverage.
 
 
-The contributions are a calibrated dynamic model of programme-driven demand shocks, a counterfactual design that separates programme effects from seasonal and external shocks, and a demonstration that scenario discovery identifies policy-relevant conditions that conventional sensitivity analysis misses. The results suggest that large public food programmes should plan procurement, menus and holiday supply in advance, because by the time price signals appear the supply response is months away. Extending the model to regional markets and other commodities is the natural next step.
+The contributions are a calibrated dynamic model of programme-driven demand shocks, a counterfactual design that separates programme effects from seasonal and external shocks, and an ensemble analysis that turns thousands of simulations into spike probabilities, thresholds and paired policy comparisons that a single run or a one-at-a-time analysis cannot provide. The results suggest that large public food programmes should plan procurement, menus and holiday supply in advance, because by the time price signals appear the supply response is months away. Extending the model to regional markets and other commodities is the natural next step.
 
 
 \clearpage

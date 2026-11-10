@@ -1,23 +1,17 @@
 # Data
 
-**Prices are already in:** `python fetch_wfp_prices.py` downloads WFP retail prices for Indonesia (HDX, CC BY-IGO), keeps an extract in `raw/` with `SOURCE.txt`, and writes `wfp_national_monthly.csv` and `historical_prices.csv` (calibration series). Panel Harga Pangan exports can still be added with `prepare_price_data.py` as a cross-check.
+How each input was verified, what changed and what to check yourself: `VERIFICATION.md`.
 
-## Still to collect
-
-| Data | Where | Used for |
+| File | Content | Source |
 |---|---|---|
-| Weekly/daily national egg and broiler-meat prices, 2024–present | Badan Pangan Nasional – Panel Harga Pangan (panelharga.badanpangan.go.id) | `raw_prices_TEMPLATE.csv` → `prepare_price_data.py` → calibration and fit statistics; `Baseline egg price`, `Baseline chicken price` |
-| Egg and broiler-meat production (t/year) | BPS – Produksi Telur Ayam Ras / Produksi Daging Ayam Ras; Ditjen PKH *Statistik Peternakan dan Kesehatan Hewan* | `Initial egg production`, `Initial chicken production` |
-| Layer population, lay rate, productive life, rearing time | Ditjen PKH statistics; poultry science literature | Egg-sector parameters |
-| Household consumption per capita | BPS – SUSENAS (Konsumsi Kalori dan Protein) | Check reference household demand |
-| Price elasticities | QUAIDS studies on SUSENAS (see `../../literature_reading_list.md`) | Elasticity ranges |
-| SPPG counts over time, beneficiaries, target | BGN official releases | `Target kitchens`, `Beneficiaries per kitchen`, roll-out duration; also a behaviour-reproduction check for the programme sector |
-| Menu composition (egg/chicken per portion, portions per week) | BGN menu guidelines; SPPG interviews | `Egg per beneficiary`, `Chicken per beneficiary` |
-| Feed (corn) prices | BPS; Panel Harga; Kementan | Feed shock ranges |
-| SPPG suspensions | BGN statements | `Base suspension fraction` range |
-| DOC supply / hatchery capacity | GPPU (breeders' association), Kementan | `DOC capacity factor`, `Hatchery capacity factor` |
+| `raw/wfp_idn_eggs_chicken_extract.csv`, `raw/SOURCE.txt` | Raw WFP retail prices (eggs, chicken), unchanged | WFP via HDX, CC BY-IGO |
+| `wfp_national_monthly.csv`, `wfp_national_monthly_long.csv` | National monthly price index (median of market relatives), 2023–2026 and 2007–2026 | built by `../fetch_wfp_prices.py` |
+| `historical_prices.csv` | Calibration series (January 2024 – October 2026) | as above |
+| `outliers_removed.csv` | Outliers removed before seasonal estimation | `../seasonal_adjustment.py` |
+| `seasonal_factors.csv` | Monthly and Idul Fitri seasonal factors | `../seasonal_adjustment.py` |
+| `mbg_rollout_observed.csv` | Operational SPPG counts with the URL of each source | BGN releases and press reports of BGN statements |
+| `rollout_fit.csv` | Fitted versus observed SPPG counts | `../fit_rollout.py` |
+| `calibrated_parameters.csv` | Estimated investment sensitivities, used by every run | `../s02_validation.py` |
+| `parameter_sheet.csv` | Every model constant with value, units and source | `../parameter_sheet.py` |
 
-Record the access date for every source. Keep raw downloads unchanged in a `raw/` folder.
-
-`parameter_sheet.csv` lists every constant in the model. Fill in `your_value`, `source`,
-`justification`. It becomes the parameter appendix of your paper.
+Record an access date for every source you add, and keep raw downloads unchanged in `raw/`.

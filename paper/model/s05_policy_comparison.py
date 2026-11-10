@@ -6,6 +6,7 @@
   with matched-pairs rank-biserial correlation as effect size.
 - McNemar exact test for the paired binary spike outcome vs P0.
 - Friedman test across all policies.
+- Spike probability under alternative spike definitions (robustness).
 """
 import numpy as np
 import pandas as pd
@@ -39,6 +40,16 @@ for p in pols:
     summ.append(row)
 summ = pd.DataFrame(summ).set_index("policy")
 save_table(summ, "policy_summary.csv")
+
+# ---------------------------------------------------------------- robustness to the spike definition
+# Peak threshold varied; and a sustained definition (above the main threshold for at least w weeks).
+peak = res[["peak_egg_price", "peak_chicken_price"]].max(axis=1)
+weeks = res[["weeks_egg_above_thr", "weeks_chicken_above_thr"]].max(axis=1)
+defs = {f"peak > {t:.0%}": peak > t for t in (0.05, 0.10, 0.15, 0.20)}
+defs.update({f"> 10% for >= {w} weeks": weeks >= w for w in (4, 13)})
+sdef = pd.DataFrame({k: v.groupby(res["policy"]).mean() for k, v in defs.items()}).reindex(pols)
+save_table(sdef, "policy_spike_definitions.csv")
+print("Spike probability under alternative definitions:\n", sdef.round(3).to_string())
 print(summ[["spike_prob", "spike_ci_low", "spike_ci_high", "peak_egg_price_median", "peak_egg_price_p90",
             "peak_chicken_price_median", "mean_cost_per_portion_median", "mean_coverage_last52_median"]]
       .round(3).to_string())

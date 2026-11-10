@@ -306,6 +306,7 @@ ew = read("ew_classifier_benchmark.csv", index_col=0)
 ew_rules = (OUT / "ew_rules.txt").read_text()
 cart_rules = (OUT / "sd_cart_rules.txt").read_text()
 tsr = read("time_step_robustness_summary.csv", index_col=0)["value"]
+VEQ = read("vector_equivalence.csv", index_col=0)["value"]
 
 # baseline with and without the programme (same calibrated model as the ensemble)
 _base = run()
@@ -671,14 +672,17 @@ sub("Validation")
 par("Following Barlas {cite:barlas1996} and Sterman {cite:sterman2000}, the model was subjected to dimensional "
     "consistency checks; six extreme-condition tests (no programme, ten-fold programme demand, loss of all laying "
     "hens, no hatchery expansion, doubled feed price and near-instant roll-out); an integration-error test comparing "
-    "the baseline run at two time steps; an ensemble robustness test repeating a random subset of ensemble "
-    "scenarios at both time steps; a parameter-recovery test applying the calibration procedure to synthetic data "
+    "the baseline run at two time steps; an ensemble robustness test repeating all ensemble scenarios for four "
+    "policies at both time steps; a parameter-recovery test applying the calibration procedure to synthetic data "
     "with known parameters; and behaviour reproduction against historical prices, assessed with MAPE, {m:R^2} and "
     "Theil inequality statistics {cite:sterman1984}.")
 sub("Exploratory Ensemble and Outcome Indicators")
 par(f"{N_SCEN:,} scenarios were drawn by Latin Hypercube sampling {{cite:mckay1979}} over {len(UNCERTAINTIES)} "
     "uncertain parameters (Table {ref:tab:unc}). Each policy was run on the same scenarios (common random numbers), "
-    "giving a paired design, and each scenario was also run without the programme. Price effects were measured as "
+    "giving a paired design, and each scenario was also run without the programme. To make the ensemble feasible at "
+    "the small time step, blocks of scenarios were integrated together as arrays with the same Euler update as PySD; "
+    f"before use, these runs were checked against ordinary PySD runs ({int(VEQ['runs_compared'])} runs, maximum "
+    f"relative difference {VEQ['max_relative_difference']:.0e}). Price effects were measured as "
     "the difference between the two runs, so that movements caused by exogenous shocks are not attributed to the "
     "programme. Outcome indicators were the peak programme-attributable egg and chicken price rise, weeks above "
     "the threshold, mean household consumption loss, farmers' margin volatility, protein cost per portion and "

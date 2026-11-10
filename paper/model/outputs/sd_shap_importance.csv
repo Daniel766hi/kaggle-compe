@@ -1,0 +1,24 @@
+,mean_abs_shap
+Chicken per beneficiary,0.10938110641925691
+Egg servings after menu change,0.04400482825480904
+Outbreak loss fraction,0.029977740967244586
+Household egg elasticity,0.028593768739076205
+Feed shock magnitude,0.027997219246213137
+Target kitchens,0.023030992941239906
+Future beneficiaries per kitchen,0.020585421304468787
+Household chicken elasticity,0.014926089231822818
+Egg serving size,0.009481453089407562
+Investment sensitivity,0.008060460395130812
+Price sensitivity to coverage,0.0068292581343865665
+Base suspension fraction,0.0035659557985723168
+Supply line weight,0.0035136198546397443
+Hatchery capacity factor,0.0034503520427116717
+Strain sensitivity,0.0034129688400162095
+Rollout steepness,0.0031887501656638188
+Maximum relative price,0.003105153591481111
+Rollout midpoint,0.0025980586556206145
+DOC capacity factor,0.0024833539121519614
+Sustainable opening capacity,0.0020631755857960063
+Intermediary margin,0.0020620082711642427
+Kitchen opening delay,0.0020496260527475764
+Price expectation delay,0.0019171094467101814

@@ -6,3 +6,4 @@ A4 No hatchery expansion possible -> higher prices than baseline,mean price (wee
 A5 Feed price doubles -> egg price rises during shock,price at week 140 above baseline run,1.090 vs 1.007,True
 A6 Near-instant roll-out (steepness 0.5 wk) -> more suspensions than baseline (scaling strain),peak suspended kitchens above baseline run,"5,410 vs 3,177",True
 B1 Integration error: TIME STEP 0.03125 vs 0.015625,max |difference| < 1% of each variable's range,0.6328%,True
+B2 Ensemble robustness: TIME STEP 0.03125 vs 0.015625 (5000 scenarios x 4 policies),same spike classification in >= 98% of runs,99.7% agree; median |peak diff| 0.0003,True

@@ -1,0 +1,10 @@
+|--- obs_chicken_coverage <= 0.99
+|   |--- obs_egg_coverage <= 1.00
+|   |   |--- weights: [62.00, 383.00] class: 1
+|   |--- obs_egg_coverage >  1.00
+|   |   |--- weights: [40.00, 950.00] class: 1
+|--- obs_chicken_coverage >  0.99
+|   |--- obs_egg_coverage <= 1.00
+|   |   |--- weights: [202.00, 532.00] class: 1
+|   |--- obs_egg_coverage >  1.00
+|   |   |--- weights: [398.00, 2433.00] class: 1

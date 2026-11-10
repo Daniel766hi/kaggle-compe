@@ -1,0 +1,10 @@
+,value
+time_step,0.03125
+half_step,0.015625
+scenarios,5000.0
+policies,4.0
+spike_agreement,0.997
+peak_egg_price_median_abs_diff,0.00025684904451450663
+peak_egg_price_p95_abs_diff,0.0011318602986472243
+peak_chicken_price_median_abs_diff,0.0005337847553525954
+peak_chicken_price_p95_abs_diff,0.0016110444474505701

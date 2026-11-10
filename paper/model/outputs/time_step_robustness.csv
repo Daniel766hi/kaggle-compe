@@ -1,0 +1,5 @@
+policy,spike_prob_dt_0.015625,spike_prob_dt_0.03125
+P0 Baseline,0.857,0.8596
+P1 Phased roll-out,0.847,0.8514
+P3 Forward contracts,0.6546,0.6566
+P5 Combined (P2+P3+P4),0.3822,0.3852

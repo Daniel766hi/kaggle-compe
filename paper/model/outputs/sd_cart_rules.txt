@@ -1,0 +1,22 @@
+|--- Chicken per beneficiary <= 0.14
+|   |--- Egg servings after menu change <= 2.73
+|   |   |--- Outbreak loss fraction <= 0.16
+|   |   |   |--- weights: [233.00, 106.00] class: 0
+|   |   |--- Outbreak loss fraction >  0.16
+|   |   |   |--- weights: [112.00, 194.00] class: 1
+|   |--- Egg servings after menu change >  2.73
+|   |   |--- Feed shock magnitude <= 0.30
+|   |   |   |--- weights: [215.00, 484.00] class: 1
+|   |   |--- Feed shock magnitude >  0.30
+|   |   |   |--- weights: [30.00, 420.00] class: 1
+|--- Chicken per beneficiary >  0.14
+|   |--- Chicken per beneficiary <= 0.18
+|   |   |--- Household chicken elasticity <= -1.59
+|   |   |   |--- weights: [71.00, 241.00] class: 1
+|   |   |--- Household chicken elasticity >  -1.59
+|   |   |   |--- weights: [29.00, 591.00] class: 1
+|   |--- Chicken per beneficiary >  0.18
+|   |   |--- Target kitchens <= 24028.67
+|   |   |   |--- weights: [2.00, 8.00] class: 1
+|   |   |--- Target kitchens >  24028.67
+|   |   |   |--- weights: [10.00, 2254.00] class: 1

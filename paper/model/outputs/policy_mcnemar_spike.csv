@@ -1,0 +1,6 @@
+policy,"spike_removed (P0=1,P=0)","spike_added (P0=0,P=1)",p_exact
+P1 Phased roll-out,161,120,0.016869296340143808
+P2 Cooperative sourcing,0,0,1.0
+P3 Forward contracts,1137,122,8.508773142594321e-207
+P4 Menu flexibility,383,0,1.0151767349262597e-115
+P5 Combined (P2+P3+P4),2381,9,0.0

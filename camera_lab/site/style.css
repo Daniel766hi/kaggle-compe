@@ -52,16 +52,22 @@ header.hero { display: flex; flex-direction: column; gap: 8px; padding-top: 10px
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.stop { background: var(--mark); border-color: var(--mark); color: #fff; }
-.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:focus-visible, .tool:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .thumbs { display: flex; gap: 6px; margin-left: auto; }
 .thumbs button { width: 46px; height: 46px; padding: 0; border: 2px solid transparent; border-radius: 6px; overflow: hidden; cursor: pointer; background: none; }
 .thumbs button[aria-pressed="true"] { border-color: var(--accent); }
 .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
 input[type="file"] { display: none; }
 
-.tabs { display: flex; flex-wrap: wrap; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
-.tab { flex: 1 1 auto; font: 500 14px var(--body); border: 0; background: none; color: var(--muted); padding: 8px 10px; border-radius: 7px; cursor: pointer; }
-.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+/* Tool menu: every tool with a one-line description, grouped. */
+.tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+.tools .group { grid-column: 1 / -1; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 8px 8px 2px; }
+.tool { text-align: left; display: flex; flex-direction: column; gap: 2px; font: inherit; border: 1px solid transparent; background: none; color: var(--ink); padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+.tool strong { font-weight: 600; font-size: 14px; }
+.tool span { font-size: 12.5px; line-height: 1.35; color: var(--muted); }
+.tool:hover { border-color: var(--line); }
+.tool[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.tool[aria-selected="true"] span { color: inherit; opacity: 0.85; }
 
 .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -82,6 +88,17 @@ td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numer
 .status { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .status.error { color: var(--mark); }
 #histCanvas { width: 100%; height: 160px; display: block; }
+#motionSpark { width: 100%; height: 60px; display: block; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.btn.rec { background: var(--mark); border-color: var(--mark); color: #fff; }
+.log { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.log li { overflow-wrap: anywhere; }
+.qrbox { display: flex; flex-direction: column; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.qrtext { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
+.palette { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.palette button { width: 100%; display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; font: 14px var(--mono); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; color: var(--ink); cursor: pointer; text-align: left; }
+.palette button:hover { border-color: var(--accent); }
+.palette .chip { width: 32px; height: 24px; border-radius: 5px; border: 1px solid var(--line); }
 
 /* Ads: a quiet labelled frame so they never look like part of the tool. */
 .ad { display: flex; flex-direction: column; gap: 4px; min-height: 100px; }

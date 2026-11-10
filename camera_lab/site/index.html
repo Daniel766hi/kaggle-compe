@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Vision Lab: live object detection and image processing in your browser</title>
-<meta name="description" content="Point your camera at anything: a neural network finds people, animals and 80 kinds of objects, counts them crossing a line, and shows edges, colours and exposure. Free, runs on your device, no upload.">
+<title>Vision Lab: live object detection, QR scanner and image tools in your browser</title>
+<meta name="description" content="Point your camera at anything: a neural network finds and counts 80 kinds of objects, blurs people for privacy, and the lab maps motion, scans QR codes, extracts colour palettes and applies filters. Free, runs on your device, no upload.">
 <link rel="canonical" href="https://daniel766hi.github.io/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Vision Lab: live object detection in your browser">
-<meta property="og:description" content="Point your camera at anything and watch a neural network find and count objects, running on your own device.">
+<meta property="og:description" content="Detect, count, blur, scan and measure with your camera. Ten computer-vision tools running on your own device.">
 <meta property="og:url" content="https://daniel766hi.github.io/">
 <meta property="og:image" content="https://daniel766hi.github.io/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -34,7 +34,7 @@
 
   <header class="hero">
     <h1>See what a neural network <span>sees</span></h1>
-    <p class="lede">Turn on your camera or pick a photo. Vision Lab finds people, animals and 80 kinds of everyday objects, counts them crossing a line, and takes the image apart with classic image processing. Everything runs on your device; nothing is uploaded.</p>
+    <p class="lede">Turn on your camera or pick a photo, then choose a tool below. Detect and count objects, blur people, map motion, scan QR codes, pull out a colour palette or take the image apart with classic filters. Everything runs on your device; nothing is uploaded.</p>
   </header>
 
   <div class="ad wide" data-slot="top"></div>
@@ -45,12 +45,14 @@
         <button type="button" class="btn primary" id="camBtn">Start camera</button>
         <button type="button" class="btn" id="flipBtn" hidden>Switch camera</button>
         <button type="button" class="btn" id="freezeBtn" hidden>Freeze frame</button>
+        <button type="button" class="btn" id="recBtn" hidden>Record clip</button>
         <label class="btn" for="fileInput">Upload photo</label>
         <input type="file" id="fileInput" accept="image/*">
         <div class="thumbs" role="group" aria-label="Sample photos">
           <button type="button" data-sample="samples/astronaut.jpg" aria-pressed="true" title="Astronaut (NASA, public domain)"><img src="samples/astronaut.jpg" alt="Astronaut sample"></button>
           <button type="button" data-sample="samples/coffee.jpg" aria-pressed="false" title="Coffee (CC0)"><img src="samples/coffee.jpg" alt="Coffee sample"></button>
           <button type="button" data-sample="samples/chelsea.jpg" aria-pressed="false" title="Cat (CC0)"><img src="samples/chelsea.jpg" alt="Cat sample"></button>
+          <button type="button" data-sample="samples/qr.jpg" aria-pressed="false" title="QR code (links to this site)"><img src="samples/qr.jpg" alt="QR code sample"></button>
         </div>
       </div>
       <p class="status" id="camStatus" role="status"></p>
@@ -61,12 +63,22 @@
         <div class="live-dot" id="liveDot" hidden>LIVE</div>
       </div>
       <video id="video" playsinline muted hidden></video>
-      <div class="tabs" role="tablist" aria-label="Mode">
-        <button class="tab" role="tab" aria-selected="true" data-mode="detect">Detect &amp; count</button>
-        <button class="tab" role="tab" aria-selected="false" data-mode="edges">Edges</button>
-        <button class="tab" role="tab" aria-selected="false" data-mode="colour">Colour measure</button>
-        <button class="tab" role="tab" aria-selected="false" data-mode="cartoon">Cartoon</button>
-        <button class="tab" role="tab" aria-selected="false" data-mode="hist">Histogram</button>
+
+      <div class="tools" role="tablist" aria-label="Tools">
+        <span class="group">AI · neural network</span>
+        <button class="tool" role="tab" aria-selected="true" data-mode="detect"><strong>Detect &amp; count</strong><span>Find 80 kinds of objects and count them crossing a line</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="blur"><strong>Privacy blur</strong><span>Hide people automatically before you share a photo</span></button>
+        <span class="group">Camera &amp; codes</span>
+        <button class="tool" role="tab" aria-selected="false" data-mode="motion"><strong>Motion map</strong><span>See what moves and build a heat map of busy spots</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="qr"><strong>QR scanner</strong><span>Read QR codes from the camera or a photo</span></button>
+        <span class="group">Colour &amp; light</span>
+        <button class="tool" role="tab" aria-selected="false" data-mode="palette"><strong>Colour palette</strong><span>Pull out the main colours with k-means clustering</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="colour"><strong>Colour measure</strong><span>Tap a colour and measure its share of the picture</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="hist"><strong>Histogram</strong><span>Check exposure, clipping and contrast</span></button>
+        <span class="group">Effects</span>
+        <button class="tool" role="tab" aria-selected="false" data-mode="edges"><strong>Edges</strong><span>Sobel edge detection with an adjustable threshold</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="filters"><strong>Filters</strong><span>Grayscale, sepia, threshold, sharpen, blur, pixelate</span></button>
+        <button class="tool" role="tab" aria-selected="false" data-mode="cartoon"><strong>Cartoon</strong><span>Flat colours with inked outlines</span></button>
       </div>
     </section>
 
@@ -105,19 +117,61 @@
           <input type="range" id="linePos" min="10" max="90" value="50" step="5">
         </div>
         <div class="readout">
-          <div><span class="label" id="aLabel">Down</span><span class="big" id="countA">0</span></div>
-          <div><span class="label" id="bLabel">Up</span><span class="big" id="countB">0</span></div>
+          <div><span class="label" id="aLabel">Down ↓</span><span class="big" id="countA">0</span></div>
+          <div><span class="label" id="bLabel">Up ↑</span><span class="big" id="countB">0</span></div>
           <div><span class="label">Tracked now</span><span class="big" id="countT">0</span></div>
         </div>
-        <div class="sources"><button type="button" class="btn" id="resetBtn">Reset counts</button></div>
+        <div><span class="label">Count log</span><ul class="log" id="countLog"><li class="status">No crossings yet.</li></ul></div>
+        <div class="sources"><button type="button" class="btn" id="resetBtn">Reset counts</button><button type="button" class="btn" id="csvBtn" disabled>Download log (CSV)</button></div>
       </section>
 
-      <section class="panel" data-panel="edges" hidden>
-        <div><span class="label">Sobel operator</span><h2>Edges</h2></div>
-        <p>Brightness gradients in x and y, combined into edge strength. Edges stronger than the threshold are drawn.</p>
-        <div class="control"><label for="edgeThr">Threshold</label><output id="edgeThrOut">60</output>
-          <input type="range" id="edgeThr" min="10" max="200" value="60"></div>
-        <div class="readout"><div><span class="label">Edge pixels</span><span class="big" id="edgeShare">–</span></div></div>
+      <section class="panel" data-panel="blur" hidden>
+        <div><span class="label">Privacy · COCO-SSD</span><h2>Blur people automatically</h2></div>
+        <p>The detector finds people (or other objects you choose) and hides them, so you can share a photo of a place without the people in it. Check the result before you share: anyone the detector misses stays visible.</p>
+        <div class="control"><label for="blurWhat">Hide</label><span></span>
+          <select id="blurWhat"><option value="person">People</option><option value="vehicle">Vehicles (number plates)</option><option value="any">Every detected object</option></select></div>
+        <div class="control"><label for="blurStyle">Style</label><span></span>
+          <select id="blurStyle"><option value="pixel">Pixelate</option><option value="box">Solid box</option></select></div>
+        <div class="control"><label for="blurMin">Sensitivity (minimum confidence)</label><output id="blurMinOut">30%</output>
+          <input type="range" id="blurMin" min="10" max="90" value="30" step="5"></div>
+        <div class="control"><label for="blurBlock">Block size</label><output id="blurBlockOut">16</output>
+          <input type="range" id="blurBlock" min="6" max="40" value="16"></div>
+        <div class="readout"><div><span class="label">Hidden</span><span class="big" id="blurCount">–</span></div></div>
+        <p class="status" id="blurStatus"></p>
+      </section>
+
+      <section class="panel" data-panel="motion" hidden>
+        <div><span class="label">Frame differencing</span><h2>What is moving</h2></div>
+        <p>Each camera frame is compared with the one before. Pixels that changed more than the threshold are marked, and a heat map builds up where motion happens most, the way a shop or warehouse camera finds busy spots.</p>
+        <div class="control"><label for="motionThr">Change threshold (lower is more sensitive)</label><output id="motionThrOut">25</output>
+          <input type="range" id="motionThr" min="5" max="80" value="25"></div>
+        <div class="control"><label for="motionView">Show</label><span></span>
+          <select id="motionView"><option value="overlay">Moving pixels</option><option value="heat">Heat map</option></select></div>
+        <div class="readout">
+          <div><span class="label">Moving now</span><span class="big" id="motionNow">–</span></div>
+          <div><span class="label">Peak</span><span class="big" id="motionPeak">–</span></div>
+        </div>
+        <canvas id="motionSpark" width="600" height="60" aria-label="Motion over the last few seconds"></canvas>
+        <div class="sources"><button type="button" class="btn" id="motionReset">Reset heat map</button></div>
+        <p class="status" id="motionNote">Start the camera to see motion.</p>
+      </section>
+
+      <section class="panel" data-panel="qr" hidden>
+        <div><span class="label">QR codes · jsQR</span><h2>Scan a QR code</h2></div>
+        <p>Hold a QR code in front of the camera or open a photo of one. Decoding runs on your device. Links are shown, never opened for you: check where a link goes before you tap it.</p>
+        <div class="qrbox"><span class="label">Result</span><div id="qrResult" class="qrtext">Nothing found yet.</div>
+          <a id="qrLink" href="#" target="_blank" rel="noopener noreferrer nofollow" hidden>Open link</a></div>
+        <div><span class="label">Recent codes</span><ul class="log" id="qrHistory"><li class="status">None yet.</li></ul></div>
+        <p class="status" id="qrStatus"></p>
+      </section>
+
+      <section class="panel" data-panel="palette" hidden>
+        <div><span class="label">k-means clustering</span><h2>Main colours</h2></div>
+        <p>Pixels are grouped into k clusters by colour; each cluster's average is one palette colour, sized by its share of the picture. Tap a colour to copy its code.</p>
+        <div class="control"><label for="kColours">Number of colours</label><output id="kColoursOut">5</output>
+          <input type="range" id="kColours" min="2" max="10" value="5"></div>
+        <ul class="palette" id="paletteList"></ul>
+        <p class="status" id="paletteStatus"></p>
       </section>
 
       <section class="panel" data-panel="colour" hidden>
@@ -131,13 +185,6 @@
           <input type="range" id="tol" min="5" max="120" value="40"></div>
       </section>
 
-      <section class="panel" data-panel="cartoon" hidden>
-        <div><span class="label">Posterize + edges</span><h2>Cartoon</h2></div>
-        <p>Colours are reduced to a few levels per channel, and strong edges are inked on top.</p>
-        <div class="control"><label for="levels">Colour levels</label><output id="levelsOut">5</output>
-          <input type="range" id="levels" min="2" max="10" value="5"></div>
-      </section>
-
       <section class="panel" data-panel="hist" hidden>
         <div><span class="label">Exposure</span><h2>Histogram</h2></div>
         <p>How many pixels sit at each brightness, per channel. A pile at either end means clipped shadows or highlights.</p>
@@ -147,6 +194,35 @@
           <div><span class="label">Contrast (sd)</span><span class="big" id="sdB">–</span></div>
         </div>
         <p class="status" id="exposureNote"></p>
+      </section>
+
+      <section class="panel" data-panel="edges" hidden>
+        <div><span class="label">Sobel operator</span><h2>Edges</h2></div>
+        <p>Brightness gradients in x and y, combined into edge strength. Edges stronger than the threshold are drawn.</p>
+        <div class="control"><label for="edgeThr">Threshold</label><output id="edgeThrOut">60</output>
+          <input type="range" id="edgeThr" min="10" max="200" value="60"></div>
+        <div class="readout"><div><span class="label">Edge pixels</span><span class="big" id="edgeShare">–</span></div></div>
+      </section>
+
+      <section class="panel" data-panel="filters" hidden>
+        <div><span class="label">Pixel operations</span><h2>Filters</h2></div>
+        <p>Classic filters, applied pixel by pixel or with a small 3×3 kernel. Threshold picks its cut-off automatically with Otsu's method, the way many document scanners turn a photo black and white.</p>
+        <div class="control"><label for="filterKind">Filter</label><span></span>
+          <select id="filterKind">
+            <option value="gray">Grayscale</option><option value="sepia">Sepia</option><option value="invert">Invert</option>
+            <option value="threshold">Black and white (Otsu threshold)</option><option value="sharpen">Sharpen</option>
+            <option value="emboss">Emboss</option><option value="blur">Blur</option><option value="pixelate">Pixelate</option>
+          </select></div>
+        <div class="control" id="filterAmtRow" hidden><label for="filterAmt">Strength</label><output id="filterAmtOut">5</output>
+          <input type="range" id="filterAmt" min="1" max="10" value="5"></div>
+        <p class="status" id="filterNote"></p>
+      </section>
+
+      <section class="panel" data-panel="cartoon" hidden>
+        <div><span class="label">Posterize + edges</span><h2>Cartoon</h2></div>
+        <p>Colours are reduced to a few levels per channel, and strong edges are inked on top.</p>
+        <div class="control"><label for="levels">Colour levels</label><output id="levelsOut">5</output>
+          <input type="range" id="levels" min="2" max="10" value="5"></div>
       </section>
 
       <div class="sources"><button type="button" class="btn" id="saveBtn">Save this image</button></div>
@@ -160,24 +236,27 @@
   <section aria-labelledby="whatH" style="display:flex;flex-direction:column;gap:14px">
     <h2 id="whatH">Things to try</h2>
     <div class="cards">
-      <div class="card"><span class="label">Detect</span><h2>Point it at your desk</h2><p>Cups, bottles, phones, laptops, keyboards and books are all in the 80 classes. Lower the confidence to see what the network is unsure about.</p></div>
-      <div class="card"><span class="label">Count</span><h2>Count a doorway</h2><p>Choose People, put the line across the door and leave the phone on a shelf. Each person is counted once, in the direction they cross.</p></div>
-      <div class="card"><span class="label">Colour</span><h2>Measure ripeness</h2><p>Tap a banana or a leaf and watch the share of that colour. The same idea checks fruit, rust or labels on a factory line.</p></div>
-      <div class="card"><span class="label">Exposure</span><h2>Read a histogram</h2><p>Aim at a window, then at a dark corner, and see the pixels pile up at the bright or dark end.</p></div>
+      <div class="card"><span class="label">Detect &amp; count</span><h2>Count a doorway</h2><p>Choose People, put the line across the door and leave the phone on a shelf. Each person is counted once, in the direction they cross, and the log downloads as a spreadsheet.</p></div>
+      <div class="card"><span class="label">Privacy blur</span><h2>Share a street photo</h2><p>Open a photo of a crowded place and let the detector pixelate every person, or every number plate area, before you post it.</p></div>
+      <div class="card"><span class="label">Motion map</span><h2>Find the busy spot</h2><p>Leave the camera on a room or a shop shelf for a minute and the heat map shows where people actually walk and reach.</p></div>
+      <div class="card"><span class="label">QR scanner</span><h2>Scan a code safely</h2><p>See where a QR code points before you open it. Try the QR sample photo above.</p></div>
+      <div class="card"><span class="label">Colour palette</span><h2>Steal a colour scheme</h2><p>Point at a painting, a poster or a sunset and copy its main colours as hex codes for your slides or designs.</p></div>
+      <div class="card"><span class="label">Colour measure</span><h2>Measure ripeness</h2><p>Tap a banana or a leaf and watch the share of that colour. The same idea checks fruit, rust or labels on a factory line.</p></div>
     </div>
-    <p class="lede">Want to know how each tool works? Read <a href="guide.html">the guide</a>: how the detector finds objects, how the counter follows them, and where it fails.</p>
+    <p class="lede">Want to know how each tool works? Read <a href="guide.html">the guide</a>: how the detector finds objects, how the counter follows them, how k-means picks colours, and where each tool fails.</p>
   </section>
 
   <div class="ad wide" data-slot="footer"></div>
 
   <footer class="site">
     <nav aria-label="Footer"><a href="guide.html">How it works</a><a href="about.html">About</a><a href="privacy.html">Privacy</a></nav>
-    <span>Sample photos: astronaut Eileen Collins (NASA, public domain); coffee by Rachel Michetti and cat by Stéfan van der Walt (CC0), via scikit-image. Detector: COCO-SSD for TensorFlow.js (Apache 2.0).</span>
+    <span>Sample photos: astronaut Eileen Collins (NASA, public domain); coffee by Rachel Michetti and cat by Stéfan van der Walt (CC0), via scikit-image. Detector: COCO-SSD for TensorFlow.js (Apache 2.0). QR decoding: jsQR (Apache 2.0).</span>
   </footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="app.js"></script>
 <script src="ads.js"></script>
 </body>

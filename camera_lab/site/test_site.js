@@ -12,7 +12,8 @@ const srv = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': types[path.extname(p)] || 'application/octet-stream' }); res.end(data); });
 }).listen(8766);
 const LOCAL = { 'tf.min.js': `${npm}/tensorflow-tfjs-4.22.0/package/dist/tf.min.js`,
-                'coco-ssd.min.js': `${npm}/tensorflow-models-coco-ssd-2.2.3/package/dist/coco-ssd.min.js` };
+                'coco-ssd.min.js': `${npm}/tensorflow-models-coco-ssd-2.2.3/package/dist/coco-ssd.min.js`,
+                'jsQR.js': `${npm}/jsqr-1.4.0/package/dist/jsQR.js` };
 const BASE = 'http://localhost:8766/';
 let failures = 0;
 const check = (ok, msg) => { console.log((ok ? 'PASS ' : 'FAIL ') + msg); if (!ok) failures++; };
@@ -59,8 +60,8 @@ const waitDetected = (page) => page.waitForFunction(() => { const s = document.g
 
   await page.click("[data-sample='samples/astronaut.jpg']"); await waitDetected(page);
   for (const m of ['edges', 'colour', 'cartoon', 'hist']) {
-    await page.click(`.tab[data-mode='${m}']`);
-    if (m === 'colour') { const box = await page.locator('#view').boundingBox(); await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.3); }
+    await page.click(`.tool[data-mode='${m}']`);
+    if (m === 'colour') { const box = await page.locator('#view').boundingBox(); await page.locator('#view').click({ position: { x: box.width * 0.3, y: box.height * 0.3 } }); }
     await page.waitForTimeout(400);
     if (m === 'edges') fs.writeFileSync(path.join(site, 'guide/edges.png'), Buffer.from(await canvasPng(page), 'base64'));
     await page.locator('.grid').screenshot({ path: `${out}/mode_${m}.png` });
@@ -68,6 +69,45 @@ const waitDetected = (page) => page.waitForFunction(() => { const s = document.g
   console.log('edges', await page.textContent('#edgeShare'), '| colour', await page.textContent('#colourShare'),
     '| hist', await page.textContent('#meanB'), await page.textContent('#sdB'));
   check((await page.textContent('#colourShare')).endsWith('%'), 'colour measure reports a share');
+  // Privacy blur hides the astronaut; the pixelated region differs from the original.
+  await page.click(".tool[data-mode='blur']"); await page.waitForTimeout(800);
+  check((await page.textContent('#blurCount')) === '1', 'privacy blur: the astronaut is hidden (' + await page.textContent('#blurCount') + ')');
+  await page.locator('.grid').screenshot({ path: `${out}/mode_blur.png` });
+  await page.selectOption('#blurStyle', 'box'); await page.waitForTimeout(300);
+  await page.selectOption('#blurStyle', 'pixel');
+  // Palette: k colours whose shares add up to 100%.
+  await page.click(".tool[data-mode='palette']"); await page.waitForTimeout(500);
+  let pal = await page.evaluate(() => window.visionLab.palette.map((c) => c.share));
+  check(pal.length === 5 && Math.abs(pal.reduce((a, b) => a + b, 0) - 1) < 1e-9, `palette: 5 colours, shares sum to 1 (${pal.map((s) => (100 * s).toFixed(0)).join('/')})`);
+  await page.fill('#kColours', '8'); await page.dispatchEvent('#kColours', 'input'); await page.waitForTimeout(300);
+  check((await page.locator('#paletteList li').count()) === 8, 'palette: slider changes the number of colours to 8');
+  await page.locator('.grid').screenshot({ path: `${out}/mode_palette.png` });
+  // Filters: every kind runs; Otsu reports its cut-off.
+  await page.click(".tool[data-mode='filters']");
+  for (const k of ['gray', 'sepia', 'invert', 'threshold', 'sharpen', 'emboss', 'blur', 'pixelate']) {
+    await page.selectOption('#filterKind', k); await page.waitForTimeout(250);
+    if (k === 'threshold') { console.log('otsu:', await page.textContent('#filterNote')); check((await page.textContent('#filterNote')).includes('cut-off'), 'filters: Otsu threshold reports its cut-off'); }
+    if (k === 'blur') check(await page.isVisible('#filterAmt'), 'filters: strength slider shown for blur');
+    if (k === 'gray') check(!(await page.isVisible('#filterAmt')), 'filters: strength slider hidden for grayscale');
+  }
+  await page.locator('.grid').screenshot({ path: `${out}/mode_filters.png` });
+  // QR: the sample photo decodes to the site address and offers (not opens) the link.
+  await page.click(".tool[data-mode='qr']");
+  await page.click("[data-sample='samples/qr.jpg']"); await page.waitForTimeout(800);
+  console.log('qr:', await page.textContent('#qrResult'));
+  check((await page.textContent('#qrResult')) === 'https://daniel766hi.github.io/', 'qr: the sample decodes to the site address');
+  check(await page.isVisible('#qrLink') && (await page.getAttribute('#qrLink', 'rel')).includes('noopener'), 'qr: link shown, not opened, with rel=noopener');
+  await page.locator('.grid').screenshot({ path: `${out}/mode_qr.png` });
+  await page.click("[data-sample='samples/coffee.jpg']"); await page.waitForTimeout(800);
+  check((await page.textContent('#qrStatus')).startsWith('No QR code'), 'qr: a photo without a code says so');
+  // Motion needs the camera; on a still photo it explains that.
+  await page.click(".tool[data-mode='motion']"); await page.waitForTimeout(300);
+  check((await page.textContent('#motionNote')).includes('Start the camera'), 'motion: still photo asks for the camera');
+  // A tool can be opened from the address.
+  const p2 = await newPage(browser); await p2.goto(BASE + '#palette'); await p2.waitForTimeout(1500);
+  check(await p2.isVisible('[data-panel="palette"]'), 'link with #palette opens the palette tool');
+  await p2.close();
+  await page.click(".tool[data-mode='hist']");
   const dl = page.waitForEvent('download');
   await page.click('#saveBtn');
   check((await dl).suggestedFilename() === 'vision-lab-hist.png', 'save offers a PNG download');
@@ -87,9 +127,33 @@ const waitDetected = (page) => page.waitForFunction(() => { const s = document.g
   console.log('live hud:', await page.textContent('#hud'), '| counted down', c.a, 'up', c.b);
   check(c.a >= 2 && c.b === 0, `live counter: the person sliding down is counted down each pass (down ${c.a}, up ${c.b}; ~3 passes in 20 s)`);
   await page.locator('.grid').screenshot({ path: `${out}/live_counter.png` });
-  await page.click('.tab[data-mode="edges"]'); await page.waitForTimeout(800);
-  await page.click('.tab[data-mode="hist"]'); await page.waitForTimeout(800);
-  await page.click('.tab[data-mode="detect"]');
+  const csvDl = page.waitForEvent('download');
+  await page.click('#csvBtn');
+  const csvPath = await (await csvDl).path();
+  const csv = fs.readFileSync(csvPath, 'utf8').trim().split(/\r?\n/);
+  console.log('csv:', csv.slice(0, 3).join(' | '));
+  const nowCount = await page.evaluate(() => window.visionLab.counter.events.length);
+  check(csv[0] === '"timestamp","object","direction","track_id"' && Math.abs(csv.length - 1 - nowCount) <= 1 && csv[1].includes('"person","down"'),
+    `count log CSV: one row per counted crossing (${csv.length - 1} rows)`);
+  check((await page.locator('#countLog li').count()) >= 2, 'count log: recent crossings listed');
+  await page.click('.tool[data-mode="motion"]'); await page.waitForTimeout(4000);
+  const mv = await page.evaluate(() => ({ share: window.visionLab.motion.share, peak: window.visionLab.motion.peak }));
+  console.log('motion now', await page.textContent('#motionNow'), 'peak', await page.textContent('#motionPeak'));
+  check(mv.peak > 0.01, `motion: the sliding photo registers as motion (peak ${(100 * mv.peak).toFixed(1)}%)`);
+  await page.selectOption('#motionView', 'heat'); await page.waitForTimeout(1500);
+  await page.locator('.grid').screenshot({ path: `${out}/live_motion_heat.png` });
+  check(await page.isVisible('#recBtn'), 'record button shown while live');
+  await page.click('#recBtn'); await page.waitForTimeout(2500);
+  const recDl = page.waitForEvent('download');
+  await page.click('#recBtn');
+  const rec = await recDl;
+  const recSize = fs.statSync(await rec.path()).size;
+  check(/\.(webm|mp4)$/.test(rec.suggestedFilename()) && recSize > 10000, `recording: a ${rec.suggestedFilename()} of ${(recSize / 1024).toFixed(0)} KB downloads`);
+  await page.click('.tool[data-mode="blur"]'); await page.waitForTimeout(2500);
+  await page.locator('.grid').screenshot({ path: `${out}/live_blur.png` });
+  await page.click('.tool[data-mode="edges"]'); await page.waitForTimeout(800);
+  await page.click('.tool[data-mode="hist"]'); await page.waitForTimeout(800);
+  await page.click('.tool[data-mode="detect"]');
   await page.click('#freezeBtn'); await page.waitForTimeout(300);
   check(!(await page.evaluate(() => window.visionLab.live)), 'freeze stops the camera');
   check((await page.textContent('#hud')).startsWith('Frozen'), 'freeze keeps the frame');

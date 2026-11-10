@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>How Vision Lab works: object detection, line counting and image processing explained</title>
-<meta name="description" content="A plain-language guide to the tools in Vision Lab: how an SSD neural network finds objects, how a line counter follows them, and how edges, colour measurement and histograms work. With the limits of each.">
+<meta name="description" content="A plain-language guide to the tools in Vision Lab: object detection, line counting, privacy blur, motion heat maps, QR decoding, k-means colour palettes, Otsu thresholding, edges and histograms, with the limits of each.">
 <link rel="canonical" href="https://daniel766hi.github.io/guide.html">
 <meta property="og:type" content="article">
 <meta property="og:title" content="How Vision Lab works">
@@ -69,8 +69,31 @@
     <h2>6. Histogram: reading exposure</h2>
     <p>The histogram counts how many pixels sit at each brightness from 0 (black) to 255 (white), for red, green and blue. A pile at the left edge means shadows are crushed to black; a pile at the right edge means highlights are blown out to white. The lab also reports mean brightness and contrast (the standard deviation of brightness) and warns when more than 3% of pixels are clipped at either end.</p>
 
+    <h2>7. Privacy blur: using detection to hide things</h2>
+    <p>Privacy blur reuses the same detector, but instead of drawing a box it hides what is inside it. Each box is grown by 6% on every side (detector boxes are often tight around heads and hands) and then <em>pixelated</em>: the region is cut into square blocks and every block is filled with its average colour. A solid black box is the stricter option.</p>
+    <p><strong>Where it fails.</strong> It can only hide what the detector finds. A small, distant or half-hidden person may be missed and stay visible, which is why the default sensitivity is lower (30%) than for detection: here a false alarm costs little and a miss costs privacy. "Vehicles" hides whole cars, buses and motorcycles, which covers number plates but not much else; always look at the result before you share it.</p>
+
+    <h2>8. Motion map: frame differencing and a heat map</h2>
+    <p>The simplest way to find motion is to subtract each camera frame from the one before. Where nothing moved, the difference is close to zero; where something moved, it is large. Pixels whose brightness changed by more than the threshold are marked as moving, and their share of the frame is the "moving now" reading.</p>
+    <p>The heat map adds memory: every moving pixel adds to a running total that slowly fades (each frame keeps 99.5% of the old value), so places with repeated motion glow brighter than places that moved once. Retail and warehouse teams use the same idea to see which aisles, shelves or doors get the most traffic. Its weaknesses: a moving or shaking camera makes everything look like motion, and flickering lights or changing sunlight do too, so mount the phone still and use the threshold to ignore small changes.</p>
+
+    <h2>9. QR scanner</h2>
+    <p>QR codes are read with <em>jsQR</em>, an open-source decoder. It looks for the three square finder patterns in the corners, works out the grid from them, reads the black and white modules, and corrects errors with the Reed-Solomon code built into every QR code, which is why a slightly scratched code still reads. On the camera it tries a few times a second; on a photo it also tries the inverted image, for light-on-dark codes.</p>
+    <p>The scanner never opens a link by itself. QR codes are a common way to send people to fake login or payment pages, so it shows the full address first and lets you decide.</p>
+
+    <h2>10. Colour palette: k-means clustering</h2>
+    <p>The palette tool takes about 6,000 pixels spread evenly over the picture and groups them into <em>k</em> clusters with the <strong>k-means</strong> algorithm. It starts with k centres spread apart (the k-means++ method), assigns each pixel to its nearest centre in red-green-blue space, moves each centre to the average of its pixels, and repeats twelve times. Each final centre is a palette colour, and the share of pixels assigned to it is its size in the strip.</p>
+    <p>k-means is one of the most used algorithms in data analysis, for customer segments as much as for colours. It always gives exactly k groups, even if the picture really has three main colours and you asked for eight; then several palette entries are near-duplicates. Try different values of k and see where new colours stop being meaningfully different.</p>
+
+    <h2>11. Filters and Otsu's threshold</h2>
+    <p>Grayscale, sepia and invert change each pixel on its own. Sharpen, emboss and blur look at each pixel's neighbours through a small grid of weights (a <em>convolution kernel</em>): sharpen adds the difference between a pixel and its neighbours, emboss weighs one diagonal against the other, and blur averages a square around each pixel.</p>
+    <p>The black-and-white filter needs a cut-off: which brightness counts as white? <strong>Otsu's method</strong> picks it automatically by trying every value from 0 to 255 and keeping the one that best separates the image into two groups (the largest variance between the dark and the light group). Document scanners and many inspection systems use the same method to separate ink from paper or a part from its background.</p>
+
+    <h2>12. The count log</h2>
+    <p>Every crossing the line counter records gets a row in the count log: the time, the kind of object, the direction and the track number. "Download log (CSV)" saves it as a spreadsheet file, so you can chart arrivals per minute, compare in and out counts, or check the counter against a manual tally.</p>
+
     <h2>Why run it in the browser?</h2>
-    <p>All of this runs on your device with <a href="https://www.tensorflow.org/js">TensorFlow.js</a> and plain JavaScript. The camera picture never leaves your phone or computer, there is nothing to install, and it works on most recent phones. The cost is speed: a phone runs the lite detector a few times a second, while a desktop graphics card can run much larger models in real time.</p>
+    <p>All of this runs on your device with <a href="https://www.tensorflow.org/js">TensorFlow.js</a>, jsQR and plain JavaScript. The camera picture never leaves your phone or computer, there is nothing to install, and it works on most recent phones. The cost is speed: a phone runs the lite detector a few times a second, while a desktop graphics card can run much larger models in real time.</p>
     <p><a class="btn primary" href="./">Open the lab</a></p>
   </article>
 

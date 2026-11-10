@@ -105,6 +105,8 @@ class DatasetSpec:
     update_frequency: str = "daily"
     # For a weekly dataset: the weekday (0 = Monday) its scheduled run happens; other days are skipped.
     run_weekday: Optional[int] = None
+    # For a monthly dataset: the days of the month its scheduled run happens; other days are skipped.
+    run_days: tuple = ()
 
     def table(self, name):
         return next(t for t in self.tables if t.name == name)

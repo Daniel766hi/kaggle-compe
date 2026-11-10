@@ -45,6 +45,9 @@ def main(argv=None):
     if scheduled and spec.run_weekday is not None and snapshot_date.weekday() != spec.run_weekday:
         logging.info("%s updates weekly; skipping today's scheduled run", spec.name)
         return 0
+    if scheduled and spec.run_days and snapshot_date.day not in spec.run_days:
+        logging.info("%s updates monthly (days %s); skipping today's scheduled run", spec.name, spec.run_days)
+        return 0
 
     if args.dry_run:
         ref = f"{owner or 'your-kaggle-username'}/{spec.slug}"

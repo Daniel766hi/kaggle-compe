@@ -17,7 +17,7 @@
 2. Open the sources listed under "Residual check" in `model/data/VERIFICATION.md` (BPS tables, the elasticity paper's full text) and confirm the figures.
 3. Check every reference against the original (authors, year, volume, pages, DOI). The IPB article's authors are not yet listed.
 4. Read and, where relevant, cite the closely related MBG studies listed at the end of `literature_reading_list.md`.
-5. Keep the "Use of AI tools" declaration; journals require it.
+5. Fill in the journal's declarations (funding, competing interests, data availability, use of AI tools) in its submission form or template; the paper itself no longer contains them.
 6. Choose the journal and adapt the template.
 
 ## Rebuilding after a change

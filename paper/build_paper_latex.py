@@ -998,19 +998,6 @@ figure("fig_policy_tradeoff.png", "Protein cost per portion versus spike probabi
 exec((HERE / "paper_discussion.py").read_text())
 
 B.append(r"\clearpage")
-B.append(r"\section*{Declarations}")
-for lab_, txt in [
-        ("Funding", "This research received no external funding."),
-        ("Competing interests", "The author declares no competing interests."),
-        ("Data and code availability", "The Vensim model, the Python analysis code, the price extract and the "
-         "programme data with their sources are available from the author's repository "
-         "(github.com/daniel766hi/kaggle-compe, folder paper/)."),
-        ("Use of AI tools", "An AI assistant (Claude, Anthropic) was used to help develop the simulation and analysis "
-         "code, collect and process public data, and draft and edit the text. The author reviewed, revised and "
-         "verified all content, including every equation, data source and reference, and takes full responsibility "
-         "for the work.")]:
-    B.append(rf"\noindent\textbf{{{lab_}:}} " + T(txt) + "\n")
-
 # ================================================================== APPENDICES
 APP = [r"\onecolumn", r"\appendix", r"\section{Model Equations}\label{app:eq}", r"\scriptsize",
        r"\begin{longtable}{>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash\ttfamily}p{8.9cm}"

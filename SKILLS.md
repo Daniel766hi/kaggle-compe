@@ -1,6 +1,6 @@
 # Skills in this repository
 
-47 Claude Code skills live in `.claude/skills/`. Claude loads one automatically when your request matches what it
+69 Claude Code skills live in `.claude/skills/`. Claude loads one automatically when your request matches what it
 is for, or you can call one by name (`/caveman`, `/session-handoff`, ...). Each was copied from an open-source
 collection, kept with its license file, and reviewed before adding (see [Sources](#sources-and-licenses)).
 
@@ -19,10 +19,14 @@ collection, kept with its license file, and reviewed before adding (see [Sources
 | Find a process bottleneck | "where does work wait?" | `process-mapper` |
 | Check why the website does not rank | "SEO audit of index.html" | `seo-audit` |
 | Fix a bug without guessing | "this test fails" | `systematic-debugging` |
+| Keep code changes small and replies short | "ponytail", "simplest solution" | `ponytail` |
+| Make a page look polished | "critique and polish this page" | `impeccable` |
+| Check a site for accessibility | "a11y audit" | `accessibility` |
+| Look for security holes | "security review of this repo" | `security-audit` |
 
 ---
 
-## 1. Save tokens and make sessions last longer (6)
+## 1. Save tokens and make sessions last longer (7)
 
 A session ends when its context window fills up. These skills cut what goes into it, or let you continue cleanly
 in a new session.
@@ -35,6 +39,7 @@ in a new session.
 | `session-handoff` | Writes a handoff note (goal, current state, decisions, next steps, skills to load), pointing to files instead of copying them and redacting secrets, so a fresh session picks up where this one stopped. | "write a handoff", "I'm running low on context" |
 | `dispatching-parallel-agents` | Splits independent tasks across sub-agents; their work happens in their own context, and only the results come back. | "do these three things in parallel" |
 | `subagent-driven-development` | Runs each task of a plan in a fresh sub-agent with a review between tasks, keeping the main conversation small. | after `writing-plans`: "execute the plan with subagents" |
+| `ponytail` | Coding in "lazy senior dev" mode: the smallest change that fully solves the task and a reply you can read in one pass. It applies to coding tasks by default (levels lite, full, ultra). | "ponytail", "be lazy", "simplest solution" |
 
 **Habits that save more than any skill**
 
@@ -130,6 +135,49 @@ in a new session.
 |---|---|
 | `skill-creator` | Writing, testing and improving a new skill for this repo |
 
+## 11. From the Collective Brain catalogue (21 more, plus `ponytail` above)
+
+Picked from [collectivebrain.de/en/skills](https://collectivebrain.de/en/skills/) and copied from each author's own
+repository. The full catalogue of all 95 skills listed there, with the status of each, is in
+[`docs/collectivebrain_skills.md`](docs/collectivebrain_skills.md).
+
+**Web design and quality**
+
+| Skill | Use it for |
+|---|---|
+| `impeccable` | Designing, critiquing, auditing and polishing a frontend or design system. It runs a small analysis engine that it downloads from GitHub, pinned to one version and checked against SHA-256 hashes shipped with the skill |
+| `accessibility` | WCAG 2.2 audit of a website and fixes in the source |
+| `emil-design-eng` | UI polish, component design and animation decisions (Emil Kowalski's approach) |
+| `apple-design` | Apple-style gestures, spring animations, materials and typography on the web |
+| `review-animations` | Strict review of animation code; runs only when you call it by name |
+| `security-audit` | Security review of a codebase, API or service (Cloudflare) |
+
+**Code and tools** (most of these only matter in projects that use that tool)
+
+| Skill | Use it for | Needs |
+|---|---|---|
+| `tdd` | Test-first development, red-green-refactor (Matt Pocock) | |
+| `setup-matt-pocock-skills` | One-time setup of issue tracker and labels for Matt Pocock's engineering skills; runs only when called by name | |
+| `typescript-advanced-types` | Generics, conditional and mapped types in TypeScript | |
+| `playwright-cli` | Browser automation and Playwright tests from the command line | `@playwright/cli` |
+| `shadcn` | shadcn/ui components and design systems | a shadcn project |
+| `turborepo` | Turborepo monorepos: pipelines, caching | Turborepo |
+| `supabase-postgres-best-practices` | Postgres schemas, migrations, RLS, indexes and slow queries | Postgres |
+| `obsidian-markdown` | Obsidian notes: wikilinks, callouts, properties | Obsidian |
+| `obsidian-bases` | Obsidian Bases (`.base` files): views, filters, formulas | Obsidian |
+| `google-agents-cli-adk-code` | Writing agents with Google's Agent Development Kit | `agents-cli` |
+| `google-agents-cli-deploy` | Deploying ADK agents (Agent Runtime, Cloud Run, GKE) | `agents-cli`, Google Cloud |
+| `google-agents-cli-publish` | Registering agents with Gemini and Agent Registry | `agents-cli` |
+| `azure-ai` | Azure AI Search, Speech, OpenAI and Document Intelligence apps | Azure |
+| `lark-im` | Lark/Feishu messages and group chats (description in Chinese) | Lark CLI |
+| `herdr` | Controlling the Herdr terminal multiplexer; only when you mention Herdr | Herdr |
+
+**Not copied from that catalogue, and why**: 56 skills are hosted on collectivebrain.de with no license to republish
+them, so they are not stored here; install the ones you want on your own machine with
+`scripts/install_collectivebrain_skills.sh`. `find-skills` installs unvetted skills with `npx` on any "how do I"
+question; `agent-browser` tells Claude to prefer it over built-in web tools but needs a CLI that is not installed;
+`task-observer` runs during every multi-step task and writes logs; the SEO/GEO/AEO audit has no license.
+
 ---
 
 ## Sources and licenses
@@ -141,8 +189,24 @@ in a new session.
 | alirezarezvani/claude-skills | 8 | MIT | https://github.com/alirezarezvani/claude-skills | `08cd8a9` |
 | caveman (Julius Brussee) | 3 | Apache 2.0 | https://github.com/JuliusBrussee/caveman | `ad47375` |
 | Anthropic skills | 2 | Apache 2.0 | https://github.com/anthropics/skills | `2c5958e` |
+| emilkowalski/skills | 3 | MIT | https://github.com/emilkowalski/skills | `f7ce8c0` |
+| google/agents-cli | 3 | Apache 2.0 | https://github.com/google/agents-cli | `6eedbdc` |
+| mattpocock/skills | 2 | MIT | https://github.com/mattpocock/skills | `5863806` |
+| kepano/obsidian-skills | 2 | MIT | https://github.com/kepano/obsidian-skills | `3981277` |
+| pbakaus/impeccable | 1 | Apache 2.0 | https://github.com/pbakaus/impeccable | `c4cd192` |
+| addyosmani/web-quality-skills | 1 | MIT | https://github.com/addyosmani/web-quality-skills | `afa8da9` |
+| cloudflare/security-audit-skill | 1 | MIT | https://github.com/cloudflare/security-audit-skill | `c1c8a8c` |
+| dietrichgebert/ponytail | 1 | MIT | https://github.com/dietrichgebert/ponytail | `96608e0` |
+| wshobson/agents | 1 | MIT | https://github.com/wshobson/agents | `9c61ab2` |
+| microsoft/playwright-cli | 1 | Apache 2.0 | https://github.com/microsoft/playwright-cli | `b217248` |
+| microsoft/azure-skills | 1 | MIT | https://github.com/microsoft/azure-skills | `40a30c5` |
+| shadcn/ui | 1 | MIT | https://github.com/shadcn/ui | `e62c943` |
+| vercel/turborepo | 1 | MIT | https://github.com/vercel/turborepo | `805ec38` |
+| supabase/agent-skills | 1 | MIT | https://github.com/supabase/agent-skills | `c9be0e9` |
+| larksuite/cli | 1 | MIT | https://github.com/larksuite/cli | `3d82c85` |
+| herdrdev/herdr | 1 | Apache 2.0 | https://github.com/herdrdev/herdr | `ee5bfb5` |
 
-Each skill folder keeps its license file (the caveman skills also keep the project's `NOTICE`).
+Each skill folder keeps its license file (the caveman and impeccable skills also keep their project's `NOTICE`).
 
 **Changes from upstream**: in the obra/superpowers skills, references written as `superpowers:<skill>` now use the
 plain skill name, and references to superpowers skills not copied here (`finishing-a-development-branch`,

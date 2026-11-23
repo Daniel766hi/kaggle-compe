@@ -114,6 +114,36 @@ NOTEBOOKS = {
         "datasets": ["world-commodity-prices-monthly-pink-sheet"],
         "tags": ["economics", "finance", "time series analysis", "data visualization"],
     },
+    "electricity": {
+        "source": "notebooks/electricity_transition.py",
+        "title": "Who Still Runs on Coal? Power in 220 Countries",
+        "datasets": ["global-electricity-mix-generation-emissions"],
+        "tags": ["environment", "economics", "data visualization", "time series analysis"],
+    },
+    "idn-solar": {
+        "source": "notebooks/indonesia_solar.py",
+        "title": "Where Rooftop Solar Works Best in Indonesia",
+        "datasets": ["indonesia-solar-irradiance-38-provinces-nasa"],
+        "tags": ["weather and climate", "environment", "data visualization", "exploratory data analysis"],
+    },
+    "macro-asean": {
+        "source": "notebooks/asean_macro.py",
+        "title": "ASEAN at a Glance: Growth, Credit, Logistics",
+        "datasets": ["asean-g20-macro-indicators-world-bank"],
+        "tags": ["economics", "banking", "finance", "data visualization"],
+    },
+    "minerals": {
+        "source": "notebooks/world_minerals.py",
+        "title": "Indonesia on the Critical Minerals Map",
+        "datasets": ["world-mineral-production-reserves-usgs"],
+        "tags": ["economics", "earth and nature", "data visualization", "exploratory data analysis"],
+    },
+    "idn-retail": {
+        "source": "notebooks/indonesia_minimarkets.py",
+        "title": "Indomaret vs Alfamart: Who Leads Where?",
+        "datasets": ["indonesia-minimarket-network-indomaret-alfamart"],
+        "tags": ["retail and shopping", "business", "data visualization", "exploratory data analysis"],
+    },
     "olist-promise": {
         "source": "notebooks/olist_promise_cliff.py",
         "title": "The Promise Cliff: Delivery Dates vs Reviews",

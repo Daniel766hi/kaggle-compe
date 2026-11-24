@@ -162,6 +162,43 @@ class OverpassSession:
         return Resp(payload={"elements": overpass_elements(iso)})
 
 
+def test_retail_rotates_instances_retries_provinces_and_fetches_once(monkeypatch):
+    calls = []
+
+    class Flaky:
+        def post(self, url, data=None, timeout=None, headers=None):
+            iso = data["data"].split('"ISO3166-2"="')[1].split('"')[0]
+            calls.append((url, iso))
+            # The main instance is down; Bali fails everywhere on the first pass only.
+            if "overpass-api.de" in url or (iso == "ID-BA" and sum(1 for c in calls if c[1] == "ID-BA") <= 6):
+                return Resp(b"busy", status=502)
+            ok.add(iso)
+            return Resp(payload={"elements": overpass_elements(iso)})
+
+    ok = set()
+    rt.fetch_stores(Flaky(), pause_s=0, sleep=lambda s: None)
+    assert ok == set(rt.PROVINCES)  # every province answered in the end, Bali in the second pass
+    assert sum(1 for _, iso in calls if iso == "ID-BA") > 6
+    assert {u.split("/")[2] for u, _ in calls} > {"overpass-api.de"}  # other instances were used
+
+    class Down:
+        def __init__(self):
+            self.n = 0
+
+        def post(self, url, data=None, timeout=None, headers=None):
+            self.n += 1
+            return Resp(b"busy", status=504)
+
+    down = Down()
+    monkeypatch.setattr(rt, "make_session", lambda: down)
+    monkeypatch.setattr(rt.time, "sleep", lambda s: None)
+    fetchers = rt.make_fetchers(None, pd.Timestamp("2026-11-24"))
+    for name in ("stores", "chain_counts_snapshots"):
+        with pytest.raises(RuntimeError):
+            fetchers[name](None)
+    assert down.n == 2 * len(rt.PROVINCES) * 6  # two passes, six tries each, and no second download
+
+
 def test_retail_matches_chains_dedups_borders_and_summarizes(tmp_path, monkeypatch):
     monkeypatch.setattr(rt.time, "sleep", lambda s: None)
     stores = rt.fetch_stores(OverpassSession(busy=1), pause_s=0, sleep=lambda s: None)

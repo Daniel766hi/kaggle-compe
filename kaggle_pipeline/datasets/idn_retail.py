@@ -22,7 +22,13 @@ from ..schema import Column, DatasetSpec, Table, files_markdown
 log = logging.getLogger(__name__)
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets"
-OVERPASS = "https://overpass-api.de/api/interpreter"
+# Public Overpass instances, tried in turn: the main one is often overloaded (HTTP 502/504).
+OVERPASS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
 PAUSE_S = 8  # between provinces: Overpass is a shared, volunteer-run service
 
 PROVINCES = {  # ISO 3166-2 code -> province
@@ -117,20 +123,26 @@ def query(iso):
             'nwr(area.a)["shop"~"^(convenience|supermarket)$"];out center tags;')
 
 
-def overpass(session, iso, attempts=4, sleep=time.sleep):
+def overpass(session, iso, attempts=6, sleep=None):
+    """Elements for one province, rotating through the Overpass instances on errors."""
+    sleep = sleep or time.sleep
     for attempt in range(attempts):
+        url = OVERPASS[attempt % len(OVERPASS)]
         try:
-            resp = session.post(OVERPASS, data={"data": query(iso)}, timeout=300,
+            resp = session.post(url, data={"data": query(iso)}, timeout=300,
                                 headers={"User-Agent": "kaggle-compe-dataset-builder (github.com/daniel766hi/kaggle-compe)"})
             if resp.status_code in (429, 502, 503, 504):
                 raise RuntimeError(f"Overpass busy ({resp.status_code})")
             resp.raise_for_status()
-            return resp.json().get("elements", [])
-        except Exception as exc:  # noqa: BLE001 - retried, then raised
+            data = resp.json()
+            if "remark" in data and "runtime error" in str(data["remark"]).lower():
+                raise RuntimeError(f"Overpass query error: {data['remark'][:120]}")  # e.g. timed out on the server
+            return data.get("elements", [])
+        except Exception as exc:  # noqa: BLE001 - retried on the next instance, then raised
             if attempt == attempts - 1:
                 raise
-            log.warning("Overpass %s failed (%s); retrying", iso, exc)
-            sleep(60 * (attempt + 1))
+            log.warning("Overpass %s failed on %s (%s); trying the next instance", iso, url.split("/")[2], exc)
+            sleep(20 * (attempt // len(OVERPASS) + 1))
     return []
 
 
@@ -158,15 +170,32 @@ def tidy(elements, province):
     return rows
 
 
-def fetch_stores(session, pause_s=PAUSE_S, sleep=time.sleep):
-    rows = []
-    for iso, province in PROVINCES.items():
-        elements = overpass(session, iso, sleep=sleep)
-        if not elements:
-            log.warning("No stores returned for %s (%s)", province, iso)
-        rows += tidy(elements, province)
-        log.info("Overpass %s: %d stores", province, len(elements))
-        sleep(pause_s)
+def fetch_stores(session, pause_s=PAUSE_S, sleep=None):
+    """All provinces; a province that fails is retried in a second pass, and the run fails if any still fails,
+    so a published snapshot never silently misses a province."""
+    sleep = sleep or time.sleep
+    rows, failed = [], []
+    for attempt in (1, 2):
+        todo = list(PROVINCES.items()) if attempt == 1 else failed
+        failed = []
+        for iso, province in todo:
+            try:
+                elements = overpass(session, iso, sleep=sleep)
+            except Exception as exc:  # noqa: BLE001 - retried in the second pass
+                log.warning("Overpass %s (%s) failed: %s", province, iso, exc)
+                failed.append((iso, province))
+                continue
+            if not elements:
+                log.warning("No stores returned for %s (%s)", province, iso)
+            rows += tidy(elements, province)
+            log.info("Overpass %s: %d stores", province, len(elements))
+            sleep(pause_s)
+        if not failed:
+            break
+        log.warning("Retrying %d provinces: %s", len(failed), [p for _, p in failed])
+        sleep(120)
+    if failed:
+        raise RuntimeError(f"Overpass failed for {len(failed)} provinces: {[p for _, p in failed]}")
     df = pd.DataFrame(rows, columns=STORES.column_names)
     # A store on a province border can come back for both provinces; keep the first.
     return df.drop_duplicates(["osm_type", "osm_id"]).sort_values(["province", "chain", "osm_id"]).reset_index(drop=True)
@@ -182,8 +211,14 @@ def make_fetchers(_, snapshot_date):
     cache = {}
 
     def stores():
+        # Fetch once: if it fails, the counts table must not start the whole download again.
         if "s" not in cache:
-            cache["s"] = fetch_stores(session)
+            try:
+                cache["s"] = fetch_stores(session)
+            except Exception as exc:  # noqa: BLE001 - re-raised for both tables
+                cache["s"] = exc
+        if isinstance(cache["s"], Exception):
+            raise cache["s"]
         return cache["s"]
 
     return {"stores": lambda previous: stores(), "chain_counts_snapshots": lambda previous: counts(stores(), snapshot_date)}

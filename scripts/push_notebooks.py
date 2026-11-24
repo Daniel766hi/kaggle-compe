@@ -144,6 +144,12 @@ NOTEBOOKS = {
         "datasets": ["indonesia-minimarket-network-indomaret-alfamart"],
         "tags": ["retail and shopping", "business", "data visualization", "exploratory data analysis"],
     },
+    "anime": {
+        "source": "notebooks/anime_database.py",
+        "title": "Fifty Years of Anime: What Gets Made and Loved",
+        "datasets": ["anime-database-scores-studios-tags-franchises"],
+        "tags": ["movies and tv shows", "popular culture", "data visualization", "exploratory data analysis"],
+    },
     "olist-promise": {
         "source": "notebooks/olist_promise_cliff.py",
         "title": "The Promise Cliff: Delivery Dates vs Reviews",

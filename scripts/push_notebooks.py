@@ -150,6 +150,18 @@ NOTEBOOKS = {
         "datasets": ["anime-database-scores-studios-tags-franchises"],
         "tags": ["movies and tv shows", "popular culture", "data visualization", "exploratory data analysis"],
     },
+    "airports": {
+        "source": "notebooks/world_airports.py",
+        "title": "Airports of the World and Indonesia's Airstrips",
+        "datasets": ["world-airports-runways-ourairports"],
+        "tags": ["geography", "data visualization", "exploratory data analysis", "business"],
+    },
+    "policy-rates": {
+        "source": "notebooks/policy_rates.py",
+        "title": "Who Follows the Fed? 70 Years of Policy Rates",
+        "datasets": ["central-bank-policy-rates-daily-bis"],
+        "tags": ["finance", "banking", "economics", "time series analysis"],
+    },
     "olist-promise": {
         "source": "notebooks/olist_promise_cliff.py",
         "title": "The Promise Cliff: Delivery Dates vs Reviews",

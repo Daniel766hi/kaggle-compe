@@ -129,7 +129,7 @@ def overpass(session, iso, attempts=6, sleep=None):
     for attempt in range(attempts):
         url = OVERPASS[attempt % len(OVERPASS)]
         try:
-            resp = session.post(url, data={"data": query(iso)}, timeout=300,
+            resp = session.post(url, data={"data": query(iso)}, timeout=200,
                                 headers={"User-Agent": "kaggle-compe-dataset-builder (github.com/daniel766hi/kaggle-compe)"})
             if resp.status_code in (429, 502, 503, 504):
                 raise RuntimeError(f"Overpass busy ({resp.status_code})")
@@ -137,7 +137,10 @@ def overpass(session, iso, attempts=6, sleep=None):
             data = resp.json()
             if "remark" in data and "runtime error" in str(data["remark"]).lower():
                 raise RuntimeError(f"Overpass query error: {data['remark'][:120]}")  # e.g. timed out on the server
-            return data.get("elements", [])
+            if not data.get("elements"):
+                # Every province has mapped shops; an empty answer means an instance without that area indexed.
+                raise RuntimeError("empty answer")
+            return data["elements"]
         except Exception as exc:  # noqa: BLE001 - retried on the next instance, then raised
             if attempt == attempts - 1:
                 raise

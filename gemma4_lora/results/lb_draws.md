@@ -34,7 +34,8 @@ draws), so configs are compared by the mean of several draws, not by one score. 
 | 2026-11-22 | 58740710 | `agent/locate` draw 17 | 5bf7501e | 0.17 | 10 | locate mean of 17 draws 9.53; scored after ~33 h |
 | 2026-11-24 | 58813208 | `agent/locate` draw 18 | 5bf7501e | 0.17 | 10 | locate mean of 18 draws 9.56; scored after ~33 h |
 | 2026-11-25 | 58893013 | `agent/locate` draw 19 | 5bf7501e | 0.17 | 10 | locate mean of 19 draws 9.58; scored after ~33 h |
-| 2026-11-26 | pending | `agent/locate` draw 20 (58970132) | 5bf7501e | | | |
+| 2026-11-26 | 58970132 | `agent/locate` draw 20 | 5bf7501e | 0.15 | 9 | locate mean of 20 draws 9.55; scored after ~31 h |
+| 2026-11-28 | pending | `agent/locate` draw 21 (59038956) | 5bf7501e | | | |
 
 Reference means from the census (2026-10-22): Budget-Fit 10.00 over 10 draws; Budget-Aware v2 8.71
 over 7 later draws (first draw 13).
